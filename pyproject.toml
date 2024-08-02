@@ -1,0 +1,21 @@
+[project]
+name = "compendiumscribe"
+version = "0.1.0"
+description = "A package for creating, analyzing, and retrieving hierarchical, segmented, and keyword-tagged collections of information to augment in-context learning for AI applications."
+authors = [
+    {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
+]
+dependencies = [
+    "promptdown>=0.7.5",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
