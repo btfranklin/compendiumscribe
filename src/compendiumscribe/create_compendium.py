@@ -135,7 +135,7 @@ def enhance_domain(llm_client: OpenAI, domain: str) -> str:
     model_name = os.environ.get("ENHANCE_DOMAIN_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="enhance_domain.prompt.md",
+        resource_name="1_enhance_domain.prompt.md",
     )
     structured_prompt.apply_template_values({"domain": domain})
     messages = structured_prompt.to_chat_completion_messages()
@@ -154,7 +154,7 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
     number_of_areas = os.environ.get("NUMBER_OF_AREAS_OF_RESEARCH", "10")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="create_areas_of_research.prompt.md",
+        resource_name="2_create_areas_of_research.prompt.md",
     )
     structured_prompt.apply_template_values(
         {
@@ -196,7 +196,7 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     number_of_questions = os.environ.get("NUMBER_OF_QUESTIONS_PER_AREA", "10")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="create_research_questions.prompt.md",
+        resource_name="3_create_research_questions.prompt.md",
     )
     structured_prompt.apply_template_values(
         {
@@ -247,7 +247,7 @@ def answer_research_question(online_llm_client: OpenAI, question: str) -> str:
     )
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="research_and_generate_answer.prompt.md",
+        resource_name="4_research_and_generate_answer.prompt.md",
     )
     structured_prompt.apply_template_values({"question": question})
     messages = structured_prompt.to_chat_completion_messages()
@@ -273,7 +273,7 @@ def generate_topics_from_research_findings(
     )
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="generate_topics_from_research_findings.prompt.md",
+        resource_name="6_generate_topics_from_research_findings.prompt.md",
     )
     structured_prompt.apply_template_values({"research_findings": research_findings})
     messages = structured_prompt.to_chat_completion_messages()
@@ -300,7 +300,7 @@ def generate_topic(
     model_name = os.environ.get("GENERATE_TOPIC_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="generate_topic.prompt.md",
+        resource_name="7_generate_topic.prompt.md",
     )
     structured_prompt.apply_template_values(
         {"topic_name": topic_name, "research_findings": research_findings}
@@ -333,7 +333,7 @@ def generate_domain_summary(llm_client: OpenAI, compendium_domain: Domain) -> st
     topics_content = "\n".join([topic.content for topic in compendium_domain.topics])
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="generate_domain_summary.prompt.md",
+        resource_name="8_generate_domain_summary.prompt.md",
     )
     structured_prompt.apply_template_values(
         {"domain_name": compendium_domain.name, "topics_content": topics_content}
