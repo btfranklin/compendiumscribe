@@ -1,6 +1,5 @@
 import sys
 import click
-from dotenv import load_dotenv
 
 from compendiumscribe.create_compendium import create_compendium
 
@@ -15,8 +14,6 @@ def main(domain: str):
     """
     Command-line entry point for creating a compendium.
     """
-    # Load environment variables from the .env file
-    load_dotenv()
 
     try:
         create_compendium(domain)
