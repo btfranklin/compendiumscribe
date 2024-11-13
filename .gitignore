@@ -165,5 +165,8 @@ cython_debug/
 .vscode/
 .idea/
 
+# Pickled Pipeline cache
+pipeline_cache/
+
 # macOS
 .DS_Store

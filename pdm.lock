@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:3623fc8a376fb9ae05bd2847e08f32963d5b0e5c472c9bae040231721f917888"
+content_hash = "sha256:83a6832119c7dfd487f9071a8cb5610c489f662122b1f6891aba771b3182a29d"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -209,8 +209,8 @@ files = [
 
 [[package]]
 name = "openai"
-version = "1.40.6"
-requires_python = ">=3.7.1"
+version = "1.54.3"
+requires_python = ">=3.8"
 summary = "The official Python library for the openai API"
 groups = ["default"]
 dependencies = [
@@ -225,8 +225,8 @@ dependencies = [
     "typing-extensions<5,>=4.11",
 ]
 files = [
-    {file = "openai-1.40.6-py3-none-any.whl", hash = "sha256:b36372124a779381a420a34dd96f762baa748b6bdfaf83a6b9f2745f72ccc1c5"},
-    {file = "openai-1.40.6.tar.gz", hash = "sha256:2239232bcb7f4bd4ce8e02544b5769618582411cf399816d96686d1b6c1e5c8d"},
+    {file = "openai-1.54.3-py3-none-any.whl", hash = "sha256:f18dbaf09c50d70c4185b892a2a553f80681d1d866323a2da7f7be2f688615d5"},
+    {file = "openai-1.54.3.tar.gz", hash = "sha256:7511b74eeb894ac0b0253dc71f087a15d2e4d71d22d0088767205143d880cca6"},
 ]
 
 [[package]]
@@ -238,6 +238,20 @@ groups = ["dev"]
 files = [
     {file = "packaging-24.1-py3-none-any.whl", hash = "sha256:5b8f2217dbdbd2f7f384c41c628544e6d52f2d0f53c6d0c3ea61aa5d1d7ff124"},
     {file = "packaging-24.1.tar.gz", hash = "sha256:026ed72c8ed3fcce5bf8950572258698927fd1dbda10a5e981cdf0ac37f4f002"},
+]
+
+[[package]]
+name = "pickled-pipeline"
+version = "0.2.0"
+requires_python = ">=3.10"
+summary = "A package for caching repeat runs of pipelines that have expensive operations along the way"
+groups = ["default"]
+dependencies = [
+    "click>=8.1.7",
+]
+files = [
+    {file = "pickled_pipeline-0.2.0-py3-none-any.whl", hash = "sha256:ad5f8564cc6657f88765a6a9ace7a74f576b92faa7e939c43afd29decaed2eec"},
+    {file = "pickled_pipeline-0.2.0.tar.gz", hash = "sha256:398a88e918113f9a011cd55fd911a94712874b4fc09e71365f5f8804299ef10a"},
 ]
 
 [[package]]
@@ -340,7 +354,7 @@ files = [
 
 [[package]]
 name = "pytest"
-version = "8.3.2"
+version = "8.3.3"
 requires_python = ">=3.8"
 summary = "pytest: simple powerful testing with Python"
 groups = ["dev"]
@@ -353,8 +367,8 @@ dependencies = [
     "tomli>=1; python_version < \"3.11\"",
 ]
 files = [
-    {file = "pytest-8.3.2-py3-none-any.whl", hash = "sha256:4ba08f9ae7dcf84ded419494d229b48d0903ea6407b030eaec46df5e6a73bba5"},
-    {file = "pytest-8.3.2.tar.gz", hash = "sha256:c132345d12ce551242c87269de812483f5bcc87cdbb4722e48487ba194f9fdce"},
+    {file = "pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2"},
+    {file = "pytest-8.3.3.tar.gz", hash = "sha256:70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181"},
 ]
 
 [[package]]
