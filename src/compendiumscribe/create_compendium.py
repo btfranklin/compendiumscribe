@@ -6,8 +6,11 @@ from colorama import Fore, Back
 from openai import OpenAI
 from dotenv import load_dotenv
 from promptdown import StructuredPrompt
+from pickled_pipeline import Cache
 
 from .model import Domain, Topic
+
+cache = Cache()
 
 
 def create_compendium(domain: str) -> Domain:
@@ -127,10 +130,11 @@ def create_compendium(domain: str) -> Domain:
     return compendium_domain
 
 
+@cache.checkpoint(exclude_args=["llm_client"])
 def enhance_domain(llm_client: OpenAI, domain: str) -> str:
     model_name = os.environ.get("ENHANCE_DOMAIN_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="enhance_domain.prompt.md",
     )
     structured_prompt.apply_template_values({"domain": domain})
@@ -149,7 +153,7 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
     model_name = os.environ.get("CREATE_AREAS_OF_RESEARCH_LLM", "gpt-4o")
     number_of_areas = os.environ.get("NUMBER_OF_AREAS_OF_RESEARCH", "10")
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="create_areas_of_research.prompt.md",
     )
     structured_prompt.apply_template_values(
@@ -191,7 +195,7 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     model_name = os.environ.get("CREATE_RESEARCH_QUESTIONS_LLM", "gpt-4o")
     number_of_questions = os.environ.get("NUMBER_OF_QUESTIONS_PER_AREA", "10")
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="create_research_questions.prompt.md",
     )
     structured_prompt.apply_template_values(
@@ -242,7 +246,7 @@ def answer_research_question(online_llm_client: OpenAI, question: str) -> str:
         "ANSWER_RESEARCH_QUESTION_LLM", "llama-3.1-sonar-huge-128k-online"
     )
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="research_and_generate_answer.prompt.md",
     )
     structured_prompt.apply_template_values({"question": question})
@@ -268,7 +272,7 @@ def generate_topics_from_research_findings(
         "GENERATE_TOPICS_FROM_RESEARCH_FINDINGS_LLM", "o1-preview"
     )
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="generate_topics_from_research_findings.prompt.md",
     )
     structured_prompt.apply_template_values({"research_findings": research_findings})
@@ -295,7 +299,7 @@ def generate_topic(
 ) -> Topic:
     model_name = os.environ.get("GENERATE_TOPIC_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="generate_topic.prompt.md",
     )
     structured_prompt.apply_template_values(
@@ -328,7 +332,7 @@ def generate_domain_summary(llm_client: OpenAI, compendium_domain: Domain) -> st
     model_name = os.environ.get("GENERATE_DOMAIN_SUMMARY_LLM", "gpt-4o")
     topics_content = "\n".join([topic.content for topic in compendium_domain.topics])
     structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe",
+        package="compendiumscribe.prompts",
         resource_name="generate_domain_summary.prompt.md",
     )
     structured_prompt.apply_template_values(
