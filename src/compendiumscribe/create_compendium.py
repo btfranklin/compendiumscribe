@@ -149,6 +149,7 @@ def enhance_domain(llm_client: OpenAI, domain: str) -> str:
     return enhanced_domain
 
 
+@cache.checkpoint(exclude_args=["llm_client"])
 def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
     model_name = os.environ.get("CREATE_AREAS_OF_RESEARCH_LLM", "gpt-4o")
     number_of_areas = os.environ.get("NUMBER_OF_AREAS_OF_RESEARCH", "10")
