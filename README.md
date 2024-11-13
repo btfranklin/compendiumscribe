@@ -107,9 +107,9 @@ The Compendium Scribe is implemented as a Python library that can be used either
 If used in code, Compendium Scribe will assume the API keys needed are available in the environment variables. Usage is simple and straightforward:
 
 ```python
-from compendiumscribe import compile_compendium
+from compendiumscribe import create_compendium
 
-compile_compendium(domain="flutes, both traditional and modern")
+create_compendium(domain="flutes, both traditional and modern")
 ```
 
 ### CLI
@@ -117,5 +117,5 @@ compile_compendium(domain="flutes, both traditional and modern")
 When used as a CLI, Compendium Scribe will assume the API keys needed are available in the current environment. Usage is simple and straightforward:
 
 ```zsh
-compendium-scribe-compile-compendium --outputdir . --topic "flutes, both traditional and modern"
+compendium-scribe-create-compendium --domain "flutes, both traditional and modern"
 ```
