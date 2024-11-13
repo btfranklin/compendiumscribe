@@ -27,17 +27,6 @@ def create_compendium(domain: str) -> Domain:
     # Load environment variables from .env file
     load_dotenv()
 
-    # Retrieve the output level from the environment variables
-    output_level = os.getenv("OUTPUT_LEVEL", "VERBOSE").upper()
-
-    # Validate the output level
-    valid_levels = {"SILENT", "NORMAL", "VERBOSE"}
-    if output_level not in valid_levels:
-        print(
-            f"Invalid OUTPUT_LEVEL '{output_level}' in .env. Defaulting to 'VERBOSE'."
-        )
-        output_level = "VERBOSE"
-
     openai_api_key = os.environ.get("OPENAI_API_KEY")
     perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
 
@@ -58,51 +47,35 @@ def create_compendium(domain: str) -> Domain:
     # Initialize colorama
     colorama.init(autoreset=True)
 
-    # Define logging levels
-    LOG_LEVELS = {"SILENT": 0, "NORMAL": 1, "VERBOSE": 2}
-    current_level = LOG_LEVELS.get(output_level.upper(), 2)  # Default to VERBOSE
-
-    def log(message: str, level: str = "NORMAL"):
-        """
-        Conditional logging based on the output level.
-        """
-        level_value = LOG_LEVELS.get(level.upper(), 1)
-        if current_level >= level_value:
-            print(message)
-
-    log(
-        f"{Back.BLUE}{Fore.WHITE} CREATING COMPENDIUM ",
-        "VERBOSE",
-    )
+    print(f"{Back.BLUE}{Fore.WHITE} CREATING COMPENDIUM ")
 
     # Step 1: Enhance the provided domain of expertise
     enhanced_domain = enhance_domain(llm_client, domain)
-    log(f"Enhanced Domain: {enhanced_domain}", "NORMAL")
+    print(f"Enhanced Domain: {enhanced_domain}")
 
     # Create the Domain object
     compendium_domain = Domain(name=enhanced_domain)
 
     # Step 2: Create a comprehensive list of Areas of Research
     areas_of_research = create_areas_of_research(llm_client, enhanced_domain)
-    log(f"Areas of Research: {areas_of_research}", "NORMAL")
+    print(f"Areas of Research: {areas_of_research}")
 
     # For each Area of Research
     research_findings = []
     for area in areas_of_research:
-        log(f"Processing Area of Research: {area}", "VERBOSE")
+        print(f"Processing Area of Research: {area}")
         # Step 3: Create a collection of Research Questions
-        research_questions = create_research_questions(llm_client, domain, area)
-        log(f"Research Questions for '{area}': {research_questions}", "VERBOSE")
+        research_questions = create_research_questions(
+            llm_client, enhanced_domain, area
+        )
+        print(f"Research Questions for '{area}': {research_questions}")
         area_research_findings = ""
         # Step 4: Answer each Research Question
         for question in research_questions:
-            log(f"Answering Question: {question}", "VERBOSE")
+            print(f"Answering Question: {question}")
             answer = answer_research_question(online_llm_client, question)
             if not answer:
-                log(
-                    f"{Fore.YELLOW}Failed to answer question: {question}",
-                    "NORMAL",
-                )
+                print(f"{Fore.YELLOW}Failed to answer question: {question}")
                 continue
             # Step 5: Add the question and answer to the Research Findings
             area_research_findings += f"<block><question>{question}</question><answer>{answer}</answer></block>\n"
@@ -115,17 +88,17 @@ def create_compendium(domain: str) -> Domain:
     topic_names = generate_topics_from_research_findings(
         llm_client, combined_research_findings
     )
-    log(f"Generated Topic Names: {topic_names}", "NORMAL")
+    print(f"Generated Topic Names: {topic_names}")
 
     # Step 7: Generate detailed Topics
     for topic_name in topic_names:
-        log(f"Generating Topic: {topic_name}", "VERBOSE")
+        print(f"Generating Topic: {topic_name}")
         topic = generate_topic(llm_client, topic_name, combined_research_findings)
         compendium_domain.topics.append(topic)
 
     # Step 8: Generate Domain Summary
     compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
-    log(f"Domain Summary: {compendium_domain.summary}", "NORMAL")
+    print(f"Domain Summary: {compendium_domain.summary}")
 
     return compendium_domain
 
@@ -177,7 +150,7 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
             raise ValueError("Areas of Research should be a list.")
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Areas of Research: {e}")
-        areas = []
+        sys.exit(1)
     return areas
 
 
