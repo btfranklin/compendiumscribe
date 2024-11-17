@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:83a6832119c7dfd487f9071a8cb5610c489f662122b1f6891aba771b3182a29d"
+content_hash = "sha256:d531934fb1a545169457d8eb3c4a3881f64ff5417bcc5db5714943d757b93f54"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -209,7 +209,7 @@ files = [
 
 [[package]]
 name = "openai"
-version = "1.54.3"
+version = "1.54.4"
 requires_python = ">=3.8"
 summary = "The official Python library for the openai API"
 groups = ["default"]
@@ -225,8 +225,8 @@ dependencies = [
     "typing-extensions<5,>=4.11",
 ]
 files = [
-    {file = "openai-1.54.3-py3-none-any.whl", hash = "sha256:f18dbaf09c50d70c4185b892a2a553f80681d1d866323a2da7f7be2f688615d5"},
-    {file = "openai-1.54.3.tar.gz", hash = "sha256:7511b74eeb894ac0b0253dc71f087a15d2e4d71d22d0088767205143d880cca6"},
+    {file = "openai-1.54.4-py3-none-any.whl", hash = "sha256:0d95cef99346bf9b6d7fbf57faf61a673924c3e34fa8af84c9ffe04660673a7e"},
+    {file = "openai-1.54.4.tar.gz", hash = "sha256:50f3656e45401c54e973fa05dc29f3f0b0d19348d685b2f7ddb4d92bf7b1b6bf"},
 ]
 
 [[package]]
@@ -267,13 +267,13 @@ files = [
 
 [[package]]
 name = "promptdown"
-version = "0.7.5"
+version = "0.8.0"
 requires_python = ">=3.10"
 summary = "A package for loading promptdown files, which are a special type of markdown file for defining structured LLM prompts"
 groups = ["default"]
 files = [
-    {file = "promptdown-0.7.5-py3-none-any.whl", hash = "sha256:634f3f36890427ff642ac6df0733aa6195593623b60d4832d3aa067db66b5527"},
-    {file = "promptdown-0.7.5.tar.gz", hash = "sha256:19ff71f979d3143bad622220bf26f23f6a1bdc55fea7a12dab2dc66efeabdf19"},
+    {file = "promptdown-0.8.0-py3-none-any.whl", hash = "sha256:fbf09cdbe98e0b165624a70bf1c5ad3b6a55cba16b562fc15fa0746c2ab9a731"},
+    {file = "promptdown-0.8.0.tar.gz", hash = "sha256:ec6a14b03136381ef7644e0ac70c3db863c8f8d0f71fbb25cc5cbd9493517d93"},
 ]
 
 [[package]]
