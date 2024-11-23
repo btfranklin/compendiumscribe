@@ -79,7 +79,7 @@ Here is the "from scratch" workflow:
 4. For each Area of Research:
     1. An LLM is used to create a collection of Research Questions.
     2. For each of the Research Questions:
-        1. Use an online-enabled LLM (such as Perplexity or SearchGPT) to answer the Research Question.
+        1. Use an online-enabled LLM (such as Perplexity) to answer the Research Question.
         2. Add the provided question and answer to the Research Findings for the Area of Research. The Research Findings are just one big XML string divided into blocks, with each block representing the answer to a single question.
 5. Use an LLM that is strong at summarizing (such as GPT-4o) to analyze the Research Findings and generate a structured list of Topics. Store the planned structure in memory as placeholders to facilitate the next steps.
 6. Use a reasoning-specialized LLM (such as o1) to generate all of the Topics, using the Research Findings as context. Each Topic has:
