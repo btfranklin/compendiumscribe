@@ -47,32 +47,27 @@ def create_compendium(domain: str) -> Domain:
     # Initialize colorama
     colorama.init(autoreset=True)
 
-    print(f"{Back.BLUE}{Fore.WHITE} CREATING COMPENDIUM ")
+    print(f"{Back.BLUE} CREATING COMPENDIUM ")
 
     # Step 1: Enhance the provided domain of expertise
     enhanced_domain = enhance_domain(llm_client, domain)
-    print(f"Enhanced Domain: {enhanced_domain}")
 
     # Create the Domain object
     compendium_domain = Domain(name=enhanced_domain)
 
     # Step 2: Create a comprehensive list of Areas of Research
     areas_of_research = create_areas_of_research(llm_client, enhanced_domain)
-    print(f"Areas of Research: {areas_of_research}")
 
     # For each Area of Research
     research_findings = []
     for area in areas_of_research:
-        print(f"Processing Area of Research: {area}")
         # Step 3: Create a collection of Research Questions
         research_questions = create_research_questions(
             llm_client, enhanced_domain, area
         )
-        print(f"Research Questions for '{area}': {research_questions}")
         area_research_findings = ""
         # Step 4: Answer each Research Question
         for question in research_questions:
-            print(f"Answering Question: {question}")
             answer = answer_research_question(online_llm_client, question)
             if not answer:
                 print(f"{Fore.YELLOW}Failed to answer question: {question}")
@@ -88,17 +83,14 @@ def create_compendium(domain: str) -> Domain:
     topic_names = generate_topics_from_research_findings(
         llm_client, combined_research_findings
     )
-    print(f"Generated Topic Names: {topic_names}")
 
     # Step 7: Generate detailed Topics
     for topic_name in topic_names:
-        print(f"Generating Topic: {topic_name}")
         topic = generate_topic(llm_client, topic_name, combined_research_findings)
         compendium_domain.topics.append(topic)
 
     # Step 8: Generate Domain Summary
     compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
-    print(f"Domain Summary: {compendium_domain.summary}")
 
     return compendium_domain
 
@@ -119,6 +111,7 @@ def enhance_domain(llm_client: OpenAI, domain: str) -> str:
         max_tokens=100,
     )
     enhanced_domain = response.choices[0].message.content.strip()
+    print(f"{Fore.BLUE}Enhanced Domain:{Fore.RESET} {enhanced_domain}")
     return enhanced_domain
 
 
@@ -145,15 +138,23 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
     )
     areas_text = response.choices[0].message.content.strip()
     try:
-        areas = json.loads(areas_text)
-        if not isinstance(areas, list):
+        # If the text is wrapped in ```json...``` format, remove those indicators
+        if areas_text.startswith("```json") and areas_text.endswith("```"):
+            areas_text = areas_text[7:-3]
+
+        # Parse the JSON response
+        areas_of_research = json.loads(areas_text)
+        if not isinstance(areas_of_research, list):
             raise ValueError("Areas of Research should be a list.")
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Areas of Research: {e}")
         sys.exit(1)
-    return areas
+
+    print(f"{Fore.BLUE}Areas of Research:{Fore.RESET} {areas_of_research}")
+    return areas_of_research
 
 
+@cache.checkpoint(exclude_args=["llm_client"])
 def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> list[str]:
     """
     Generate a list of research questions for a given domain and area.
@@ -166,6 +167,10 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     Returns:
     - list[str]: A list of research questions.
     """
+    print(
+        f"{Fore.BLUE}Creating research questions for Area of Research:{Fore.RESET} {area}"
+    )
+
     model_name = os.environ.get("CREATE_RESEARCH_QUESTIONS_LLM", "gpt-4o")
     number_of_questions = os.environ.get("NUMBER_OF_QUESTIONS_PER_AREA", "10")
     structured_prompt = StructuredPrompt.from_package_resource(
@@ -188,6 +193,10 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     )
     questions_text = response.choices[0].message.content.strip()
     try:
+        # If the text is wrapped in ```json...``` format, remove those indicators
+        if questions_text.startswith("```json") and questions_text.endswith("```"):
+            questions_text = questions_text[7:-3]
+
         # Parse the JSON response
         questions_list = json.loads(questions_text)
         if not isinstance(questions_list, list):
@@ -208,13 +217,19 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Research Questions for area '{area}': {e}")
         questions = []
+
+    print(f"{Fore.BLUE}Research Questions for '{area}':{Fore.RESET} {questions}")
+
     return questions
 
 
+@cache.checkpoint(exclude_args=["online_llm_client"])
 def answer_research_question(online_llm_client: OpenAI, question: str) -> str:
+    print(f"{Fore.BLUE}Answering Research Question:{Fore.RESET} {question}")
+
     if online_llm_client is None:
         print(f"{Fore.RED}Online LLM client not configured. Cannot answer question.")
-        return ""
+        sys.exit(1)
 
     model_name = os.environ.get(
         "ANSWER_RESEARCH_QUESTION_LLM", "llama-3.1-sonar-huge-128k-online"
@@ -265,12 +280,17 @@ def generate_topics_from_research_findings(
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Topics: {e}")
         topics = []
+
+    print(f"{Fore.BLUE}Generated Topic Names:{Fore.BLUE} {topics}")
+
     return topics
 
 
 def generate_topic(
     llm_client: OpenAI, topic_name: str, research_findings: str
 ) -> Topic:
+    print(f"{Fore.BLUE}Generating Topic:{Fore.RESET} {topic_name}")
+
     model_name = os.environ.get("GENERATE_TOPIC_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
@@ -320,4 +340,7 @@ def generate_domain_summary(llm_client: OpenAI, compendium_domain: Domain) -> st
         temperature=0.7,
     )
     summary = response.choices[0].message.content.strip()
+
+    print(f"{Fore.BLUE}Domain Summary:{Fore.RESET} {compendium_domain.summary}")
+
     return summary
