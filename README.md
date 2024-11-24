@@ -8,13 +8,13 @@ Conceptually, a Compendium is a collection of information that is organized and 
 
 A Compendium is a knowledge graph with a heavy mixing in of retrieval-specialized metadata. A Compendium can be serialized into an XML file or a markdown file.
 
-Compendium Scribe builds Compendia in a way that is tailored to the specific needs of AI applications. The structure of a Compendium created by Compendium Scribe is relational, topic-segmented, keyword-tagged, and associated with relevant questions, allowing for easy semantic embedding of individual topics as well was fast retrieval of related topics.
+Compendium Scribe builds Compendia in a way that is tailored to the specific needs of AI applications. The structure of a Compendium created by Compendium Scribe is relational, topic-segmented, keyword-tagged, and associated with relevant questions, allowing for easy semantic embedding of individual concepts as well was fast retrieval of related concepts.
 
 Compendia are not intended to be consumed by human beings, though they may be.
 
 ## Compendium Structure
 
-A compendium is modeled in memory using a tree-like structure. The root node of the tree is the Domain, which has Topics and a Sumamry. Each topic has various nodes associated with it containing metadata and content.
+A compendium is modeled in memory using a tree-like structure. The root node of the tree is the Domain, which has Topics and a Summary. Topics in turn have Concept nodes, and their own Topic Summary. Each Concept has various nodes associated with it containing metadata and content.
 
 Imagined as XML, the structure of a Compendium looks like this:
 
@@ -22,19 +22,25 @@ Imagined as XML, the structure of a Compendium looks like this:
 <domain name="Cell Biology" id="CellBiology">
   <summary><![CDATA[Cells are the basic units of life...]]></summary>
   <topic name="Cell Function" id="CellFunction">
-    <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
-    <keywords>
-      <keyword>cell</keyword>
-      <keyword>function</keyword>
-    </keywords>
-    <questions>
-      <question>What functions do cells perform?</question>
-      <question>How do cells contribute to the organism's survival?</question>
-    </questions>
-    <relations>
-      <prerequisite>compendium://CellBiology/CellStructure</prerequisite>
-      <related type="builds upon">compendium://Biology/Genetics/DNA</related>
-    </relations>
+    <topic_summary><![CDATA[Cells have a wide range of functions...]]></topic_summary>
+    <concepts>
+      <concept name="Functions Perfomed By Cells">
+        <questions>
+          <question>What functions do cells perform?</question>
+          <question>How do cells contribute to the organism's survival?</question>
+        </questions>
+        <keywords>
+          <keyword>cell</keyword>
+          <keyword>function</keyword>
+        </keywords>
+        <relations>
+          <prerequisite>compendium://CellBiology/CellStructure</prerequisite>
+          <related type="builds upon">compendium://Biology/Genetics/DNA</related>
+        </relations>
+        <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
+      </concept>
+      ...
+    </concepts>
   </topic>
   <topic name="Cell Structure" id="CellStructure">
     ...
@@ -48,6 +54,8 @@ Note that a Compendium is, itself, scoped to a single Domain. The Domain is the 
 The `summary` element is a brief summary of the domain, which is used to provide a high-level overview of the domain.
 
 Each Topic and Domain has a unique ID, which is used to reference the topic or domain in other parts of the Compendium or in other Compendia. Reference addresses to other topics are constructed hierarchically based on the tree location, using the `compendium://` scheme.
+
+Topics have their own `summary` element, which is a brief summary of the Topic. Each Topic also has a list of `concepts`, which are the individual ideas and aspects that make up the Topic. These concepts are the atomic units of information that are used to build the Compendium, and include a variety of metadata, such as questions and keywords, to help them be retrieved when needed.
 
 Note that references can be to topics that are not in the same Compendium as the topic referencing them.
 
@@ -63,33 +71,26 @@ Here is the "from scratch" workflow:
 
 1. A Domain is provided, which is what the Compendium will be about.
 2. An LLM is used to enhance the provided Domain.
-3. An LLM is used to create a comprehensive list of Areas of Research that are relevant to achieving expertise in the Domain.
-4. For each Area of Research:
-    1. An LLM is used to create a collection of Research Questions.
-    2. For each of the Research Questions:
+3. An LLM is used to create a comprehensive list of Topics to Research that are relevant to achieving expertise in the Domain.
+4. For each Topic to Research:
+    1. A Topic object is created.
+    2. An LLM is used to create a collection of Research Questions.
+    3. For each of the Research Questions:
         1. Use an online-enabled LLM (such as Perplexity) to answer the Research Question.
-        2. Record the provided question and answer in the list of questions and answers for the Area of Research.
-        3. 
-
-
-
-
-5. Use an LLM that is strong at summarizing (such as GPT-4o) to analyze the Research Findings and generate a structured list of Topics. Store the planned structure in memory as placeholders to facilitate the next steps.
-6. Use a reasoning-specialized LLM (such as o1) to generate all of the Topics, using the Research Findings as context. Each Topic has:
-    - A `content` section, which is the main text of the Topic.
-    - A `keywords` section, which is a list of keywords associated with the Topic.
-    - A `questions` section, which is a list of questions that the Topic would address.
-    - A `prerequisites` section, which is a list of prerequisites that should be understood in order to understand the Topic. These are references to other Topics in the Compendium or in other Compendia (if known).
-7. Use an LLM to produce a `summary` for the domain, based on the contents of all of the Topics.
+        2. An LLM is used to create a Concept Name for the answer.
+        3. The Concept Name is used to create a Concept in the Topic, using the answer as the Concept content.
+        4. Use an LLM to generate all of the metadata for the Concept. Each Concept has:
+          - A `questions` section, which is a list of questions that the Topic would address. Notably, the original Research Question is also included here.
+          - A `keywords` section, which is a list of keywords associated with the Concept.
+          - A `prerequisites` section, which is a list of keywords for ideas that should be understood in order to understand the Concept.
+    4. Use an LLM to generate a `topic_summary` for the Topic, based on the contents of all of the Concepts in the Topic.
+5. Use an LLM to produce a `summary` for the domain, based on the contents of all of the Concepts in all of the Topics.
 
 ### The "deeper study" workflow
 
 The "deeper study" workflow starts with an existing Compendium and adds a deeper subdomain to it. Here is the "deeper study" workflow:
 
-1. A Domain is provided, which is what the Compendium will be about. A container Domain is also provided, which is the existing Compendium to be extended. This Domain will be an in-memory representation, using Topic and Domain objects.
-2. An LLM is used to enhance the provided Domain.
-3. An LLM is used to create a comprehensive list of Areas of Research that are relevant to achieving expertise in the Domain, using the existing parent Domain's `summary` and Topics as context.
-4. From here, the process is the same as the "from scratch" workflow. The new Domain is added to the parent Domain as a subtree.
+(details TBD)
 
 ## The Compendium-Building Interface
 
