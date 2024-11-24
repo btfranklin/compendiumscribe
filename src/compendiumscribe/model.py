@@ -19,7 +19,6 @@ class Domain:
     name: str
     summary: str = ""
     topics: list[Topic] = field(default_factory=list)
-    subdomains: list[Domain] = field(default_factory=list)
 
     def outline(self, indent: int = 0) -> str:
         result = " " * indent + f"- {self.name}\n"

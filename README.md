@@ -14,7 +14,7 @@ Compendia are not intended to be consumed by human beings, though they may be.
 
 ## Compendium Structure
 
-A compendium is modeled in memory using a tree-like structure. Nodes in the tree are Domains, which have Topics and Subdomains (which are structurally just Domains). There is also various metadata associated with each Domain and Topic.
+A compendium is modeled in memory using a tree-like structure. The root node of the tree is the Domain, which has Topics and a Sumamry. Each topic has various nodes associated with it containing metadata and content.
 
 Imagined as XML, the structure of a Compendium looks like this:
 
@@ -40,28 +40,16 @@ Imagined as XML, the structure of a Compendium looks like this:
     ...
   </topic>
   ...
-  <domain name="Mitochondria" id="Mitochondria">
-    <summary><![CDATA[Mitochondria are the powerhouses of the cell...]]></summary>
-    <topic name="Mitochondrial Structure" id="MitochondrialStructure">
-      ...
-    </topic>
-    ...
-  </domain>
-  ...
 </domain>
 ```
 
 Note that a Compendium is, itself, scoped to a single Domain. The Domain is the root of the tree, and the Compendium is the entire tree.
 
-Subdomains are structurally just Domains, and are not explicitly identified as subdomains in the XML.
+The `summary` element is a brief summary of the domain, which is used to provide a high-level overview of the domain.
 
-The `summary` element is a brief summary of the topic or domain, which is used to provide a high-level overview of the topic or domain.
+Each Topic and Domain has a unique ID, which is used to reference the topic or domain in other parts of the Compendium or in other Compendia. Reference addresses to other topics are constructed hierarchically based on the tree location, using the `compendium://` scheme.
 
-Each Topic and Domain has a unique ID, which is used to reference the topic or domain in other parts of the Compendium. Reference addresses to other topics are constructed hierarchically based on the tree location, using the `compendium://` scheme.
-
-Note that references can be to topics that are not in the same domain as the topic referencing them, and may not even be in the same Compendium.
-
-A Topic should be thought of as a single semantically-related unit of information, no more than about a paragraph long.
+Note that references can be to topics that are not in the same Compendium as the topic referencing them.
 
 ## The Process of Creating a Compendium
 
@@ -80,7 +68,12 @@ Here is the "from scratch" workflow:
     1. An LLM is used to create a collection of Research Questions.
     2. For each of the Research Questions:
         1. Use an online-enabled LLM (such as Perplexity) to answer the Research Question.
-        2. Add the provided question and answer to the Research Findings for the Area of Research. The Research Findings are just one big XML string divided into blocks, with each block representing the answer to a single question.
+        2. Record the provided question and answer in the list of questions and answers for the Area of Research.
+        3. 
+
+
+
+
 5. Use an LLM that is strong at summarizing (such as GPT-4o) to analyze the Research Findings and generate a structured list of Topics. Store the planned structure in memory as placeholders to facilitate the next steps.
 6. Use a reasoning-specialized LLM (such as o1) to generate all of the Topics, using the Research Findings as context. Each Topic has:
     - A `content` section, which is the main text of the Topic.

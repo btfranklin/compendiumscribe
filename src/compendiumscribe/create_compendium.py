@@ -1,3 +1,4 @@
+import re
 import sys
 import os
 import json
@@ -55,39 +56,36 @@ def create_compendium(domain: str) -> Domain:
     # Create the Domain object
     compendium_domain = Domain(name=enhanced_domain)
 
-    # Step 2: Create a comprehensive list of Areas of Research
-    areas_of_research = create_areas_of_research(llm_client, enhanced_domain)
+    # Step 2: Create a comprehensive list of Topics to Research
+    topics_to_research = create_topics_to_research(llm_client, enhanced_domain)
 
-    # For each Area of Research
-    research_findings = []
-    for area in areas_of_research:
+    # For each Topic
+    questions_and_answers: list[list[tuple[str, str]]] = []
+    for topic in topics_to_research:
         # Step 3: Create a collection of Research Questions
         research_questions = create_research_questions(
-            llm_client, enhanced_domain, area
+            llm_client, enhanced_domain, topic
         )
-        area_research_findings = ""
+        topic_questions_and_answers: list[tuple[str, str]] = []
         # Step 4: Answer each Research Question
         for question in research_questions:
             answer = answer_research_question(online_llm_client, question)
             if not answer:
                 print(f"{Fore.YELLOW}Failed to answer question: {question}")
                 continue
-            # Step 5: Add the question and answer to the Research Findings
-            area_research_findings += f"<block><question>{question}</question><answer>{answer}</answer></block>\n"
-        research_findings.append(area_research_findings)
-
-    # Combine all research findings
-    combined_research_findings = "\n".join(research_findings)
+            # Record the question and answer
+            topic_questions_and_answers += [(question, answer)]
+        questions_and_answers.append(topic_questions_and_answers)
 
     # Step 6: Generate a structured list of Topics from Research Findings
-    topic_names = generate_topics_from_research_findings(
-        llm_client, combined_research_findings
-    )
+    # topic_names = generate_topics_from_research_findings(
+    #     llm_client, combined_research_findings
+    # )
 
     # Step 7: Generate detailed Topics
-    for topic_name in topic_names:
-        topic = generate_topic(llm_client, topic_name, combined_research_findings)
-        compendium_domain.topics.append(topic)
+    # for topic_name in topic_names:
+    #     topic = generate_topic(llm_client, topic_name, combined_research_findings)
+    #     compendium_domain.topics.append(topic)
 
     # Step 8: Generate Domain Summary
     compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
@@ -116,17 +114,15 @@ def enhance_domain(llm_client: OpenAI, domain: str) -> str:
 
 
 @cache.checkpoint(exclude_args=["llm_client"])
-def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
-    model_name = os.environ.get("CREATE_AREAS_OF_RESEARCH_LLM", "gpt-4o")
-    number_of_areas = os.environ.get("NUMBER_OF_AREAS_OF_RESEARCH", "10")
+def create_topics_to_research(llm_client: OpenAI, domain: str) -> list[str]:
+    model_name = os.environ.get("CREATE_TOPICS_TO_RESEARCH_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="2_create_areas_of_research.prompt.md",
+        resource_name="2_create_topics_to_research.prompt.md",
     )
     structured_prompt.apply_template_values(
         {
             "domain": domain,
-            "number_of_areas": number_of_areas,
         }
     )
     messages = structured_prompt.to_chat_completion_messages()
@@ -135,6 +131,7 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
         messages=messages,
         max_tokens=1000,
         temperature=0.7,
+        response_format=list[str],
     )
     areas_text = response.choices[0].message.content.strip()
     try:
@@ -155,20 +152,20 @@ def create_areas_of_research(llm_client: OpenAI, domain: str) -> list[str]:
 
 
 @cache.checkpoint(exclude_args=["llm_client"])
-def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> list[str]:
+def create_research_questions(llm_client: OpenAI, domain: str, topic: str) -> list[str]:
     """
-    Generate a list of research questions for a given domain and area.
+    Generate a list of research questions for a given domain and topic.
 
     Parameters:
     - llm_client (OpenAI): The OpenAI client instance.
     - domain (str): The domain of expertise.
-    - area (str): The specific area within the domain.
+    - topic (str): The specific topic within the domain.
 
     Returns:
     - list[str]: A list of research questions.
     """
     print(
-        f"{Fore.BLUE}Creating research questions for Area of Research:{Fore.RESET} {area}"
+        f"{Fore.BLUE}Creating research questions for Topic to Research:{Fore.RESET} {topic}"
     )
 
     model_name = os.environ.get("CREATE_RESEARCH_QUESTIONS_LLM", "gpt-4o")
@@ -180,16 +177,27 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
     structured_prompt.apply_template_values(
         {
             "domain": domain,
-            "area": area,
+            "topic": topic,
             "number_of_questions": number_of_questions,
         }
     )
     messages = structured_prompt.to_chat_completion_messages()
+
+    # Define a class that will allow a response in this format:
+    # [
+    #    {"number": 1, "question": "First question"},
+    #    {"number": 2, "question": "Second question"},
+    # ]
+    class Question:
+        number: int
+        question: str
+
     response = llm_client.chat.completions.create(
         model=model_name,
         messages=messages,
         max_tokens=1000,
         temperature=0.7,
+        response_format=list[Question],
     )
     questions_text = response.choices[0].message.content.strip()
     try:
@@ -206,19 +214,20 @@ def create_research_questions(llm_client: OpenAI, domain: str, area: str) -> lis
             if "question" in item:
                 questions.append(item["question"].strip())
             else:
+                # Warn if the question is missing
                 print(
                     f"{Fore.YELLOW}Warning: Missing 'question' field in one of the items."
                 )
-        # Ensure the number of questions matches the requested number
+        # Warn if the number of questions is less than the requested number
         if len(questions) < int(number_of_questions):
             print(
                 f"{Fore.YELLOW}Warning: Expected {number_of_questions} questions, but got {len(questions)}."
             )
     except (json.JSONDecodeError, ValueError) as e:
-        print(f"{Fore.RED}Error parsing Research Questions for area '{area}': {e}")
+        print(f"{Fore.RED}Error parsing Research Questions for topic '{topic}': {e}")
         questions = []
 
-    print(f"{Fore.BLUE}Research Questions for '{area}':{Fore.RESET} {questions}")
+    print(f"{Fore.BLUE}Research Questions for '{topic}':{Fore.RESET} {questions}")
 
     return questions
 
