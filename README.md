@@ -73,7 +73,7 @@ Here is the "from scratch" workflow:
 2. An LLM is used to enhance the provided Domain.
 3. An LLM is used to create a comprehensive list of Topics to Research that are relevant to achieving expertise in the Domain.
 4. For each Topic to Research:
-    1. A Topic object is created.
+    1. A Topic object is created using the Topic to Research as the name.
     2. An LLM is used to create a collection of Research Questions.
     3. For each of the Research Questions:
         1. Use an online-enabled LLM (such as Perplexity) to answer the Research Question.
