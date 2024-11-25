@@ -33,10 +33,10 @@ Imagined as XML, the structure of a Compendium looks like this:
           <keyword>cell</keyword>
           <keyword>function</keyword>
         </keywords>
-        <relations>
-          <prerequisite>compendium://CellBiology/CellStructure</prerequisite>
-          <related type="builds upon">compendium://Biology/Genetics/DNA</related>
-        </relations>
+        <prerequisites>
+          <prerequisite>basic biology</prerequisite>
+          <prerequisite>cells</prerequisite>
+        </prerequisites>
         <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
       </concept>
       ...
