@@ -14,15 +14,15 @@ cache = Cache()
 
 
 # Step 1: Provide Domain, which is what the Compendium will be about.
-def create_compendium(domain: str) -> Domain:
+def research_domain(domain_name: str) -> Domain:
     """
-    Main pipeline for creating a compendium from a given domain.
+    Main pipeline for resarching a given domain and producing a Domain object.
 
     Parameters:
-    - domain (str): The domain of expertise.
+    - domain_name (str): The domain of expertise to research.
 
     Returns:
-    - Domain: The created compendium as a Domain object.
+    - Domain: The researched domain as a Domain object.
     """
     # Load environment variables from .env file
     load_dotenv()
@@ -50,7 +50,7 @@ def create_compendium(domain: str) -> Domain:
     print(f"{Back.BLUE} CREATING COMPENDIUM ")
 
     # Step 2: Enhance the provided domain of expertise
-    enhanced_domain = enhance_domain(llm_client, domain)
+    enhanced_domain = enhance_domain(llm_client, domain_name)
 
     # Create the Domain object
     compendium_domain = Domain(name=enhanced_domain)
