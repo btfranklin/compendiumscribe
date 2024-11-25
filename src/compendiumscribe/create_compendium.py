@@ -20,7 +20,6 @@ def create_compendium(domain: str) -> Domain:
 
     Parameters:
     - domain (str): The domain of expertise.
-    - output_level (str): The verbosity level of the output. Options are SILENT, NORMAL, VERBOSE.
 
     Returns:
     - Domain: The created compendium as a Domain object.
