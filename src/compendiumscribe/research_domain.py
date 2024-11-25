@@ -7,7 +7,7 @@ from openai import OpenAI
 from promptdown import StructuredPrompt
 from pickled_pipeline import Cache
 
-from .model import Domain, Topic, Concept
+from compendiumscribe.model import Domain, Topic, Concept
 
 cache = Cache()
 
