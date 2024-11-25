@@ -103,7 +103,7 @@ def create_compendium(domain: str) -> Domain:
 
             # Prerequisites
             prerequisites = generate_prerequisites(llm_client, answer)
-            concept.prerequisites.extends(prerequisites)
+            concept.prerequisites.extend(prerequisites)
 
         # Step 4: Genearte Topic Summary
         # topic.topic_summary = generate_topic_summary(llm_client, topic)
