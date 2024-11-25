@@ -1,5 +1,3 @@
-import keyword
-import re
 import sys
 import os
 import json
@@ -66,6 +64,7 @@ def create_compendium(domain: str) -> Domain:
 
         # Step 4.1: Create the Topic object
         topic = Topic(name=topic_to_research)
+        compendium_domain.topics.append(topic)
 
         # Step 4.2: Create a collection of Research Questions
         research_questions = create_research_questions(
@@ -105,11 +104,11 @@ def create_compendium(domain: str) -> Domain:
             prerequisites = generate_prerequisites(llm_client, answer)
             concept.prerequisites.extend(prerequisites)
 
-        # Step 4: Genearte Topic Summary
-        # topic.topic_summary = generate_topic_summary(llm_client, topic)
+        # Step 4.4: Genearte Topic Summary
+        topic.topic_summary = generate_topic_summary(llm_client, topic)
 
     # Step 5: Generate Domain Summary
-    # compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
+    compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
 
     return compendium_domain
 
@@ -425,34 +424,80 @@ def generate_prerequisites(llm_client: OpenAI, answer: str) -> list[str]:
     return prerequisites
 
 
-# Everything below here is outdated and will be deleted later
-#
-#
-#
-#
-#
-#
-
-
-def generate_domain_summary(llm_client: OpenAI, compendium_domain: Domain) -> str:
-    model_name = os.environ.get("GENERATE_DOMAIN_SUMMARY_LLM", "gpt-4o")
-    topics_content = "\n".join([topic.content for topic in compendium_domain.topics])
+@cache.checkpoint(exclude_args=["llm_client"])
+def generate_topic_summary(llm_client: OpenAI, topic: Topic) -> str:
+    model_name = os.environ.get("GENERATE_TOPIC_SUMMARY_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="8_generate_domain_summary.prompt.md",
+        resource_name="4_4_generate_topic_summary.prompt.md",
+    )
+
+    # Generate a concatenated string of all of the Concepts in the Topic,
+    # using a markdown format where each Concept's name is a heading and
+    # the content is in text following that. Each heading should have a blank
+    # line before and after it, so the format looks like this:
+    #
+    # ## Concept Name
+    #
+    # Concept content goes here and is in long form...
+    #
+    # ## Another Concept Name
+    #
+    # More concept content...
+    #
+    concepts_markdown = "\n\n".join(
+        [f"## {concept.name}\n\n{concept.content}" for concept in topic.concepts]
     )
     structured_prompt.apply_template_values(
-        {"domain_name": compendium_domain.name, "topics_content": topics_content}
+        {"topic_name": topic.name, "concepts_markdown": concepts_markdown}
     )
     messages = structured_prompt.to_chat_completion_messages()
     response = llm_client.chat.completions.create(
         model=model_name,
         messages=messages,
-        max_tokens=500,
         temperature=0.7,
     )
     summary = response.choices[0].message.content.strip()
+    print(f"{Fore.BLUE}Topic Summary:{Fore.RESET} {summary}")
+    return summary
 
-    print(f"{Fore.BLUE}Domain Summary:{Fore.RESET} {compendium_domain.summary}")
 
+@cache.checkpoint(exclude_args=["llm_client"])
+def generate_domain_summary(llm_client: OpenAI, domain: Topic) -> str:
+    model_name = os.environ.get("GENERATE_DOMAIN_SUMMARY_LLM", "gpt-4o")
+    structured_prompt = StructuredPrompt.from_package_resource(
+        package="compendiumscribe.prompts",
+        resource_name="5_generate_domain_summary.prompt.md",
+    )
+
+    # Generate a concatenated string of all of the Topic summaries in the Domain,
+    # using a markdown format where each Topic's name is a heading and
+    # the summary is in text following that. Each heading should have a blank
+    # line before and after it, so the format looks like this:
+    #
+    # ## Topic Name
+    #
+    # The summary of the topic goes here and is in long form...
+    #
+    # ## Another Topic Name
+    #
+    # More topic summary content...
+    #
+    topic_summaries_markdown = "\n\n".join(
+        [f"## {topic.name}\n\n{topic.topic_summary}" for topic in domain.topics]
+    )
+    structured_prompt.apply_template_values(
+        {
+            "domain_name": domain.name,
+            "topic_summaries_markdown": topic_summaries_markdown,
+        }
+    )
+    messages = structured_prompt.to_chat_completion_messages()
+    response = llm_client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=0.7,
+    )
+    summary = response.choices[0].message.content.strip()
+    print(f"{Fore.BLUE}Domain Summary:{Fore.RESET} {summary}")
     return summary
