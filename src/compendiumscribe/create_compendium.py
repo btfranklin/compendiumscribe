@@ -375,7 +375,7 @@ def generate_keywords(llm_client: OpenAI, answer: str) -> list[str]:
             raise ValueError("Keywords should be a list of strings.")
         keywords = []
         for keyword in keywords_list:
-            keywords.append(keyword.strip())
+            keywords.append(keyword.strip().lower())
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Keywords: {e}")
         keywords = []
@@ -414,7 +414,7 @@ def generate_prerequisites(llm_client: OpenAI, answer: str) -> list[str]:
             raise ValueError("Prerequisites should be a list of strings.")
         prerequisites = []
         for prerequisite in prerequisites_list:
-            prerequisites.append(prerequisite.strip())
+            prerequisites.append(prerequisite.strip().lower())
     except (json.JSONDecodeError, ValueError) as e:
         print(f"{Fore.RED}Error parsing Prerequisites: {e}")
         prerequisites = []
