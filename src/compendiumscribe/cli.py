@@ -36,10 +36,9 @@ def main(domain_name: str):
             pickle.dump(domain, f)
 
         # Save the entire domain to an XML file as well
-        domain.save(f"compendium_{domain_name}.xml")
-        print(
-            f"Compendium saved to compendium_{domain_name}.pickle and compendium_{domain_name}.xml"
-        )
+        xml_string = domain.to_xml_string()
+        with open(f"compendium_{domain_name}.xml", "w") as f:
+            f.write(xml_string)
 
     except Exception as e:
         print(f"An error occurred while creating the compendium: {e}")
