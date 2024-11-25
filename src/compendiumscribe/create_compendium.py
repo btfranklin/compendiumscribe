@@ -102,7 +102,11 @@ def create_compendium(domain: str) -> Domain:
             concept.keywords.extend(keywords)
 
             # Prerequisites
-            # concept.prerequisites.append(topic_to_research)
+            prerequisites = generate_prerequisites(llm_client, answer)
+            concept.prerequisites.extends(prerequisites)
+
+        # Step 4: Genearte Topic Summary
+        # topic.topic_summary = generate_topic_summary(llm_client, topic)
 
     # Step 5: Generate Domain Summary
     # compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
@@ -380,6 +384,47 @@ def generate_keywords(llm_client: OpenAI, answer: str) -> list[str]:
     return keywords
 
 
+@cache.checkpoint(exclude_args=["llm_client"])
+def generate_prerequisites(llm_client: OpenAI, answer: str) -> list[str]:
+    model_name = os.environ.get("GENERATE_PREREQUISITES_LLM", "gpt-4o")
+    structured_prompt = StructuredPrompt.from_package_resource(
+        package="compendiumscribe.prompts",
+        resource_name="4_3_4_generate_prerequisites.prompt.md",
+    )
+    structured_prompt.apply_template_values({"answer": answer})
+    messages = structured_prompt.to_chat_completion_messages()
+    response = llm_client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=0.7,
+        max_tokens=1000,
+    )
+    prerequisites_text = response.choices[0].message.content.strip()
+
+    try:
+        # If the text is wrapped in ```json...``` format, remove those indicators
+        if prerequisites_text.startswith("```json") and prerequisites_text.endswith(
+            "```"
+        ):
+            prerequisites_text = prerequisites_text[7:-3]
+
+        # Parse the JSON response
+        prerequisites_list = json.loads(prerequisites_text)
+        if not isinstance(prerequisites_list, list):
+            raise ValueError("Prerequisites should be a list of strings.")
+        prerequisites = []
+        for prerequisite in prerequisites_list:
+            prerequisites.append(prerequisite.strip())
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"{Fore.RED}Error parsing Prerequisites: {e}")
+        prerequisites = []
+
+    print(f"{Fore.BLUE}Prerequisites:")
+    for prerequisite in prerequisites:
+        print(f" - {prerequisite}")
+    return prerequisites
+
+
 # Everything below here is outdated and will be deleted later
 #
 #
@@ -387,74 +432,6 @@ def generate_keywords(llm_client: OpenAI, answer: str) -> list[str]:
 #
 #
 #
-
-
-def generate_topics_from_research_findings(
-    llm_client: OpenAI, research_findings: str
-) -> list[str]:
-    model_name = os.environ.get(
-        "GENERATE_TOPICS_FROM_RESEARCH_FINDINGS_LLM", "o1-preview"
-    )
-    structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe.prompts",
-        resource_name="6_generate_topics_from_research_findings.prompt.md",
-    )
-    structured_prompt.apply_template_values({"research_findings": research_findings})
-    messages = structured_prompt.to_chat_completion_messages()
-    response = llm_client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        max_tokens=1500,
-        temperature=0.7,
-    )
-    topics_text = response.choices[0].message.content.strip()
-    try:
-        topics = json.loads(topics_text)
-        if not isinstance(topics, list):
-            raise ValueError("Topics should be a list.")
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"{Fore.RED}Error parsing Topics: {e}")
-        topics = []
-
-    print(f"{Fore.BLUE}Generated Topic Names:{Fore.BLUE} {topics}")
-
-    return topics
-
-
-def generate_topic(
-    llm_client: OpenAI, topic_name: str, research_findings: str
-) -> Topic:
-    print(f"{Fore.BLUE}Generating Topic:{Fore.RESET} {topic_name}")
-
-    model_name = os.environ.get("GENERATE_TOPIC_LLM", "gpt-4o")
-    structured_prompt = StructuredPrompt.from_package_resource(
-        package="compendiumscribe.prompts",
-        resource_name="7_generate_topic.prompt.md",
-    )
-    structured_prompt.apply_template_values(
-        {"topic_name": topic_name, "research_findings": research_findings}
-    )
-    messages = structured_prompt.to_chat_completion_messages()
-    response = llm_client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        max_tokens=1500,
-        temperature=0.7,
-    )
-    topic_text = response.choices[0].message.content.strip()
-    try:
-        topic_data = json.loads(topic_text)
-    except json.JSONDecodeError as e:
-        print(f"{Fore.RED}Error parsing topic data for '{topic_name}': {e}")
-        topic_data = {}
-    topic = Topic(
-        name=topic_name,
-        content=topic_data.get("content", ""),
-        keywords=topic_data.get("keywords", []),
-        questions=topic_data.get("questions", []),
-        prerequisites=topic_data.get("prerequisites", []),
-    )
-    return topic
 
 
 def generate_domain_summary(llm_client: OpenAI, compendium_domain: Domain) -> str:
