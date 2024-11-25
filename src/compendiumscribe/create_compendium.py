@@ -1,3 +1,4 @@
+import keyword
 import re
 import sys
 import os
@@ -97,7 +98,8 @@ def create_compendium(domain: str) -> Domain:
             concept.questions.extend(additional_questions)
 
             # Keywords
-            # concept.keywords.append(concept_name)
+            keywords = generate_keywords(llm_client, answer)
+            concept.keywords.extend(keywords)
 
             # Prerequisites
             # concept.prerequisites.append(topic_to_research)
@@ -305,7 +307,7 @@ def create_additional_concept_questions(
     model_name = os.environ.get("CREATE_ADDITIONAL_CONCEPT_QUESTIONS_LLM", "gpt-4o")
     structured_prompt = StructuredPrompt.from_package_resource(
         package="compendiumscribe.prompts",
-        resource_name="4_3_3_create_additional_concept_questions.prompt.md",
+        resource_name="4_3_4_create_additional_concept_questions.prompt.md",
     )
     structured_prompt.apply_template_values({"answer": answer, "question": question})
     messages = structured_prompt.to_chat_completion_messages()
@@ -339,6 +341,43 @@ def create_additional_concept_questions(
     for question in additional_questions:
         print(f" - {question}")
     return additional_questions
+
+
+@cache.checkpoint(exclude_args=["llm_client"])
+def generate_keywords(llm_client: OpenAI, answer: str) -> list[str]:
+    model_name = os.environ.get("GENERATE_KEYWORDS_LLM", "gpt-4o")
+    structured_prompt = StructuredPrompt.from_package_resource(
+        package="compendiumscribe.prompts",
+        resource_name="4_3_4_generate_keywords.prompt.md",
+    )
+    structured_prompt.apply_template_values({"answer": answer})
+    messages = structured_prompt.to_chat_completion_messages()
+    response = llm_client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=0.7,
+        max_tokens=400,
+    )
+    keywords_text = response.choices[0].message.content.strip()
+
+    try:
+        # If the text is wrapped in ```json...``` format, remove those indicators
+        if keywords_text.startswith("```json") and keywords_text.endswith("```"):
+            keywords_text = keywords_text[7:-3]
+
+        # Parse the JSON response
+        keywords_list = json.loads(keywords_text)
+        if not isinstance(keywords_list, list):
+            raise ValueError("Keywords should be a list of strings.")
+        keywords = []
+        for keyword in keywords_list:
+            keywords.append(keyword.strip())
+    except (json.JSONDecodeError, ValueError) as e:
+        print(f"{Fore.RED}Error parsing Keywords: {e}")
+        keywords = []
+
+    print(f"{Fore.BLUE}Keywords: {keywords}")
+    return keywords
 
 
 # Everything below here is outdated and will be deleted later
