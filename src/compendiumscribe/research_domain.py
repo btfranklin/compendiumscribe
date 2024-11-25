@@ -1,10 +1,9 @@
 import sys
 import os
 import json
-import colorama.initialise as colorama
+import time
 from colorama import Fore, Back
 from openai import OpenAI
-from dotenv import load_dotenv
 from promptdown import StructuredPrompt
 from pickled_pipeline import Cache
 
@@ -14,40 +13,28 @@ cache = Cache()
 
 
 # Step 1: Provide Domain, which is what the Compendium will be about.
-def research_domain(domain_name: str) -> Domain:
+def research_domain(
+    domain_name: str, llm_client: OpenAI, online_llm_client: OpenAI
+) -> Domain:
     """
     Main pipeline for resarching a given domain and producing a Domain object.
 
+    Please note that load_env() must be called before this function is called, and
+    colorama must be initialized before this function is called.
+
     Parameters:
-    - domain_name (str): The domain of expertise to research.
+        domain_name (str): The domain of expertise to research.
+        llm_client (OpenAI): The OpenAI client instance.
+        online_llm_client (OpenAI): The OpenAI client instance for online LLMs.
 
     Returns:
-    - Domain: The researched domain as a Domain object.
+        Domain: The researched domain as a Domain object.
     """
-    # Load environment variables from .env file
-    load_dotenv()
-
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
-    perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
-
-    if not openai_api_key:
-        print(f"{Fore.RED}OPENAI_API_KEY not found in environment variables.")
-        sys.exit(1)
-
-    llm_client = OpenAI(api_key=openai_api_key)
-
-    if perplexity_api_key:
-        online_llm_client = OpenAI(
-            api_key=perplexity_api_key,
-            base_url="https://api.perplexity.ai",
-        )
-    else:
-        online_llm_client = None  # Or handle accordingly
-
-    # Initialize colorama
-    colorama.init(autoreset=True)
 
     print(f"{Back.BLUE} CREATING COMPENDIUM ")
+
+    # Note the starting time
+    start_time = time.time()
 
     # Step 2: Enhance the provided domain of expertise
     enhanced_domain = enhance_domain(llm_client, domain_name)
@@ -108,6 +95,10 @@ def research_domain(domain_name: str) -> Domain:
 
     # Step 5: Generate Domain Summary
     compendium_domain.summary = generate_domain_summary(llm_client, compendium_domain)
+
+    # Calculate and print the elapsed time
+    elapsed_time = time.time() - start_time
+    print(f"{Fore.GREEN}Elapsed Time: {elapsed_time:.2f} seconds")
 
     return compendium_domain
 
@@ -176,12 +167,12 @@ def create_research_questions(llm_client: OpenAI, domain: str, topic: str) -> li
     Generate a list of research questions for a given domain and topic.
 
     Parameters:
-    - llm_client (OpenAI): The OpenAI client instance.
-    - domain (str): The domain of expertise.
-    - topic (str): The specific topic within the domain.
+        llm_client (OpenAI): The OpenAI client instance.
+        domain (str): The domain of expertise.
+        topic (str): The specific topic within the domain.
 
     Returns:
-    - list[str]: A list of research questions.
+        list[str]: A list of research questions.
     """
     print(
         f"{Fore.BLUE}Creating research questions for Topic to Research:{Fore.RESET} {topic}"
