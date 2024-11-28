@@ -9,6 +9,6 @@ Please respond only with the summary, without any additional explanation or comm
 ## Conversation
 
 **User:**
-Topic: {topics_name}
+Topic: {topic_name}
 
 {concepts_markdown}
