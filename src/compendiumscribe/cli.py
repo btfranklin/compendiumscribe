@@ -14,7 +14,7 @@ from compendiumscribe.research_domain import research_domain
     prompt="Domain of expertise",
     help="The domain of expertise to create the compendium for.",
 )
-def main(domain_name: str):
+def main(domain: str):
     """
     Command-line entry point for creating a compendium.
     """
@@ -29,15 +29,15 @@ def main(domain_name: str):
     llm_client, online_llm_client = create_llm_clients()
 
     try:
-        domain = research_domain(domain_name, llm_client, online_llm_client)
+        domain_object = research_domain(domain, llm_client, online_llm_client)
 
         # Save the domain to a file by pickling it
-        with open(f"compendium_{domain_name}.pickle", "wb") as f:
-            pickle.dump(domain, f)
+        with open("compendium.pickle", "wb") as f:
+            pickle.dump(domain_object, f)
 
-        # Save the entire domain to an XML file as well
-        xml_string = domain.to_xml_string()
-        with open(f"compendium_{domain_name}.xml", "w") as f:
+        # Save the entire domain_object to an XML file as well
+        xml_string = domain_object.to_xml_string()
+        with open("compendium.xml", "w") as f:
             f.write(xml_string)
 
     except Exception as e:
