@@ -7,7 +7,7 @@ authors = [
 ]
 dependencies = [
     "promptdown>=0.8.0",
-    "openai>=1.54.4",
+    "openai>=1.57.0",
     "python-dotenv>=1.0.1",
     "click>=8.1.7",
     "colorama>=0.4.6",
@@ -18,6 +18,11 @@ readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
@@ -45,7 +50,7 @@ excludes = ["tests/**"]
 
 [tool.pdm.dev-dependencies]
 dev = [
-    "pytest>=8.3.3",
+    "pytest>=8.3.4",
     "flake8>=7.1.1",
 ]
 
