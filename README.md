@@ -1,5 +1,9 @@
 # Compendium Scribe
 
+![Compendium Scribe banner](https://raw.githubusercontent.com/btfranklin/compendiumscribe/main/.github/social%20preview/compendiumscribe_social_preview.jpg "Compendium Scribe")
+
+[![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml) [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
+
 Compendium Scribe is a Python package that provides uses AI to assemble detailed information about a particular domain into a knowledge base that can be stored and subjected to further processing (such as semantic analysis).
 
 ## The Nature of a Compendium
