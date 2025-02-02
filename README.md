@@ -20,7 +20,7 @@ Compendia are not intended to be consumed by human beings, though they may be.
 
 A compendium is modeled in memory using a tree-like structure. The root node of the tree is the Domain, which has Topics and a Summary. Topics in turn have Concept nodes, and their own Topic Summary. Each Concept has various nodes associated with it containing metadata and content.
 
-Imagined as XML, the structure of a Compendium looks like this:
+Represented as XML, the structure of a Compendium looks like this:
 
 ```xml
 <domain name="Cell Biology" id="CellBiology">
@@ -57,11 +57,9 @@ Note that a Compendium is, itself, scoped to a single Domain. The Domain is the 
 
 The `summary` element is a brief summary of the domain, which is used to provide a high-level overview of the domain.
 
-Each Topic and Domain has a unique ID, which is used to reference the topic or domain in other parts of the Compendium or in other Compendia. Reference addresses to other topics are constructed hierarchically based on the tree location, using the `compendium://` scheme.
+Each Topic and Domain has an `id` attribute, which can be used by software applications to reference the Topic or Domain. These IDs are not guaranteed to be universally unique, so they should be used hierarchically to construct a complete reference. The `compendium://` scheme is recommended for this purpose. For example, the reference to the Topic "Cell Structure" from the Domain "Cell Biology" shown in the example above would be `compendium://CellBiology/CellStructure`.
 
 Topics have their own `summary` element, which is a brief summary of the Topic. Each Topic also has a list of `concepts`, which are the individual ideas and aspects that make up the Topic. These concepts are the atomic units of information that are used to build the Compendium, and include a variety of metadata, such as questions and keywords, to help them be retrieved when needed.
-
-Note that references can be to topics that are not in the same Compendium as the topic referencing them.
 
 ## The Process of Creating a Compendium
 
