@@ -342,7 +342,26 @@ def _extract_trace_events(response: Any) -> list[dict[str, Any]]:
 
 def _load_prompt_template(filename: str) -> Template:
     prompt_text = resources.files("compendiumscribe.prompts").joinpath(filename).read_text("utf-8")
-    return Template(prompt_text)
+    normalized = _strip_leading_markdown_header(prompt_text)
+    return Template(normalized)
+
+
+def _strip_leading_markdown_header(text: str) -> str:
+    lines = text.splitlines()
+    trimmed: list[str] = []
+    skipping = True
+
+    for line in lines:
+        stripped = line.strip()
+        if skipping and stripped.startswith("#"):
+            continue
+        if skipping and not stripped:
+            continue
+
+        skipping = False
+        trimmed.append(line)
+
+    return "\n".join(trimmed).lstrip()
 
 
 def _object_to_dict(value: Any) -> dict[str, Any]:
