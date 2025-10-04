@@ -22,7 +22,7 @@ class ResearchConfig:
     """Configuration flags for the deep research pipeline."""
 
     deep_research_model: str = "o3-deep-research"
-    prompt_refiner_model: str = "gpt-4.1-mini"
+    prompt_refiner_model: str = "gpt-4.1"
     use_prompt_refinement: bool = True
     background: bool = True
     poll_interval_seconds: float = 5.0
@@ -81,7 +81,7 @@ def build_compendium(
 
 
 def _generate_research_plan(client: OpenAI, topic: str, config: ResearchConfig) -> dict[str, Any] | None:
-    template = _load_prompt_template("10_topic_blueprint.prompt.md")
+    template = _load_prompt_template("topic_blueprint.md")
     rendered = template.substitute(topic=topic)
 
     response = client.responses.create(
@@ -123,7 +123,7 @@ def _default_research_plan(topic: str) -> dict[str, Any]:
 
 
 def _compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
-    template = _load_prompt_template("20_deep_research.prompt.md")
+    template = _load_prompt_template("deep_research_assignment.md")
 
     sections = plan.get("key_sections", [])
     if not isinstance(sections, Iterable):
