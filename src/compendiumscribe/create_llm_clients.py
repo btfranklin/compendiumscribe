@@ -13,13 +13,13 @@ class MissingAPIKeyError(RuntimeError):
 
 
 def create_openai_client(*, timeout: int | None = None) -> OpenAI:
-    """Initialise the OpenAI client using configuration from the environment."""
+    """Initialise the OpenAI client using environment configuration."""
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise MissingAPIKeyError(
-            "OPENAI_API_KEY is not set. Provide credentials via environment or .env file."
+            "OPENAI_API_KEY missing; set via env or .env file."
         )
 
     client_kwargs: dict[str, object] = {"api_key": api_key}
