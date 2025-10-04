@@ -80,7 +80,11 @@ def build_compendium(
 # ---------------------------------------------------------------------------
 
 
-def _generate_research_plan(client: OpenAI, topic: str, config: ResearchConfig) -> dict[str, Any] | None:
+def _generate_research_plan(
+    client: OpenAI,
+    topic: str,
+    config: ResearchConfig,
+) -> dict[str, Any] | None:
     template = _load_prompt_template("topic_blueprint.md")
     rendered = template.substitute(topic=topic)
 
@@ -97,12 +101,25 @@ def _generate_research_plan(client: OpenAI, topic: str, config: ResearchConfig) 
 
 def _default_research_plan(topic: str) -> dict[str, Any]:
     return {
-        "primary_objective": f"Compile a multi-layered compendium covering {topic}",
-        "audience": "Practitioners and researchers seeking a strategic overview",
+        "primary_objective": (
+            f"Compile a multi-layered compendium covering {topic}"
+        ),
+        "audience": (
+            "Practitioners and researchers seeking a strategic overview"
+        ),
         "key_sections": [
-            {"title": "Foundations", "focus": "Core concepts, definitions, and history"},
-            {"title": "Current Landscape", "focus": "Recent developments, stakeholders, and adoption"},
-            {"title": "Opportunities and Risks", "focus": "Emerging trends, challenges, and future outlook"},
+            {
+                "title": "Foundations",
+                "focus": "Core concepts, definitions, and history",
+            },
+            {
+                "title": "Current Landscape",
+                "focus": "Recent developments, stakeholders, and adoption",
+            },
+            {
+                "title": "Opportunities and Risks",
+                "focus": "Emerging trends, challenges, and future outlook",
+            },
         ],
         "research_questions": [
             "What are the most influential recent discoveries or events?",
@@ -112,7 +129,10 @@ def _default_research_plan(topic: str) -> dict[str, Any]:
         "methodology_preferences": [
             "Prioritise primary sources published within the last five years",
             "Cross-validate critical facts across multiple reputable outlets",
-            "Highlight quantitative evidence and concrete metrics when available",
+            (
+                "Highlight quantitative evidence and concrete metrics when "
+                "available"
+            ),
         ],
     }
 
@@ -128,9 +148,11 @@ def _compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
     sections = plan.get("key_sections", [])
     if not isinstance(sections, Iterable):
         sections = []
-    section_lines = [
-        f"- {item.get('title', 'Section')}: {item.get('focus', '').strip()}" for item in sections
-    ]
+    section_lines: list[str] = []
+    for item in sections:
+        title = item.get("title", "Section")
+        focus = (item.get("focus", "") or "").strip()
+        section_lines.append(f"- {title}: {focus}")
 
     research_questions = plan.get("research_questions", [])
     if not isinstance(research_questions, Iterable):
@@ -178,14 +200,27 @@ def _compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
         indent=2,
     )
 
+    section_bullets = (
+        "\n".join(section_lines) or "- No specific sections provided"
+    )
+    question_bullets = (
+        "\n".join(question_lines) or "- Derive the most pertinent questions"
+    )
+    methodology_bullets = (
+        "\n".join(methodology_lines)
+        or "- Combine qualitative synthesis with quantitative evidence"
+    )
+
     return template.substitute(
         topic=topic,
-        primary_objective=plan.get("primary_objective", "Produce a research compendium"),
+        primary_objective=plan.get(
+            "primary_objective",
+            "Produce a research compendium",
+        ),
         audience=plan.get("audience", "Analytical readers"),
-        section_bullets="\n".join(section_lines) or "- No specific sections provided",
-        question_bullets="\n".join(question_lines) or "- Derive the most pertinent questions",
-        methodology_bullets="\n".join(methodology_lines)
-        or "- Combine qualitative synthesis with quantitative evidence",
+        section_bullets=section_bullets,
+        question_bullets=question_bullets,
+        methodology_bullets=methodology_bullets,
         schema=schema,
     )
 
@@ -195,18 +230,29 @@ def _compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _execute_deep_research(client: OpenAI, prompt: str, config: ResearchConfig):
+def _execute_deep_research(
+    client: OpenAI,
+    prompt: str,
+    config: ResearchConfig,
+):
     tools: list[dict[str, Any]] = []
     if config.use_web_search:
         tools.append({"type": "web_search_preview"})
     if config.vector_store_ids:
-        tools.append({"type": "file_search", "vector_store_ids": list(config.vector_store_ids)})
+        tools.append(
+            {
+                "type": "file_search",
+                "vector_store_ids": list(config.vector_store_ids),
+            }
+        )
     if config.enable_code_interpreter:
-        tools.append({"type": "code_interpreter", "container": {"type": "auto"}})
+        tools.append(
+            {"type": "code_interpreter", "container": {"type": "auto"}}
+        )
 
     if not tools:
         raise DeepResearchError(
-            "Deep research requires at least one data source tool (web search or file search)."
+            "Deep research requires a web-search or file-search tool."
         )
 
     request_payload: dict[str, Any] = {
@@ -227,7 +273,9 @@ def _execute_deep_research(client: OpenAI, prompt: str, config: ResearchConfig):
 
     final_status = getattr(response, "status", "completed")
     if final_status != "completed":
-        raise DeepResearchError(f"Deep research did not complete successfully: {final_status}")
+        raise DeepResearchError(
+            f"Deep research did not complete successfully: {final_status}"
+        )
 
     return response
 
@@ -239,7 +287,9 @@ def _await_completion(client: OpenAI, response: Any, config: ResearchConfig):
     while getattr(current, "status", "completed") in {"in_progress", "queued"}:
         attempts += 1
         if attempts > config.max_poll_attempts:
-            raise DeepResearchError("Timed out waiting for deep research to finish.")
+            raise DeepResearchError(
+                "Timed out waiting for deep research to finish."
+            )
         time.sleep(config.poll_interval_seconds)
         current = client.responses.retrieve(current.id)
 
@@ -271,7 +321,10 @@ def _collect_response_text(response: Any) -> str:
             if item_type == "message":
                 for content in data.get("content", []):
                     content_data = _object_to_dict(content)
-                    text = content_data.get("text") or content_data.get("value")
+                    text = (
+                        content_data.get("text")
+                        or content_data.get("value")
+                    )
                     if text:
                         text_parts.append(str(text))
             elif item_type == "output_text":
@@ -282,7 +335,9 @@ def _collect_response_text(response: Any) -> str:
     if text_parts:
         return "".join(text_parts).strip()
 
-    raise DeepResearchError("Deep research response did not include textual output.")
+    raise DeepResearchError(
+        "Deep research response did not include textual output."
+    )
 
 
 def _decode_json_payload(text: str) -> dict[str, Any]:
@@ -297,16 +352,22 @@ def _decode_json_payload(text: str) -> dict[str, Any]:
         start = candidate.find("{")
         end = candidate.rfind("}")
         if start == -1 or end == -1:
-            raise DeepResearchError("Unable to locate JSON object in response.")
-        candidate = candidate[start : end + 1]
+            raise DeepResearchError(
+                "Unable to locate JSON object in response."
+            )
+        candidate = candidate[start:end + 1]
 
     try:
         payload = json.loads(candidate)
     except json.JSONDecodeError as exc:
-        raise DeepResearchError("Deep research response was not valid JSON.") from exc
+        raise DeepResearchError(
+            "Deep research response was not valid JSON."
+        ) from exc
 
     if not isinstance(payload, dict):
-        raise DeepResearchError("Expected JSON object at top level of response.")
+        raise DeepResearchError(
+            "Expected JSON object at top level of response."
+        )
 
     return payload
 
@@ -341,7 +402,8 @@ def _extract_trace_events(response: Any) -> list[dict[str, Any]]:
 
 
 def _load_prompt_template(filename: str) -> Template:
-    prompt_text = resources.files("compendiumscribe.prompts").joinpath(filename).read_text("utf-8")
+    prompt_package = resources.files("compendiumscribe.prompts")
+    prompt_text = prompt_package.joinpath(filename).read_text("utf-8")
     normalized = _strip_leading_markdown_header(prompt_text)
     return Template(normalized)
 
@@ -353,7 +415,7 @@ def _strip_leading_markdown_header(text: str) -> str:
 
     for line in lines:
         stripped = line.strip()
-        if skipping and stripped.startswith("#") and stripped.startswith("# "):
+        if skipping and stripped.startswith("# "):
             continue
         if skipping and not stripped:
             continue
@@ -376,6 +438,8 @@ def _object_to_dict(value: Any) -> dict[str, Any]:
                 return result
 
     if hasattr(value, "__dict__"):
-        return {k: getattr(value, k) for k in vars(value) if not k.startswith("_")}
+        return {
+            k: getattr(value, k) for k in vars(value) if not k.startswith("_")
+        }
 
     return {}

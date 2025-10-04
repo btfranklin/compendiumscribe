@@ -6,8 +6,15 @@ from pathlib import Path
 
 import click
 
-from .create_llm_clients import MissingAPIKeyError, create_openai_client
-from .research_domain import DeepResearchError, ResearchConfig, build_compendium
+from .create_llm_clients import (
+    MissingAPIKeyError,
+    create_openai_client,
+)
+from .research_domain import (
+    DeepResearchError,
+    ResearchConfig,
+    build_compendium,
+)
 
 
 def _default_output_path(topic: str) -> Path:
@@ -24,21 +31,26 @@ def _default_output_path(topic: str) -> Path:
     "--output",
     "output_path",
     type=click.Path(path_type=Path, dir_okay=False, writable=True),
-    help="Where to save the generated XML (defaults to a timestamped filename).",
+    help="Save XML to this path (defaults to a timestamped filename).",
 )
 @click.option(
     "--no-background",
     is_flag=True,
-    help="Run the deep research call synchronously instead of in background mode.",
+    help="Run deep research synchronously instead of background mode.",
 )
 @click.option(
     "--max-tool-calls",
     type=int,
     default=None,
-    help="Limit the total number of tool calls performed by the deep research model.",
+    help="Limit total tool calls allowed for the deep research model.",
 )
-def main(topic: str, output_path: Path | None, no_background: bool, max_tool_calls: int | None):
-    """Generate a research compendium for TOPIC and save it as structured XML."""
+def main(
+    topic: str,
+    output_path: Path | None,
+    no_background: bool,
+    max_tool_calls: int | None,
+):
+    """Generate a research compendium for TOPIC and save it as XML."""
 
     click.echo(f"Preparing deep research assignment for '{topic}'.")
 

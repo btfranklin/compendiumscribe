@@ -25,11 +25,14 @@ class Citation:
         ET.SubElement(citation_elem, "url").text = self.url
 
         if self.publisher:
-            ET.SubElement(citation_elem, "publisher").text = self.publisher
+            publisher_elem = ET.SubElement(citation_elem, "publisher")
+            publisher_elem.text = self.publisher
         if self.published_at:
-            ET.SubElement(citation_elem, "published_at").text = self.published_at
+            published_elem = ET.SubElement(citation_elem, "published_at")
+            published_elem.text = self.published_at
         if self.summary:
-            ET.SubElement(citation_elem, "summary").text = self.summary
+            summary_elem = ET.SubElement(citation_elem, "summary")
+            summary_elem.text = self.summary
 
         return citation_elem
 
@@ -111,7 +114,11 @@ class ResearchTraceEvent:
     def to_xml(self) -> ET.Element:
         event_elem = ET.Element(
             "trace_event",
-            attrib={"id": self.event_id, "type": self.event_type, "status": self.status},
+            attrib={
+                "id": self.event_id,
+                "type": self.event_type,
+                "status": self.status,
+            },
         )
 
         if self.action:
@@ -136,14 +143,18 @@ class Compendium:
     citations: list[Citation] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
     trace: list[ResearchTraceEvent] = field(default_factory=list)
-    generated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    generated_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
     def to_xml(self) -> ET.Element:
         root = ET.Element(
             "compendium",
             attrib={
                 "topic": self.topic,
-                "generated_at": self.generated_at.replace(microsecond=0).isoformat(),
+                "generated_at": self.generated_at.replace(
+                    microsecond=0
+                ).isoformat(),
             },
         )
 
@@ -197,10 +208,14 @@ class Compendium:
         *,
         generated_at: datetime | None = None,
     ) -> "Compendium":
-        """Build a compendium from the JSON payload emitted by deep research."""
+        """Build a compendium from the deep research JSON payload."""
 
         overview = payload.get("topic_overview", "").strip()
-        methodology = [step.strip() for step in payload.get("methodology", []) if step]
+        methodology = [
+            step.strip()
+            for step in payload.get("methodology", [])
+            if step
+        ]
 
         sections_data = payload.get("sections", [])
         sections: list[Section] = []
@@ -208,8 +223,14 @@ class Compendium:
             identifier = section.get("id") or f"S{index:02d}"
             title = section.get("title", "Untitled Section").strip()
             summary = section.get("summary", "").strip()
-            key_terms = [term.strip() for term in section.get("key_terms", []) if term]
-            guiding = [q.strip() for q in section.get("guiding_questions", []) if q]
+            key_terms = [
+                term.strip() for term in section.get("key_terms", []) if term
+            ]
+            guiding = [
+                q.strip()
+                for q in section.get("guiding_questions", [])
+                if q
+            ]
             insights_payload = section.get("insights", [])
 
             insights: list[Insight] = []
@@ -222,7 +243,11 @@ class Compendium:
                         title=(insight.get("title") or "Key Insight").strip(),
                         evidence=(insight.get("evidence") or "").strip(),
                         implications=implications_text,
-                        citation_refs=[ref.strip() for ref in insight.get("citations", []) if ref],
+                        citation_refs=[
+                            ref.strip()
+                            for ref in insight.get("citations", [])
+                            if ref
+                        ],
                     )
                 )
 
@@ -246,13 +271,21 @@ class Compendium:
                     identifier=identifier,
                     title=citation.get("title", "Untitled Source").strip(),
                     url=citation.get("url", "").strip(),
-                    publisher=(citation.get("publisher") or "").strip() or None,
-                    published_at=(citation.get("published_at") or "").strip() or None,
-                    summary=(citation.get("summary") or "").strip() or None,
+                    publisher=(
+                        (citation.get("publisher") or "").strip() or None
+                    ),
+                    published_at=(
+                        (citation.get("published_at") or "").strip() or None
+                    ),
+                    summary=(
+                        (citation.get("summary") or "").strip() or None
+                    ),
                 )
             )
 
-        open_questions = [q.strip() for q in payload.get("open_questions", []) if q]
+        open_questions = [
+            q.strip() for q in payload.get("open_questions", []) if q
+        ]
 
         trace_payload = payload.get("trace", [])
         trace: list[ResearchTraceEvent] = []
@@ -280,7 +313,10 @@ class Compendium:
         )
 
 
-def etree_to_string(elem: ET.Element, cdata_tags: set[str] | None = None) -> str:
+def etree_to_string(
+    elem: ET.Element,
+    cdata_tags: set[str] | None = None,
+) -> str:
     """Serialize an element tree to a string while preserving CDATA tags."""
 
     from xml.sax.saxutils import escape
@@ -290,8 +326,11 @@ def etree_to_string(elem: ET.Element, cdata_tags: set[str] | None = None) -> str
 
     def serialize_element(e: ET.Element) -> str:
         tag = e.tag
-        attrib = " ".join(f'{k}="{escape(v)}"' for k, v in e.attrib.items())
-        open_tag = f"<{tag}{(' ' + attrib) if attrib else ''}>"
+        attrib = " ".join(
+            f'{k}="{escape(v)}"' for k, v in e.attrib.items()
+        )
+        attr_segment = f" {attrib}" if attrib else ""
+        open_tag = f"<{tag}{attr_segment}>"
         close_tag = f"</{tag}>"
 
         parts = [open_tag]
