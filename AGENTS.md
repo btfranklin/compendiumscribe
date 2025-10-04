@@ -7,7 +7,7 @@ The installable package remains under `src/compendiumscribe`. `cli.py` now expos
 - `pdm install --dev` installs runtime and dev dependencies (ensure `PDM_HOME` points to a writable path if running in a sandbox).
 - `pdm run create-compendium "Cell biology"` exercises the CLI; add `--output path.xml`, `--no-background`, or `--max-tool-calls N` as needed.
 - `pdm run pytest` is mandatory before calling work complete. Tests already rely on stubs, so they are fast and offline-capable. If `pdm` cannot write logs, set `PDM_HOME=.pdm_home` and retry.
-- `pdm run flake8 src tests` keeps style and linting consistent.
+- `pdm run flake8 src tests` keeps style and linting consistent; do not treat work as finished until this passes cleanly.
 - `pdm build` produces the wheel and sdist when preparing a release.
 
 ## Coding Style & Naming Conventions
