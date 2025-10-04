@@ -1,231 +1,244 @@
-from compendiumscribe.model import Domain, Topic, Concept, etree_to_string
+import json
+import xml.etree.ElementTree as ET
+
+from compendiumscribe.model import (
+    Citation,
+    Compendium,
+    Insight,
+    ResearchTraceEvent,
+    Section,
+)
+from compendiumscribe.research_domain import ResearchConfig, build_compendium
 
 
-def elements_equal(e1, e2):
-    """
-    Helper function to compare two XML elements.
-    """
-    if e1.tag != e2.tag:
-        return False
-    if (e1.text or "").strip() != (e2.text or "").strip():
-        return False
-    if e1.attrib != e2.attrib:
-        return False
-    if len(e1) != len(e2):
-        return False
-    return all(elements_equal(c1, c2) for c1, c2 in zip(e1, e2))
-
-
-def test_concept_to_xml():
-    concept = Concept(
-        name="Functions Performed By Cells",
-        keywords=["cell", "function"],
-        questions=[
-            "What functions do cells perform?",
-            "How do cells contribute to the organism's survival?",
+def test_compendium_to_xml_contains_expected_structure():
+    compendium = Compendium(
+        topic="Quantum Computing",
+        overview="High-level synthesis",
+        methodology=["Map core concepts", "Cross-validate findings"],
+        sections=[
+            Section(
+                identifier="S1",
+                title="Foundations",
+                summary="Qubits and quantum gates",
+                key_terms=["qubit", "superposition"],
+                guiding_questions=["What distinguishes qubits from classical bits?"],
+                insights=[
+                    Insight(
+                        title="Coherence is fragile",
+                        evidence="Most systems retain coherence for microseconds before error correction overwhelms throughput.",
+                        implications="Large-scale machines require aggressive error mitigation.",
+                        citation_refs=["C1"],
+                    )
+                ],
+            )
         ],
-        prerequisites=["basic biology", "cells"],
-        content="Cells perform various functions necessary for the organism's survival...",
-    )
-
-    expected_xml = """<concept name="Functions Performed By Cells">
-        <questions>
-            <question>What functions do cells perform?</question>
-            <question>How do cells contribute to the organism's survival?</question>
-        </questions>
-        <keywords>
-            <keyword>cell</keyword>
-            <keyword>function</keyword>
-        </keywords>
-        <prerequisites>
-            <prerequisite>basic biology</prerequisite>
-            <prerequisite>cells</prerequisite>
-        </prerequisites>
-        <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
-    </concept>"""
-
-    # Generate actual XML string using the custom serialization function
-    actual_elem = concept.to_xml()
-    actual_xml = etree_to_string(actual_elem, cdata_tags={"content"})
-
-    # Remove whitespace and newlines for comparison
-    expected_xml_clean = "".join(expected_xml.strip().split())
-    actual_xml_clean = "".join(actual_xml.strip().split())
-
-    # Assert that the actual XML matches the expected XML
-    assert (
-        expected_xml_clean == actual_xml_clean
-    ), "Concept XML string does not match expected output."
-
-
-def test_topic_to_xml():
-    concept = Concept(
-        name="Functions Performed By Cells",
-        keywords=["cell", "function"],
-        questions=[
-            "What functions do cells perform?",
-            "How do cells contribute to the organism's survival?",
+        citations=[
+            Citation(
+                identifier="C1",
+                title="A Survey on Quantum Error Correction",
+                url="https://example.com/qec",
+                publisher="ACM",
+                published_at="2023-04-01",
+                summary="Overview of leading quantum error correction strategies.",
+            )
         ],
-        prerequisites=["basic biology", "cells"],
-        content="Cells perform various functions necessary for the organism's survival...",
-    )
-    topic = Topic(
-        name="Cell Function",
-        topic_summary="Cells have a wide range of functions...",
-        concepts=[concept],
-    )
-
-    expected_xml = """<topic name="Cell Function">
-        <topic_summary><![CDATA[Cells have a wide range of functions...]]></topic_summary>
-        <concepts>
-            <concept name="Functions Performed By Cells">
-                <questions>
-                    <question>What functions do cells perform?</question>
-                    <question>How do cells contribute to the organism's survival?</question>
-                </questions>
-                <keywords>
-                    <keyword>cell</keyword>
-                    <keyword>function</keyword>
-                </keywords>
-                <prerequisites>
-                    <prerequisite>basic biology</prerequisite>
-                    <prerequisite>cells</prerequisite>
-                </prerequisites>
-                <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
-            </concept>
-        </concepts>
-    </topic>"""
-
-    # Generate actual XML string using the custom serialization function
-    actual_elem = topic.to_xml()
-    actual_xml = etree_to_string(actual_elem, cdata_tags={"topic_summary", "content"})
-
-    # Remove whitespace and newlines for comparison
-    expected_xml_clean = "".join(expected_xml.strip().split())
-    actual_xml_clean = "".join(actual_xml.strip().split())
-
-    # Assert that the actual XML matches the expected XML
-    assert (
-        expected_xml_clean == actual_xml_clean
-    ), "Topic XML string does not match expected output."
-
-
-def test_domain_to_xml():
-    concept = Concept(
-        name="Functions Performed By Cells",
-        keywords=["cell", "function"],
-        questions=[
-            "What functions do cells perform?",
-            "How do cells contribute to the organism's survival?",
+        open_questions=["When will logical qubits exceed 100 by default?"],
+        trace=[
+            ResearchTraceEvent(
+                event_id="ws_1",
+                event_type="web_search_call",
+                status="completed",
+                action={"query": "latest quantum error correction breakthroughs"},
+            )
         ],
-        prerequisites=["basic biology", "cells"],
-        content="Cells perform various functions necessary for the organism's survival...",
-    )
-    topic = Topic(
-        name="Cell Function",
-        topic_summary="Cells have a wide range of functions...",
-        concepts=[concept],
-    )
-    domain = Domain(
-        name="Cell Biology",
-        summary="Cells are the basic units of life...",
-        topics=[topic],
     )
 
-    expected_xml = """<domain name="Cell Biology">
-        <summary><![CDATA[Cells are the basic units of life...]]></summary>
-        <topic name="Cell Function">
-            <topic_summary><![CDATA[Cells have a wide range of functions...]]></topic_summary>
-            <concepts>
-                <concept name="Functions Performed By Cells">
-                    <questions>
-                        <question>What functions do cells perform?</question>
-                        <question>How do cells contribute to the organism's survival?</question>
-                    </questions>
-                    <keywords>
-                        <keyword>cell</keyword>
-                        <keyword>function</keyword>
-                    </keywords>
-                    <prerequisites>
-                        <prerequisite>basic biology</prerequisite>
-                        <prerequisite>cells</prerequisite>
-                    </prerequisites>
-                    <content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
-                </concept>
-            </concepts>
-        </topic>
-    </domain>"""
+    xml_string = compendium.to_xml_string()
+    root = ET.fromstring(xml_string)
 
-    # Generate actual XML string using the custom serialization function
-    actual_elem = domain.to_xml()
-    actual_xml = etree_to_string(
-        actual_elem, cdata_tags={"summary", "topic_summary", "content"}
-    )
-
-    # Remove whitespace and newlines for comparison
-    expected_xml_clean = "".join(expected_xml.strip().split())
-    actual_xml_clean = "".join(actual_xml.strip().split())
-
-    # Assert that the actual XML matches the expected XML
-    assert (
-        expected_xml_clean == actual_xml_clean
-    ), "Domain XML string does not match expected output."
+    assert root.tag == "compendium"
+    assert root.attrib["topic"] == "Quantum Computing"
+    assert root.findtext("overview") == "High-level synthesis"
+    assert root.find("sections/section/title").text == "Foundations"
+    assert root.find("citations/citation/title").text == "A Survey on Quantum Error Correction"
+    assert root.find("research_trace/trace_event").attrib["id"] == "ws_1"
 
 
-def test_domain_to_xml_string():
-    concept = Concept(
-        name="Functions Performed By Cells",
-        keywords=["cell", "function"],
-        questions=[
-            "What functions do cells perform?",
-            "How do cells contribute to the organism's survival?",
+def test_compendium_from_payload_normalises_fields():
+    payload = {
+        "topic_overview": "A concise overview",
+        "methodology": ["Collect expert commentary", "Highlight quantitative indicators"],
+        "sections": [
+            {
+                "id": "S1",
+                "title": "Key Dynamics",
+                "summary": "Market movements and investment levels",
+                "key_terms": ["capex"],
+                "guiding_questions": ["Which regions are scaling fastest?"],
+                "insights": [
+                    {
+                        "title": "Private investment surged",
+                        "evidence": "Funding grew 45% year over year according to PitchBook.",
+                        "implications": "Competition for talent is increasing.",
+                        "citations": ["C1"],
+                    }
+                ],
+            }
         ],
-        prerequisites=["basic biology", "cells"],
-        content="Cells perform various functions necessary for the organism's survival...",
-    )
-    topic = Topic(
-        name="Cell Function",
-        topic_summary="Cells have a wide range of functions...",
-        concepts=[concept],
-    )
-    domain = Domain(
-        name="Cell Biology",
-        summary="Cells are the basic units of life...",
-        topics=[topic],
-    )
+        "citations": [
+            {
+                "id": "C1",
+                "title": "PitchBook Emerging Tech Report",
+                "url": "https://example.com/pitchbook",
+                "publisher": "PitchBook",
+                "published_at": "2024-01-15",
+                "summary": "Investment trends across quantum startups.",
+            }
+        ],
+        "open_questions": ["How will regulation shape deployment?"],
+        "trace": [
+            {
+                "id": "ws_1",
+                "type": "web_search_call",
+                "status": "completed",
+                "action": {"query": "quantum funding 2024"},
+            }
+        ],
+    }
 
-    expected_xml = """<domain name="Cell Biology">
-<summary><![CDATA[Cells are the basic units of life...]]></summary>
-<topic name="Cell Function">
-<topic_summary><![CDATA[Cells have a wide range of functions...]]></topic_summary>
-<concepts>
-<concept name="Functions Performed By Cells">
-<questions>
-<question>What functions do cells perform?</question>
-<question>How do cells contribute to the organism's survival?</question>
-</questions>
-<keywords>
-<keyword>cell</keyword>
-<keyword>function</keyword>
-</keywords>
-<prerequisites>
-<prerequisite>basic biology</prerequisite>
-<prerequisite>cells</prerequisite>
-</prerequisites>
-<content><![CDATA[Cells perform various functions necessary for the organism's survival...]]></content>
-</concept>
-</concepts>
-</topic>
-</domain>"""
+    compendium = Compendium.from_payload("Quantum Capital", payload)
 
-    # Generate actual XML string
-    actual_xml = domain.to_xml_string()
+    assert compendium.topic == "Quantum Capital"
+    assert compendium.methodology[0] == "Collect expert commentary"
+    assert compendium.sections[0].insights[0].citation_refs == ["C1"]
+    assert compendium.citations[0].publisher == "PitchBook"
+    assert compendium.open_questions == ["How will regulation shape deployment?"]
+    assert compendium.trace[0].event_id == "ws_1"
 
-    # Remove whitespace for comparison
-    expected_xml_stripped = "".join(expected_xml.strip().split())
-    actual_xml_stripped = "".join(actual_xml.strip().split())
 
-    # Assert that the strings are equal
-    assert (
-        expected_xml_stripped == actual_xml_stripped
-    ), "Domain XML string does not match expected output."
+class FakeResponse:
+    def __init__(self, *, output_text=None, output=None, status="completed", response_id="resp_1"):
+        self.output_text = output_text
+        self.output = output or []
+        self.status = status
+        self.id = response_id
+
+
+class FakeResponsesAPI:
+    def __init__(self, plan_json: str, research_json: str):
+        self.plan_json = plan_json
+        self.research_json = research_json
+        self.calls: list[dict[str, str]] = []
+
+    def create(self, **kwargs):
+        model = kwargs.get("model")
+        self.calls.append({"model": model, "input": kwargs.get("input", "")})
+
+        if model == "gpt-4.1-mini":
+            return FakeResponse(output_text=self.plan_json, response_id="plan_1")
+
+        if model == "o3-deep-research":
+            output = [
+                {
+                    "type": "web_search_call",
+                    "id": "ws_1",
+                    "status": "completed",
+                    "action": {"type": "search", "query": "quantum computing breakthroughs"},
+                },
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": self.research_json,
+                        }
+                    ],
+                },
+            ]
+            return FakeResponse(output=output, status="completed", response_id="research_1")
+
+        raise AssertionError(f"Unexpected model request: {model}")
+
+    def retrieve(self, response_id: str):  # pragma: no cover - not exercised in this test
+        raise AssertionError(f"retrieve called unexpectedly for {response_id}")
+
+
+class FakeOpenAI:
+    def __init__(self, plan_json: str, research_json: str):
+        self.responses = FakeResponsesAPI(plan_json, research_json)
+
+
+def test_build_compendium_with_stub_client():
+    plan = {
+        "primary_objective": "Build a comprehensive compendium",
+        "audience": "Strategic leadership teams",
+        "key_sections": [
+            {"title": "Context", "focus": "Historical milestones"},
+            {"title": "Applications", "focus": "Practical deployments"},
+        ],
+        "research_questions": [
+            "What breakthroughs unlocked current capabilities?",
+            "Who are the leading vendors?",
+        ],
+        "methodology_preferences": [
+            "Verify each statistic using at least two sources",
+            "Prioritise materials from 2022 onward",
+        ],
+    }
+
+    research_payload = {
+        "topic_overview": "Quantum computing is transitioning from lab prototypes to early commercial pilots.",
+        "methodology": [
+            "Surveyed public filings and analyst coverage",
+            "Aggregated investment data across multiple trackers",
+        ],
+        "sections": [
+            {
+                "id": "S1",
+                "title": "Technological Foundations",
+                "summary": "Hardware approaches and error correction challenges",
+                "key_terms": ["superconducting qubits"],
+                "guiding_questions": ["Which modalities show the most promise?"],
+                "insights": [
+                    {
+                        "title": "Superconducting qubits dominate near-term roadmaps",
+                        "evidence": "IBM and Google published roadmaps targeting >1000 qubits with heavy error mitigation by 2025.",
+                        "implications": "Vendor lock-in may increase as proprietary control stacks mature.",
+                        "citations": ["C1", "C2"],
+                    }
+                ],
+            }
+        ],
+        "citations": [
+            {
+                "id": "C1",
+                "title": "IBM Quantum Roadmap",
+                "url": "https://example.com/ibm-roadmap",
+                "publisher": "IBM",
+                "published_at": "2023-12-01",
+                "summary": "Targets for qubit scaling and error mitigation.",
+            },
+            {
+                "id": "C2",
+                "title": "Google Quantum AI Progress Update",
+                "url": "https://example.com/google-qa",
+                "publisher": "Google",
+                "published_at": "2024-02-10",
+                "summary": "Highlights on achieving reduced error rates.",
+            },
+        ],
+        "open_questions": ["How will supply chains support dilution refrigerators at scale?"],
+    }
+
+    client = FakeOpenAI(json.dumps(plan), json.dumps(research_payload))
+    config = ResearchConfig(background=False)
+
+    compendium = build_compendium("Quantum Computing", client=client, config=config)
+
+    assert compendium.overview.startswith("Quantum computing is transitioning")
+    assert compendium.sections[0].insights[0].citation_refs == ["C1", "C2"]
+    assert compendium.citations[1].title == "Google Quantum AI Progress Update"
+    assert compendium.trace[0].event_type == "web_search_call"
+    assert len(client.responses.calls) == 2
+    assert "Quantum Computing" in client.responses.calls[1]["input"]

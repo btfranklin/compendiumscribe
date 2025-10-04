@@ -1,36 +1,31 @@
+from __future__ import annotations
+
 import os
-import sys
-from colorama import Fore
+
+from dotenv import load_dotenv
 from openai import OpenAI
 
+DEFAULT_TIMEOUT_SECONDS = 3600
 
-def create_llm_clients() -> tuple[OpenAI, OpenAI]:
-    """
-    Create OpenAI and Perplexity clients for use in the research domain pipeline.
 
-    Please note that load_env() must be called before this function is called, and
-    colorama must be initialized before this function is called.
+class MissingAPIKeyError(RuntimeError):
+    """Raised when the OPENAI_API_KEY environment variable is absent."""
 
-    Returns:
-        tuple[OpenAI, OpenAI]: The OpenAI and Perplexity clients.
-    """
 
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
-    perplexity_api_key = os.environ.get("PERPLEXITY_API_KEY")
+def create_openai_client(*, timeout: int | None = None) -> OpenAI:
+    """Initialise the OpenAI client using configuration from the environment."""
 
-    if not openai_api_key:
-        print(f"{Fore.RED}OPENAI_API_KEY not found in environment variables.")
-        sys.exit(1)
-
-    llm_client = OpenAI(api_key=openai_api_key)
-
-    if perplexity_api_key:
-        online_llm_client = OpenAI(
-            api_key=perplexity_api_key,
-            base_url="https://api.perplexity.ai",
+    load_dotenv()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise MissingAPIKeyError(
+            "OPENAI_API_KEY is not set. Provide credentials via environment or .env file."
         )
-    else:
-        print(f"{Fore.RED}Unable to create online LLM client. Research impossible.")
-        sys.exit(1)
 
-    return llm_client, online_llm_client
+    client_kwargs: dict[str, object] = {"api_key": api_key}
+    client_kwargs["timeout"] = timeout or DEFAULT_TIMEOUT_SECONDS
+
+    return OpenAI(**client_kwargs)
+
+
+__all__ = ["create_openai_client", "MissingAPIKeyError"]

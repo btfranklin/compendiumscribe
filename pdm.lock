@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:1a17cf6ffccbc72ff87bbd106f5678f1ba495ff1e635f732ad4971b2559e46b6"
+content_hash = "sha256:57231b9d3158d25e8e52a5184f6157b24775ef7eed3d9af9871aa9da721960e3"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -73,6 +73,7 @@ version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
 groups = ["default", "dev"]
+marker = "platform_system == \"Windows\" or sys_platform == \"win32\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
     {file = "colorama-0.4.6.tar.gz", hash = "sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44"},
@@ -240,20 +241,6 @@ files = [
 ]
 
 [[package]]
-name = "pickled-pipeline"
-version = "0.2.1"
-requires_python = ">=3.10"
-summary = "A package for caching repeat runs of pipelines that have expensive operations along the way"
-groups = ["default"]
-dependencies = [
-    "click>=8.1.7",
-]
-files = [
-    {file = "pickled_pipeline-0.2.1-py3-none-any.whl", hash = "sha256:e2d335c3c90a5ee6edfe1c08067ffcb3545d6f6af4cdfd939a52b5ff0190961f"},
-    {file = "pickled_pipeline-0.2.1.tar.gz", hash = "sha256:5624928cc2b7e29f23c2e35d9e472662dbf684705c4bfcd604f5badc4ed9ffef"},
-]
-
-[[package]]
 name = "pluggy"
 version = "1.5.0"
 requires_python = ">=3.8"
@@ -262,17 +249,6 @@ groups = ["dev"]
 files = [
     {file = "pluggy-1.5.0-py3-none-any.whl", hash = "sha256:44e1ad92c8ca002de6377e165f3e0f1be63266ab4d554740532335b9d75ea669"},
     {file = "pluggy-1.5.0.tar.gz", hash = "sha256:2cffa88e94fdc978c4c574f15f9e59b7f4201d439195c3715ca9e2486f1d0cf1"},
-]
-
-[[package]]
-name = "promptdown"
-version = "0.8.1"
-requires_python = ">=3.10"
-summary = "A package for loading promptdown files, which are a special type of markdown file for defining structured LLM prompts"
-groups = ["default"]
-files = [
-    {file = "promptdown-0.8.1-py3-none-any.whl", hash = "sha256:9aa9d71cad91b1174ba02f66509bd84856d20d4e3b637396296a4b4f34d2cca8"},
-    {file = "promptdown-0.8.1.tar.gz", hash = "sha256:bfa5debf8de1c4fc70c9b8dd797899134cd73744a48647e647147bd9db9c9467"},
 ]
 
 [[package]]
