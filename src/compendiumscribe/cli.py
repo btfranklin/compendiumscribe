@@ -1,70 +1,70 @@
-import pickle
-import re
-import sys
-import click
-from dotenv import load_dotenv
-from datetime import datetime
-import colorama.initialise as colorama
+from __future__ import annotations
 
-from compendiumscribe.create_llm_clients import create_llm_clients
-from compendiumscribe.research_domain import research_domain
+import re
+from datetime import datetime
+from pathlib import Path
+
+import click
+
+from .create_llm_clients import MissingAPIKeyError, create_openai_client
+from .research_domain import DeepResearchError, ResearchConfig, build_compendium
+
+
+def _default_output_path(topic: str) -> Path:
+    slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
+    if not slug:
+        slug = "compendium"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return Path(f"{slug}_{timestamp}.xml")
 
 
 @click.command()
+@click.argument("topic", type=str)
 @click.option(
-    "--domain",
-    prompt="Domain of expertise",
-    help="The domain of expertise to create the compendium for.",
+    "--output",
+    "output_path",
+    type=click.Path(path_type=Path, dir_okay=False, writable=True),
+    help="Where to save the generated XML (defaults to a timestamped filename).",
 )
-def main(domain: str):
-    """
-    Command-line entry point for creating a compendium.
-    """
+@click.option(
+    "--no-background",
+    is_flag=True,
+    help="Run the deep research call synchronously instead of in background mode.",
+)
+@click.option(
+    "--max-tool-calls",
+    type=int,
+    default=None,
+    help="Limit the total number of tool calls performed by the deep research model.",
+)
+def main(topic: str, output_path: Path | None, no_background: bool, max_tool_calls: int | None):
+    """Generate a research compendium for TOPIC and save it as structured XML."""
 
-    # Load environment variables from .env file
-    load_dotenv()
+    click.echo(f"Preparing deep research assignment for '{topic}'.")
 
-    # Initialize colorama
-    colorama.init(autoreset=True)
-
-    # Create the LLM clients
-    llm_client, online_llm_client = create_llm_clients()
+    config = ResearchConfig(
+        background=not no_background,
+        max_tool_calls=max_tool_calls,
+    )
 
     try:
-        domain_object = research_domain(domain, llm_client, online_llm_client)
+        client = create_openai_client(timeout=config.request_timeout_seconds)
+        compendium = build_compendium(topic, client=client, config=config)
+    except MissingAPIKeyError as exc:
+        click.echo(f"Configuration error: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except DeepResearchError as exc:
+        click.echo(f"Deep research failed: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except Exception as exc:  # pragma: no cover - defensive logging for CLI
+        click.echo(f"Unexpected error: {exc}", err=True)
+        raise SystemExit(1) from exc
 
-        # Create a file-friendly name string based on the domain name, in the form:
-        # domain_name_with_underscores_2024-12-31
-        # by:
-        # 1. removing any non-alphanumeric characters
-        # 2. converting spaces to underscores
-        # 3. converting to lowercase
-        # 4. Removing any underscores from the beginning or end of the string
-        # 5. Removing any consecutive underscores
-        # 6. Removing any trailing underscores
-        # 7. Adding the date of creation (YYYY-MM-DD) to the end of the string, separated by a single underscore
-        file_friendly_domain_name = re.sub(r"[^a-zA-Z0-9]+", "_", domain).lower()
-        file_friendly_domain_name = re.sub(r"^_+|_+$", "", file_friendly_domain_name)
-        file_friendly_domain_name = re.sub(r"_{2,}", "_", file_friendly_domain_name)
-        file_friendly_domain_name = (
-            file_friendly_domain_name + "_" + datetime.now().strftime("%Y-%m-%d")
-        )
+    output_path = output_path or _default_output_path(topic)
+    output_path.write_text(compendium.to_xml_string(), encoding="utf-8")
 
-        # Save the domain to a file by pickling it
-        pickle_filename = f"{file_friendly_domain_name}.compendium.pickle"
-        with open(pickle_filename, "wb") as f:
-            pickle.dump(domain_object, f)
-
-        # Save the entire domain_object to an XML file as well
-        xml_filename = f"{file_friendly_domain_name}.compendium.xml"
-        xml_string = domain_object.to_xml_string()
-        with open(xml_filename, "w") as f:
-            f.write(xml_string)
-
-    except Exception as e:
-        print(f"An error occurred while creating the compendium: {e}")
-        sys.exit(1)
+    click.echo(f"Compendium written to {output_path}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()
