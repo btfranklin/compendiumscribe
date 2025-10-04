@@ -7,6 +7,7 @@ from compendiumscribe.model import (
     Insight,
     ResearchTraceEvent,
     Section,
+    etree_to_string,
 )
 from compendiumscribe.research_domain import ResearchConfig, build_compendium
 
@@ -135,7 +136,7 @@ class FakeResponsesAPI:
         model = kwargs.get("model")
         self.calls.append({"model": model, "input": kwargs.get("input", "")})
 
-        if model == "gpt-4.1-mini":
+        if model in {"gpt-4.1", "gpt-4.1-mini"}:
             return FakeResponse(output_text=self.plan_json, response_id="plan_1")
 
         if model == "o3-deep-research":
@@ -242,3 +243,32 @@ def test_build_compendium_with_stub_client():
     assert compendium.trace[0].event_type == "web_search_call"
     assert len(client.responses.calls) == 2
     assert "Quantum Computing" in client.responses.calls[1]["input"]
+
+
+def test_compendium_from_payload_generates_event_id_when_missing():
+    payload = {
+        "topic_overview": "Overview",
+        "sections": [],
+        "citations": [],
+        "trace": [
+            {
+                "type": "web_search_call",
+                "status": "completed",
+                "action": {"query": "test"},
+            }
+        ],
+    }
+
+    compendium = Compendium.from_payload("Topic", payload)
+
+    assert compendium.trace[0].event_id.startswith("event-")
+
+
+def test_etree_to_string_preserves_cdata_when_requested():
+    root = ET.Element("note")
+    content = ET.SubElement(root, "content")
+    content.text = "Important <data>"
+
+    xml = etree_to_string(root, cdata_tags={"content"})
+
+    assert "<![CDATA[Important <data>]]>" in xml

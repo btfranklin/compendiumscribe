@@ -353,7 +353,7 @@ def _strip_leading_markdown_header(text: str) -> str:
 
     for line in lines:
         stripped = line.strip()
-        if skipping and stripped.startswith("#"):
+        if skipping and stripped.startswith("#") and stripped.startswith("# "):
             continue
         if skipping and not stripped:
             continue
