@@ -86,7 +86,7 @@ def test_compendium_to_xml_contains_expected_structure():
     assert root.find("research_trace/trace_event").attrib["id"] == "ws_1"
 
 
-def test_compendium_from_payload_normalises_fields():
+def test_compendium_from_payload_normalizes_fields():
     payload = {
         "topic_overview": "A concise overview",
         "methodology": [
@@ -240,7 +240,7 @@ def test_build_compendium_with_stub_client():
         ],
         "methodology_preferences": [
             "Verify each statistic using at least two sources",
-            "Prioritise materials from 2022 onward",
+            "Prioritize materials from 2022 onward",
         ],
     }
 
@@ -326,6 +326,36 @@ def test_build_compendium_with_stub_client():
     assert compendium.trace[0].event_type == "web_search_call"
     assert len(client.responses.calls) == 2
     assert "Quantum Computing" in client.responses.calls[1]["input"]
+
+
+def test_build_compendium_emits_progress_updates():
+    plan = {"primary_objective": "Capture topic"}
+    research_payload = {
+        "topic_overview": "Overview",
+        "methodology": [],
+        "sections": [],
+        "citations": [],
+        "open_questions": [],
+    }
+
+    client = FakeOpenAI(json.dumps(plan), json.dumps(research_payload))
+    captured: list = []
+
+    def capture_progress(update):
+        captured.append(update)
+
+    config = ResearchConfig(
+        background=False,
+        progress_callback=capture_progress,
+    )
+
+    build_compendium("Test Topic", client=client, config=config)
+
+    assert captured, "Expected progress callback to receive updates"
+    phases = {event.phase for event in captured}
+    assert "planning" in phases
+    assert "deep_research" in phases
+    assert any(event.status == "completed" for event in captured)
 
 
 def test_compendium_from_payload_generates_event_id_when_missing():
