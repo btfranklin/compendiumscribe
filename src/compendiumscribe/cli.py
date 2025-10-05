@@ -40,6 +40,11 @@ def _default_output_path(topic: str) -> Path:
     help="Run deep research synchronously instead of background mode.",
 )
 @click.option(
+    "--no-stream-progress",
+    is_flag=True,
+    help="Disable streaming updates from the deep research run.",
+)
+@click.option(
     "--max-tool-calls",
     type=int,
     default=None,
@@ -49,6 +54,7 @@ def main(
     topic: str,
     output_path: Path | None,
     no_background: bool,
+    no_stream_progress: bool,
     max_tool_calls: int | None,
 ):
     """Generate a research compendium for TOPIC and save it as XML."""
@@ -70,6 +76,7 @@ def main(
 
     config = ResearchConfig(
         background=not no_background,
+        stream_progress=not no_stream_progress,
         max_tool_calls=max_tool_calls,
         progress_callback=handle_progress,
     )
