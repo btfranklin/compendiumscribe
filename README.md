@@ -46,6 +46,7 @@ Options:
 - `--output PATH` — where to write the XML file (defaults to `<slug>_<timestamp>.xml`).
 - `--no-background` — force synchronous execution (useful for short or restricted queries).
 - `--max-tool-calls N` — cap the total number of tool calls for cost control.
+- `--no-stream-progress` — fall back to batched responses instead of streaming events.
 
 Example output file name: `lithium-ion-battery-recycling_20250107_143233.xml`.
 

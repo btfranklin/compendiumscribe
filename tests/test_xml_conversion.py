@@ -307,7 +307,7 @@ def test_build_compendium_with_stub_client():
     }
 
     client = FakeOpenAI(json.dumps(plan), json.dumps(research_payload))
-    config = ResearchConfig(background=False)
+    config = ResearchConfig(background=False, stream_progress=False)
 
     compendium = build_compendium(
         "Quantum Computing",
@@ -347,6 +347,7 @@ def test_build_compendium_emits_progress_updates():
     config = ResearchConfig(
         background=False,
         progress_callback=capture_progress,
+        stream_progress=False,
     )
 
     build_compendium("Test Topic", client=client, config=config)
