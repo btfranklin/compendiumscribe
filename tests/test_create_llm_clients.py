@@ -1,20 +1,16 @@
-from types import SimpleNamespace
+from __future__ import annotations
 
 import pytest
 
-from compendiumscribe.create_llm_clients import (
-    MissingAPIKeyError,
-    create_openai_client,
-)
+from compendiumscribe.create_llm_clients import create_openai_client
 
 
-class DummyOpenAI:
-    def __init__(self, **kwargs):
-        self.kwargs = kwargs
+def test_create_openai_client_requires_responses_support(monkeypatch):
+    class DummyOpenAI:
+        def __init__(self, **_kwargs):
+            pass
 
-
-def test_create_openai_client_requires_api_key(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(
         "compendiumscribe.create_llm_clients.load_dotenv",
         lambda: None,
@@ -24,25 +20,36 @@ def test_create_openai_client_requires_api_key(monkeypatch):
         DummyOpenAI,
     )
 
-    with pytest.raises(MissingAPIKeyError):
+    with pytest.raises(RuntimeError) as exc_info:
         create_openai_client()
 
+    assert "Responses API" in str(exc_info.value)
 
-def test_create_openai_client_uses_timeout(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
-    captured = {}
 
-    def fake_openai(**kwargs):
-        captured.update(kwargs)
-        return SimpleNamespace(**kwargs)
+def test_create_openai_client_returns_native_client(monkeypatch):
+    instances: list[object] = []
 
+    class DummyResponses:
+        pass
+
+    class DummyOpenAI:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.responses = DummyResponses()
+            instances.append(self)
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "compendiumscribe.create_llm_clients.load_dotenv",
+        lambda: None,
+    )
     monkeypatch.setattr(
         "compendiumscribe.create_llm_clients.OpenAI",
-        fake_openai,
+        DummyOpenAI,
     )
 
     client = create_openai_client(timeout=123)
 
-    assert captured["api_key"] == "sk-test"
-    assert captured["timeout"] == 123
-    assert client.api_key == "sk-test"
+    assert client is instances[0]
+    assert isinstance(client.responses, DummyResponses)
+    assert instances[0].kwargs["timeout"] == 123

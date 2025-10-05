@@ -9,7 +9,6 @@ from string import Template
 from typing import Any, Iterable
 
 from openai import OpenAI
-
 from .model import Compendium
 
 
@@ -272,7 +271,11 @@ def _execute_deep_research(
     return response
 
 
-def _await_completion(client: OpenAI, response: Any, config: ResearchConfig):
+def _await_completion(
+    client: OpenAI,
+    response: Any,
+    config: ResearchConfig,
+):
     attempts = 0
     current = response
 

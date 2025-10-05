@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -25,7 +24,13 @@ def create_openai_client(*, timeout: int | None = None) -> OpenAI:
     client_kwargs: dict[str, object] = {"api_key": api_key}
     client_kwargs["timeout"] = timeout or DEFAULT_TIMEOUT_SECONDS
 
-    return OpenAI(**client_kwargs)
+    client = OpenAI(**client_kwargs)
+    if not hasattr(client, "responses"):
+        raise RuntimeError(
+            "Installed openai package does not expose the Responses API. "
+            "Upgrade to a newer openai release (e.g. `pip install -U openai`)."
+        )
+    return client
 
 
 __all__ = ["create_openai_client", "MissingAPIKeyError"]
