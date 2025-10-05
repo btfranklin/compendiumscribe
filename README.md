@@ -98,7 +98,7 @@ Compendium Scribe produces XML shaped like:
         <insight>
           <title><![CDATA[Hydrometallurgy remains the throughput leader]]></title>
           <evidence><![CDATA[EPRI 2024 data shows >95% cobalt recovery in commercial plants.]]></evidence>
-          <implications><![CDATA[Capital efficiency favours hydrometallurgy for near-term scaling.]]></implications>
+          <implications><![CDATA[Capital efficiency favors hydrometallurgy for near-term scaling.]]></implications>
           <citations>
             <ref>C1</ref>
           </citations>
@@ -155,4 +155,4 @@ If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to 
 
 ## License
 
-MIT © Brandon Franklin and contributors.
+MIT © B.T. Franklin and contributors.

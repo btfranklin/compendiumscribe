@@ -9,6 +9,7 @@ from compendiumscribe.research_domain import (
     _decode_json_payload,
     _execute_deep_research,
     _extract_trace_events,
+    _summarize_trace_event,
     _strip_leading_markdown_header,
 )
 
@@ -18,13 +19,21 @@ def test_strip_leading_markdown_header_removes_heading():
     assert _strip_leading_markdown_header(prompt).startswith("## Subtitle")
 
 
+def test_research_config_uses_env_override(monkeypatch):
+    monkeypatch.setenv("RESEARCH_MODEL", "custom-deep-model")
+
+    config = ResearchConfig()
+
+    assert config.deep_research_model == "custom-deep-model"
+
+
 def test_compose_deep_research_prompt_uses_plan_details():
     plan = {
         "primary_objective": "Understand the domain",
         "audience": "Analysts",
         "key_sections": [{"title": "Foundations", "focus": "History"}],
         "research_questions": ["What started the field?"],
-        "methodology_preferences": ["Prioritise peer-reviewed sources."],
+        "methodology_preferences": ["Prioritize peer-reviewed sources."],
     }
 
     prompt = _compose_deep_research_prompt("Sample Topic", plan)
@@ -86,3 +95,17 @@ def test_extract_trace_events_collects_tool_calls():
             "response": None,
         }
     ]
+
+
+def test_summarize_trace_event_includes_query_excerpt():
+    event = {
+        "id": "call_1",
+        "type": "web_search_call",
+        "status": "completed",
+        "action": {"type": "search", "query": "example query text"},
+    }
+
+    message = _summarize_trace_event(event)
+
+    assert "search" in message
+    assert "example query text" in message

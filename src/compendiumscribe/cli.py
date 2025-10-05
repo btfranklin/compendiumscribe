@@ -13,6 +13,7 @@ from .create_llm_clients import (
 from .research_domain import (
     DeepResearchError,
     ResearchConfig,
+    ResearchProgress,
     build_compendium,
 )
 
@@ -54,9 +55,23 @@ def main(
 
     click.echo(f"Preparing deep research assignment for '{topic}'.")
 
+    def handle_progress(update: ResearchProgress) -> None:
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        phase_label = update.phase.replace("_", " ").title()
+        suffix = ""
+        meta = update.metadata or {}
+        if "poll_attempt" in meta:
+            suffix = f" (poll #{meta['poll_attempt']})"
+        stream_kwargs = {"err": update.status == "error"}
+        click.echo(
+            f"[{timestamp}] {phase_label}: {update.message}{suffix}",
+            **stream_kwargs,
+        )
+
     config = ResearchConfig(
         background=not no_background,
         max_tool_calls=max_tool_calls,
+        progress_callback=handle_progress,
     )
 
     try:
