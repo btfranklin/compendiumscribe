@@ -3,10 +3,10 @@ from __future__ import annotations
 import importlib.resources as resources
 import json
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from string import Template
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable
 
 from openai import OpenAI
 
@@ -29,7 +29,6 @@ class ResearchConfig:
     max_poll_attempts: int = 240
     enable_code_interpreter: bool = True
     use_web_search: bool = True
-    vector_store_ids: Sequence[str] = field(default_factory=tuple)
     max_tool_calls: int | None = None
     request_timeout_seconds: int = 3600
 
@@ -238,13 +237,6 @@ def _execute_deep_research(
     tools: list[dict[str, Any]] = []
     if config.use_web_search:
         tools.append({"type": "web_search_preview"})
-    if config.vector_store_ids:
-        tools.append(
-            {
-                "type": "file_search",
-                "vector_store_ids": list(config.vector_store_ids),
-            }
-        )
     if config.enable_code_interpreter:
         tools.append(
             {"type": "code_interpreter", "container": {"type": "auto"}}
@@ -252,7 +244,7 @@ def _execute_deep_research(
 
     if not tools:
         raise DeepResearchError(
-            "Deep research requires a web-search or file-search tool."
+            "Deep research requires enabling web search or code interpreter."
         )
 
     request_payload: dict[str, Any] = {

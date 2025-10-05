@@ -53,7 +53,6 @@ def test_execute_deep_research_requires_data_source():
     config = ResearchConfig(
         use_web_search=False,
         enable_code_interpreter=False,
-        vector_store_ids=(),
     )
 
     with pytest.raises(DeepResearchError):
