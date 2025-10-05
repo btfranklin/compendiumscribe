@@ -34,7 +34,7 @@ Create a `.env` file (untracked) with your OpenAI credentials:
 OPENAI_API_KEY=sk-...
 ```
 
-Deep research requires an OpenAI account with the browsing tooling enabled. If you also connect vector stores or other tools, document those environment keys in the repo as you add them.
+Deep research requires an OpenAI account with the browsing tooling enabled. Document any environment keys for additional tooling in the repo as you add them.
 
 ### 3. Generate a compendium
 
