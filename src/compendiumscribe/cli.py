@@ -10,7 +10,7 @@ from .create_llm_clients import (
     MissingAPIKeyError,
     create_openai_client,
 )
-from .research_domain import (
+from .research import (
     DeepResearchError,
     ResearchConfig,
     ResearchProgress,

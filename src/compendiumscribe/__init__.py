@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from .model import (
+from .compendium import (
     Citation,
     Compendium,
     Insight,
     ResearchTraceEvent,
     Section,
 )
-from .research_domain import (
+from .research import (
     DeepResearchError,
     ResearchConfig,
     build_compendium,

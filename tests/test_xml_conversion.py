@@ -1,7 +1,7 @@
 import json
 import xml.etree.ElementTree as ET
 
-from compendiumscribe.model import (
+from compendiumscribe.compendium import (
     Citation,
     Compendium,
     Insight,
@@ -9,7 +9,7 @@ from compendiumscribe.model import (
     Section,
     etree_to_string,
 )
-from compendiumscribe.research_domain import (
+from compendiumscribe.research import (
     ResearchConfig,
     build_compendium,
 )
