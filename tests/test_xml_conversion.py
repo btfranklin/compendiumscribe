@@ -85,6 +85,35 @@ def test_compendium_to_xml_contains_expected_structure():
     )
     assert root.find("research_trace/trace_event").attrib["id"] == "ws_1"
 
+    lines = xml_string.splitlines()
+    assert lines[0].startswith("<compendium")
+    assert any(line.startswith("  <sections>") for line in lines)
+    assert lines[-1] == "</compendium>"
+
+
+def test_compendium_additional_exports():
+    compendium = Compendium(
+        topic="Synthetic Biology",
+        overview="Interdisciplinary insights",
+        methodology=["Review literature", "Synthesize expert views"],
+        sections=[],
+        citations=[],
+        open_questions=[],
+        trace=[],
+    )
+
+    markdown = compendium.to_markdown()
+    assert markdown.startswith("# Synthetic Biology")
+    assert "## Overview" in markdown
+
+    html_doc = compendium.to_html()
+    assert html_doc.lstrip().startswith("<!DOCTYPE html>")
+    assert "Synthetic Biology" in html_doc
+
+    pdf_bytes = compendium.to_pdf_bytes()
+    assert pdf_bytes.startswith(b"%PDF-1.4\n")
+    assert pdf_bytes.rstrip().endswith(b"%%EOF")
+
 
 def test_compendium_from_payload_normalizes_fields():
     payload = {

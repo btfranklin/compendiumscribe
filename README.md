@@ -47,6 +47,7 @@ Options:
 - `--no-background` — force synchronous execution (useful for short or restricted queries).
 - `--max-tool-calls N` — cap the total number of tool calls for cost control.
 - `--no-stream-progress` — fall back to batched responses instead of streaming events.
+- `--export-format FORMAT` — repeat to emit Markdown (`md`), HTML (`html`), or PDF (`pdf`) alongside the base XML output.
 
 Example output file name: `lithium-ion-battery-recycling_20250107_143233.xml`.
 
@@ -67,6 +68,11 @@ except DeepResearchError as exc:
     raise
 
 xml_payload = compendium.to_xml_string()
+
+# Alternate exports
+markdown_doc = compendium.to_markdown()
+html_doc = compendium.to_html()
+pdf_bytes = compendium.to_pdf_bytes()
 ```
 
 The returned `Compendium` object contains structured sections, insights, citations, open questions, and the trace of tool calls used during research.

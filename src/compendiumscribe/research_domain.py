@@ -661,6 +661,7 @@ def _handle_stream_event(
                 item,
                 config=config,
                 seen_tokens=seen_trace_tokens,
+                stream_state=stream_state,
             )
         return None
 
@@ -671,6 +672,7 @@ def _handle_stream_event(
                 delta,
                 config=config,
                 seen_tokens=seen_trace_tokens,
+                stream_state=stream_state,
             )
         return None
 
@@ -699,8 +701,12 @@ def _emit_trace_updates_from_item(
     *,
     config: ResearchConfig,
     seen_tokens: set[str],
+    stream_state: dict[str, Any] | None = None,
 ) -> None:
-    event_snapshot = _trace_event_from_item(item)
+    if stream_state is not None:
+        event_snapshot = _accumulate_stream_tool_event(item, stream_state)
+    else:
+        event_snapshot = _trace_event_from_item(item)
     if not event_snapshot:
         return
 
@@ -713,6 +719,178 @@ def _emit_trace_updates_from_item(
             message=summary["message"],
             metadata=summary.get("metadata"),
         )
+
+
+def _accumulate_stream_tool_event(
+    item: Any,
+    stream_state: dict[str, Any],
+) -> dict[str, Any] | None:
+    fragments = _collect_stream_fragments(item)
+    event_id = _first_non_empty(
+        _coerce_optional_string(fragment.get("id"))
+        for fragment in fragments
+    )
+
+    tool_events: dict[str, dict[str, Any]] = stream_state.setdefault(
+        "tool_events", {}
+    )
+    existing = tool_events.get(event_id or "", {}) if event_id else {}
+
+    fragment = _extract_stream_tool_fragment(fragments, existing)
+    if fragment is None:
+        return None
+
+    merged = _merge_tool_fragment(existing, fragment)
+    if event_id:
+        tool_events[event_id] = merged
+
+    return _trace_event_from_item(merged)
+
+
+def _collect_stream_fragments(item: Any) -> list[dict[str, Any]]:
+    fragments: list[dict[str, Any]] = []
+
+    def maybe_append(candidate: Any) -> None:
+        if isinstance(candidate, dict):
+            fragments.append(candidate)
+
+    maybe_append(item)
+    maybe_append(_get_field(item, "item"))
+    maybe_append(_get_field(item, "delta"))
+
+    return fragments
+
+
+def _extract_stream_tool_fragment(
+    fragments: list[dict[str, Any]],
+    existing: dict[str, Any],
+) -> dict[str, Any] | None:
+    combined: dict[str, Any] = {}
+
+    for fragment in fragments:
+        fragment_type = _coerce_optional_string(fragment.get("type"))
+        if fragment_type and fragment_type.endswith("_call"):
+            combined["type"] = fragment_type
+
+        fragment_id = _coerce_optional_string(fragment.get("id"))
+        if fragment_id:
+            combined["id"] = fragment_id
+
+        fragment_status = _coerce_optional_string(fragment.get("status"))
+        if fragment_status:
+            combined["status"] = fragment_status
+
+        action_payload = (
+            fragment.get("action")
+            or fragment.get("action_delta")
+            or {}
+        )
+        if action_payload:
+            combined["action"] = _merge_action_payload(
+                combined.get("action") or {},
+                action_payload,
+            )
+
+        response_payload = fragment.get("response")
+        if response_payload is not None:
+            combined["response"] = _merge_response_payload(
+                combined.get("response"),
+                response_payload,
+            )
+
+        result_payload = fragment.get("result")
+        if result_payload is not None:
+            combined["response"] = _merge_response_payload(
+                combined.get("response"),
+                result_payload,
+            )
+
+    if "type" not in combined and existing.get("type"):
+        combined["type"] = existing["type"]
+
+    event_type = _coerce_optional_string(combined.get("type"))
+    if event_type and event_type.endswith("_call"):
+        return combined
+    return None
+
+
+def _merge_tool_fragment(
+    existing: dict[str, Any],
+    fragment: dict[str, Any],
+) -> dict[str, Any]:
+    merged = dict(existing)
+
+    for key in ("type", "id", "status"):
+        value = fragment.get(key)
+        if value:
+            merged[key] = value
+
+    if fragment.get("action"):
+        merged_action = _merge_action_payload(
+            merged.get("action") or {},
+            fragment["action"],
+        )
+        merged["action"] = merged_action
+
+    if fragment.get("response") is not None:
+        merged["response"] = _merge_response_payload(
+            merged.get("response"),
+            fragment["response"],
+        )
+
+    return merged
+
+
+def _merge_action_payload(
+    existing: Any,
+    incoming: Any,
+) -> Any:
+    if not isinstance(incoming, dict):
+        return incoming
+
+    existing_dict = dict(existing) if isinstance(existing, dict) else {}
+
+    for key, value in incoming.items():
+        if key.endswith("_delta") and isinstance(value, str):
+            base_key = key[: -len("_delta")]
+            existing_value = _coerce_optional_string(
+                existing_dict.get(base_key)
+            )
+            existing_dict[base_key] = (existing_value or "") + value
+            continue
+
+        if isinstance(value, dict):
+            nested_existing = existing_dict.get(key)
+            nested_merged = _merge_action_payload(nested_existing, value)
+            existing_dict[key] = nested_merged
+            continue
+
+        existing_dict[key] = value
+
+    return existing_dict
+
+
+def _merge_response_payload(
+    existing: Any,
+    incoming: Any,
+) -> Any:
+    if isinstance(existing, dict) and isinstance(incoming, dict):
+        merged = dict(existing)
+        for key, value in incoming.items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = _merge_response_payload(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
+    return incoming if incoming is not None else existing
+
+
+def _first_non_empty(values: Iterable[str | None]) -> str | None:
+    for value in values:
+        if value:
+            return value
+    return None
 
 
 def _extract_stream_error_message(event: Any) -> str:
@@ -1004,7 +1182,16 @@ def _format_query_list(queries: list[str], limit: int = 3) -> str:
 def _trace_event_token(event: dict[str, Any]) -> str:
     event_id = event.get("id")
     if event_id:
-        return f"id:{event_id}"
+        token_parts = ["id", str(event_id)]
+        status = _coerce_optional_string(event.get("status"))
+        if status:
+            token_parts.extend(["status", status])
+        action = event.get("action") or {}
+        if isinstance(action, dict):
+            query = _coerce_optional_string(action.get("query"))
+            if query:
+                token_parts.extend(["query", query])
+        return ":".join(token_parts)
 
     action = event.get("action") or {}
     query = _coerce_optional_string(action.get("query"))
