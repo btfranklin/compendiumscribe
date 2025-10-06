@@ -6,7 +6,6 @@ from compendiumscribe.compendium import (
     Citation,
     Compendium,
     Insight,
-    ResearchTraceEvent,
     Section,
     etree_to_string,
 )
@@ -56,16 +55,6 @@ def test_compendium_to_xml_contains_expected_structure():
             )
         ],
         open_questions=["When will logical qubits exceed 100 by default?"],
-        trace=[
-            ResearchTraceEvent(
-                event_id="ws_1",
-                event_type="web_search_call",
-                status="completed",
-                action={
-                    "query": "latest quantum error correction breakthroughs"
-                },
-            )
-        ],
     )
 
     xml_string = compendium.to_xml_string()
@@ -95,7 +84,6 @@ def test_compendium_additional_exports():
         sections=[],
         citations=[],
         open_questions=[],
-        trace=[],
     )
 
     markdown = compendium.to_markdown()
@@ -149,7 +137,6 @@ def test_inline_links_render_per_format():
             )
         ],
         open_questions=["Next [steps](https://steps.example.com)?"],
-        trace=[],
     )
 
     markdown = compendium.to_markdown()
@@ -214,14 +201,6 @@ def test_compendium_from_payload_normalizes_fields():
             }
         ],
         "open_questions": ["How will regulation shape deployment?"],
-        "trace": [
-            {
-                "id": "ws_1",
-                "type": "web_search_call",
-                "status": "completed",
-                "action": {"query": "quantum funding 2024"},
-            }
-        ],
     }
 
     compendium = Compendium.from_payload("Quantum Capital", payload)
@@ -233,26 +212,7 @@ def test_compendium_from_payload_normalizes_fields():
     assert compendium.open_questions == [
         "How will regulation shape deployment?"
     ]
-    assert compendium.trace[0].event_id == "ws_1"
-
-
-def test_compendium_from_payload_generates_event_id_when_missing():
-    payload = {
-        "topic_overview": "Overview",
-        "sections": [],
-        "citations": [],
-        "trace": [
-            {
-                "type": "web_search_call",
-                "status": "completed",
-                "action": {"query": "test"},
-            }
-        ],
-    }
-
-    compendium = Compendium.from_payload("Topic", payload)
-
-    assert compendium.trace[0].event_id.startswith("event-")
+    assert not hasattr(compendium, "trace")
 
 
 def test_etree_to_string_preserves_cdata_when_requested():

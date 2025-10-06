@@ -137,14 +137,6 @@ def build_plain_text_lines(compendium: "Compendium") -> list[str]:
             )
         lines.append("")
 
-    if compendium.trace:
-        lines.append("Trace:")
-        for event in compendium.trace:
-            lines.append(
-                f"- {event.event_type} [{event.status}] ({event.event_id})"
-            )
-        lines.append("")
-
     while lines and not lines[-1].strip():
         lines.pop()
 

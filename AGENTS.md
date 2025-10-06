@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-The installable package remains under `src/compendiumscribe`. `cli.py` now exposes a Click-based entry point that accepts a topic argument and optional runtime flags. `model.py` defines the compendium dataclasses (`Compendium`, `Section`, `Insight`, `Citation`, `ResearchTraceEvent`) plus XML serialization helpers. Deep-research orchestration lives in `research_domain.py`, which coordinates prompt planning and the `o3-deep-research` call while parsing the JSON payloads. Prompt templates live alongside the code as Markdown files (for example, `topic_blueprint.md`, `deep_research_assignment.md`) to keep the workflow editable. Tests sit in `tests/` and mirror the public surface area; add new fixtures or stubs there when expanding coverage.
+The installable package remains under `src/compendiumscribe`. `cli.py` now exposes a Click-based entry point that accepts a topic argument and optional runtime flags. `model.py` defines the compendium dataclasses (`Compendium`, `Section`, `Insight`, `Citation`) plus XML serialization helpers. Deep-research orchestration lives in `research_domain.py`, which coordinates prompt planning and the `o3-deep-research` call while parsing the JSON payloads. Prompt templates live alongside the code as Markdown files (for example, `topic_blueprint.md`, `deep_research_assignment.md`) to keep the workflow editable. Tests sit in `tests/` and mirror the public surface area; add new fixtures or stubs there when expanding coverage.
 
 ## Build, Test, and Development Commands
 - `pdm install --dev` installs runtime and dev dependencies (ensure `PDM_HOME` points to a writable path if running in a sandbox).

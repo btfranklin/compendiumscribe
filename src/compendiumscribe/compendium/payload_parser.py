@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from .entities import Citation, Insight, ResearchTraceEvent, Section
+from .entities import Citation, Insight, Section
 
 if TYPE_CHECKING:  # pragma: no cover - hints only
     from .compendium import Compendium
@@ -93,20 +93,6 @@ def build_from_payload(
         q.strip() for q in payload.get("open_questions", []) if q
     ]
 
-    trace_payload = payload.get("trace", [])
-    trace: list[ResearchTraceEvent] = []
-    for event in trace_payload:
-        event_id = str(event.get("id", "")) or f"event-{len(trace) + 1}"
-        trace.append(
-            ResearchTraceEvent(
-                event_id=event_id,
-                event_type=str(event.get("type", "message")),
-                status=str(event.get("status", "unknown")),
-                action=event.get("action", {}) or {},
-                response=event.get("response") or None,
-            )
-        )
-
     return cls(
         topic=topic,
         overview=overview,
@@ -114,7 +100,6 @@ def build_from_payload(
         sections=sections,
         citations=citations,
         open_questions=open_questions,
-        trace=trace,
         generated_at=generated_at or datetime.now(timezone.utc),
     )
 

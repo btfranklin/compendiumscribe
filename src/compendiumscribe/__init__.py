@@ -4,7 +4,6 @@ from .compendium import (
     Citation,
     Compendium,
     Insight,
-    ResearchTraceEvent,
     Section,
 )
 from .research import (
@@ -17,7 +16,6 @@ __all__ = [
     "Citation",
     "Compendium",
     "Insight",
-    "ResearchTraceEvent",
     "Section",
     "DeepResearchError",
     "ResearchConfig",

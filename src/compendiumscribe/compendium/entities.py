@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
-import json
 import xml.etree.ElementTree as ET
 
 from .text_utils import format_plain_text
@@ -114,40 +112,8 @@ class Section:
         return section_elem
 
 
-@dataclass
-class ResearchTraceEvent:
-    """Captures tool calls emitted by deep research for auditing purposes."""
-
-    event_id: str
-    event_type: str
-    status: str
-    action: dict[str, Any] = field(default_factory=dict)
-    response: dict[str, Any] | None = None
-
-    def to_xml(self) -> ET.Element:
-        event_elem = ET.Element(
-            "trace_event",
-            attrib={
-                "id": self.event_id,
-                "type": self.event_type,
-                "status": self.status,
-            },
-        )
-
-        if self.action:
-            action_elem = ET.SubElement(event_elem, "action")
-            action_elem.text = json.dumps(self.action, ensure_ascii=False)
-
-        if self.response:
-            response_elem = ET.SubElement(event_elem, "result")
-            response_elem.text = json.dumps(self.response, ensure_ascii=False)
-
-        return event_elem
-
-
 __all__ = [
     "Citation",
     "Insight",
     "Section",
-    "ResearchTraceEvent",
 ]

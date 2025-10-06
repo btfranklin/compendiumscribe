@@ -6,10 +6,6 @@ import time
 from ..config import ResearchConfig
 from ..errors import DeepResearchError
 from ..progress import emit_progress
-from ..trace import (
-    iter_trace_progress_events,
-    summaries_from_trace_events,
-)
 from ..utils import coerce_optional_string, get_field
 
 
@@ -23,8 +19,6 @@ def await_completion(
 ):
     """Poll the OpenAI responses API until the run completes or fails."""
     attempts = 0
-    seen_tokens: set[str] = set()
-
     emit_progress(
         config,
         phase="deep_research",
@@ -53,19 +47,6 @@ def await_completion(
         if status in {"failed", "error"}:
             raise DeepResearchError(
                 f"Deep research run failed with status: {status}"
-            )
-
-        trace = summaries_from_trace_events(
-            iter_trace_progress_events(current),
-            seen_tokens,
-        )
-        for summary in trace:
-            emit_progress(
-                config,
-                phase="trace",
-                status=summary["status"],
-                message=summary["message"],
-                metadata=summary["metadata"],
             )
 
         emit_progress(
