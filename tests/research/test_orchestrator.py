@@ -176,7 +176,7 @@ def test_build_compendium_with_stub_client():
         compendium.citations[1].title
         == "Google Quantum AI Progress Update"
     )
-    assert compendium.trace[0].event_type == "web_search_call"
+    assert not hasattr(compendium, "trace")
     assert len(client.responses.calls) == 2
     assert "Quantum Computing" in client.responses.calls[1]["input"]
 

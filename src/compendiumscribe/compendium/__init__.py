@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .compendium import Compendium
-from .entities import Citation, Insight, ResearchTraceEvent, Section
+from .entities import Citation, Insight, Section
 from .pdf import render_pdf_from_lines
 from .text_utils import (
     format_html_text,
@@ -14,7 +14,6 @@ __all__ = [
     "Compendium",
     "Citation",
     "Insight",
-    "ResearchTraceEvent",
     "Section",
     "render_pdf_from_lines",
     "format_html_text",

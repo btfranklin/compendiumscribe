@@ -8,10 +8,7 @@ from openai import OpenAI
 from ..compendium import Compendium
 from .config import ResearchConfig
 from .execution import execute_deep_research
-from .parsing import (
-    extract_trace_events,
-    parse_deep_research_response,
-)
+from .parsing import parse_deep_research_response
 from .planning import (
     compose_deep_research_prompt,
     default_research_plan,
@@ -104,7 +101,6 @@ def build_compendium(
         )
 
         payload = parse_deep_research_response(response)
-        payload.setdefault("trace", extract_trace_events(response))
 
         emit_progress(
             config,

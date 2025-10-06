@@ -9,7 +9,7 @@ Compendium Scribe is a Click-driven command line tool and library that uses Open
 
 ## Features
 - 🔍 **Deep research pipeline** — orchestrates prompt planning, background execution, and tool-call capture with `o3-deep-research`.
-- 🧱 **Rich data model** — includes sections, insights, citations, and research trace metadata for auditing.
+- 🧱 **Rich data model** — includes sections, insights, and citations for cross-format rendering.
 - 🧾 **Structured XML output** — produces a schema-friendly document ready for downstream conversion (HTML, Markdown, PDF pipelines, etc.).
 - ⚙️ **Configurable CLI** — control background execution, tool call limits, and output paths.
 - 🧪 **Testable architecture** — research orchestration is decoupled from the OpenAI client, making it simple to stub in tests.
@@ -74,7 +74,7 @@ html_doc = compendium.to_html()
 pdf_bytes = compendium.to_pdf_bytes()
 ```
 
-The returned `Compendium` object contains structured sections, insights, citations, open questions, and the trace of tool calls used during research.
+The returned `Compendium` object contains structured sections, insights, citations, and open questions.
 
 ---
 
@@ -124,15 +124,10 @@ Compendium Scribe produces XML shaped like:
   <open_questions>
     <question><![CDATA[How will policy incentives shape regional plant siting post-2025?]]></question>
   </open_questions>
-  <research_trace>
-    <trace_event id="ws_1" type="web_search_call" status="completed">
-      <action>{"type": "search", "query": "lithium ion recycling throughput"}</action>
-    </trace_event>
-  </research_trace>
 </compendium>
 ```
 
-This format is intentionally verbose to support downstream transformation and provenance tracking.
+This format is intentionally verbose to support downstream transformation; tool traces from the deep research run are not retained in the compendium output.
 
 ---
 

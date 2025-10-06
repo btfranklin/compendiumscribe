@@ -4,7 +4,6 @@ from typing import Any
 import json
 
 from .errors import DeepResearchError
-from .trace import trace_event_from_item
 from .utils import coerce_optional_string, get_field
 
 
@@ -110,24 +109,8 @@ def decode_json_payload(text: str) -> dict[str, Any]:
     return payload
 
 
-def extract_trace_events(response: Any) -> list[dict[str, Any]]:
-    output_items = get_field(response, "output")
-    trace: list[dict[str, Any]] = []
-
-    if not output_items:
-        return trace
-
-    for item in output_items:
-        event_snapshot = trace_event_from_item(item)
-        if event_snapshot:
-            trace.append(event_snapshot)
-
-    return trace
-
-
 __all__ = [
     "collect_response_text",
     "decode_json_payload",
-    "extract_trace_events",
     "parse_deep_research_response",
 ]

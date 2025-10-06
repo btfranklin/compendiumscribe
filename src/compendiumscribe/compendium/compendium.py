@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 import xml.etree.ElementTree as ET
 
-from .entities import Citation, ResearchTraceEvent, Section
+from .entities import Citation, Section
 from .html_renderer import render_html
 from .markdown_renderer import render_markdown
 from .payload_parser import build_from_payload
@@ -24,7 +24,6 @@ class Compendium:
     sections: list[Section] = field(default_factory=list)
     citations: list[Citation] = field(default_factory=list)
     open_questions: list[str] = field(default_factory=list)
-    trace: list[ResearchTraceEvent] = field(default_factory=list)
     generated_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
