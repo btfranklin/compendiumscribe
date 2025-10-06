@@ -51,7 +51,19 @@ def test_execute_deep_research_streaming_returns_final_response():
     events = [
         SimpleNamespace(type="response.created"),
         SimpleNamespace(
-            type="response.output_item.added",
+            type="response.tool_call.delta",
+            delta={
+                "type": "web_search_call",
+                "id": "ws_1",
+                "status": "in_progress",
+                "action": {
+                    "type": "search",
+                    "query_delta": "double ",
+                },
+            },
+        ),
+        SimpleNamespace(
+            type="response.tool_call.completed",
             item={
                 "type": "web_search_call",
                 "id": "ws_1",
@@ -89,6 +101,62 @@ def test_execute_deep_research_streaming_returns_final_response():
         phase == "trace" and "Exploring sources" in message
         for phase, _status, message in progress_updates
     )
+
+
+def test_execute_deep_research_streaming_handles_tool_name_payload():
+    progress_updates = []
+
+    def callback(update):
+        if update.phase == "trace":
+            progress_updates.append(update.message)
+
+    final_response = SimpleNamespace(
+        id="resp_456",
+        status="completed",
+        output_text='{"result": "ok"}',
+        output=[],
+    )
+
+    events = [
+        SimpleNamespace(type="response.created"),
+        SimpleNamespace(
+            type="response.tool_call.delta",
+            delta={
+                "type": "tool_call_delta",
+                "tool_name": "web.search",
+                "tool_call_id": "ws_2",
+                "arguments": {"query_delta": "history of"},
+            },
+        ),
+        SimpleNamespace(
+            type="response.tool_call.completed",
+            item={
+                "tool_name": "web.search",
+                "tool_call_id": "ws_2",
+                "status": "completed",
+                "arguments": {"query": "history of flutes"},
+            },
+        ),
+        SimpleNamespace(type="response.completed", response=final_response),
+    ]
+
+    class StubResponses:
+        def __init__(self):
+            self.calls: list[dict[str, object]] = []
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            return StubStream(events, final_response)
+
+    responses = StubResponses()
+    client = SimpleNamespace(responses=responses)
+
+    config = ResearchConfig(stream_progress=True, progress_callback=callback)
+
+    execute_deep_research(client, "prompt", config)
+
+    assert progress_updates
+    assert any("history of flutes" in message for message in progress_updates)
 
 
 def test_execute_deep_research_streaming_raises_on_error():

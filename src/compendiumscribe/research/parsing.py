@@ -8,6 +8,40 @@ from .trace import trace_event_from_item
 from .utils import coerce_optional_string, get_field
 
 
+def _iter_text_fragments(value: Any) -> list[str]:
+    """Recursively extract textual fragments from nested response payloads."""
+
+    fragments: list[str] = []
+
+    def visit(candidate: Any) -> None:
+        if candidate is None:
+            return
+
+        if isinstance(candidate, str):
+            if candidate:
+                fragments.append(candidate)
+            return
+
+        if isinstance(candidate, (list, tuple, set)):
+            for item in candidate:
+                visit(item)
+            return
+
+        if isinstance(candidate, dict):
+            # Many response payloads nest text inside these keys.
+            for key in ("text", "value", "content"):
+                if key in candidate:
+                    visit(candidate[key])
+            return
+
+        # Safety fallback: stringify scalars only (avoid object reprs).
+        if isinstance(candidate, (int, float, bool)):
+            fragments.append(str(candidate))
+
+    visit(value)
+    return fragments
+
+
 def parse_deep_research_response(response: Any) -> dict[str, Any]:
     text_payload = collect_response_text(response)
     return decode_json_payload(text_payload)
@@ -16,7 +50,9 @@ def parse_deep_research_response(response: Any) -> dict[str, Any]:
 def collect_response_text(response: Any) -> str:
     output_text = get_field(response, "output_text")
     if output_text:
-        return str(output_text).strip()
+        fragments = _iter_text_fragments(output_text)
+        if fragments:
+            return "".join(fragments).strip()
 
     output_items = get_field(response, "output")
     text_parts: list[str] = []
@@ -26,19 +62,13 @@ def collect_response_text(response: Any) -> str:
             item_type = coerce_optional_string(get_field(item, "type"))
             if item_type == "message":
                 for content in get_field(item, "content") or []:
-                    text_value = coerce_optional_string(
-                        get_field(content, "text")
-                    )
-                    if not text_value:
-                        text_value = coerce_optional_string(
-                            get_field(content, "value")
-                        )
-                    if text_value:
-                        text_parts.append(text_value)
+                    fragments = _iter_text_fragments(content)
+                    if fragments:
+                        text_parts.append("".join(fragments))
             elif item_type == "output_text":
-                text = coerce_optional_string(get_field(item, "text"))
-                if text:
-                    text_parts.append(text)
+                fragments = _iter_text_fragments(item)
+                if fragments:
+                    text_parts.append("".join(fragments))
 
     if text_parts:
         return "".join(text_parts).strip()

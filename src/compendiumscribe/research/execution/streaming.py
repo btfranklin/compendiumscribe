@@ -135,6 +135,22 @@ def handle_stream_event(
             f"Deep research stream reported an error: {message}"
         )
 
+    if "tool_call" in normalized:
+        fragment = (
+            get_field(event, "item")
+            or get_field(event, "delta")
+            or get_field(event, "partial")
+            or get_field(event, "data")
+        )
+        if fragment is not None:
+            emit_trace_updates_from_item(
+                fragment,
+                config=config,
+                seen_tokens=seen_trace_tokens,
+                stream_state=stream_state,
+            )
+        return None
+
     if normalized == "response.output_item.added":
         item = get_field(event, "item")
         if item is not None:
