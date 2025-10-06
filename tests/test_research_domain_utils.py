@@ -2,16 +2,16 @@ from types import SimpleNamespace
 
 import pytest
 
-from compendiumscribe.research_domain import (
+from compendiumscribe.research import (
     DeepResearchError,
     ResearchConfig,
-    _compose_deep_research_prompt,
-    _decode_json_payload,
-    _execute_deep_research,
-    _extract_trace_events,
-    _summaries_from_trace_events,
-    _summarize_trace_event,
-    _strip_leading_markdown_header,
+    compose_deep_research_prompt,
+    decode_json_payload,
+    execute_deep_research,
+    extract_trace_events,
+    summaries_from_trace_events,
+    summarize_trace_event,
+    strip_leading_markdown_header,
 )
 
 
@@ -32,7 +32,7 @@ class StubStream:
 
 def test_strip_leading_markdown_header_removes_heading():
     prompt = """# Title\n\n## Subtitle\n\nDo things."""
-    assert _strip_leading_markdown_header(prompt).startswith("## Subtitle")
+    assert strip_leading_markdown_header(prompt).startswith("## Subtitle")
 
 
 def test_research_config_uses_env_override(monkeypatch):
@@ -52,7 +52,7 @@ def test_compose_deep_research_prompt_uses_plan_details():
         "methodology_preferences": ["Prioritize peer-reviewed sources."],
     }
 
-    prompt = _compose_deep_research_prompt("Sample Topic", plan)
+    prompt = compose_deep_research_prompt("Sample Topic", plan)
 
     assert "Sample Topic" in prompt
     assert "Foundations" in prompt
@@ -70,7 +70,7 @@ def test_compose_deep_research_prompt_uses_plan_details():
     ],
 )
 def test_decode_json_payload_handles_wrappers(payload):
-    result = _decode_json_payload(payload)
+    result = decode_json_payload(payload)
     assert result == {"key": "value"}
 
 
@@ -82,7 +82,7 @@ def test_execute_deep_research_requires_data_source():
     )
 
     with pytest.raises(DeepResearchError):
-        _execute_deep_research(SimpleNamespace(), "prompt", config)
+        execute_deep_research(SimpleNamespace(), "prompt", config)
 
 
 def test_extract_trace_events_collects_tool_calls():
@@ -101,7 +101,7 @@ def test_extract_trace_events_collects_tool_calls():
         ]
     )
 
-    trace = _extract_trace_events(response)
+    trace = extract_trace_events(response)
 
     assert trace == [
         {
@@ -122,7 +122,7 @@ def test_summarize_trace_event_includes_query_excerpt():
         "action": {"type": "search", "query": "example query text"},
     }
 
-    message = _summarize_trace_event(event)
+    message = summarize_trace_event(event)
 
     assert "search" in message
     assert "example query text" in message
@@ -156,7 +156,7 @@ def test_summaries_from_trace_events_groups_queries():
         },
     ]
 
-    summaries = _summaries_from_trace_events(events, seen_tokens=set())
+    summaries = summaries_from_trace_events(events, seen_tokens=set())
 
     assert any(
         "Exploring sources" in item["message"] for item in summaries
@@ -209,7 +209,7 @@ def test_execute_deep_research_streaming_returns_final_response():
 
     config = ResearchConfig(stream_progress=True, progress_callback=callback)
 
-    response = _execute_deep_research(client, "prompt", config)
+    response = execute_deep_research(client, "prompt", config)
 
     assert response is final_response
     assert responses.calls
@@ -239,4 +239,4 @@ def test_execute_deep_research_streaming_raises_on_error():
     config = ResearchConfig(stream_progress=True)
 
     with pytest.raises(DeepResearchError, match="rate limited"):
-        _execute_deep_research(client, "prompt", config)
+        execute_deep_research(client, "prompt", config)
