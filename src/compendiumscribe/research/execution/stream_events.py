@@ -25,6 +25,93 @@ __all__ = [
 ]
 
 
+def _coerce_action_payload(payload: Any) -> dict[str, Any]:
+    """Normalise tool arguments into a mapping suitable for summaries."""
+
+    if isinstance(payload, dict):
+        return payload
+
+    if isinstance(payload, str):
+        try:
+            parsed = json.loads(payload)
+        except json.JSONDecodeError:
+            return {"input": payload}
+        if isinstance(parsed, dict):
+            return parsed
+        return {"value": parsed}
+
+    if payload is None:
+        return {}
+
+    if isinstance(payload, (list, tuple, set)):
+        return {"items": [item for item in payload]}
+
+    return {"value": payload}
+
+
+def normalize_tool_fragment(fragment: Any) -> dict[str, Any] | None:
+    """Coerce streaming tool fragments into the tool-call snapshot format."""
+
+    if not isinstance(fragment, dict):
+        return None
+
+    candidate = dict(fragment)
+
+    embedded = candidate.pop("tool_call", None)
+    if isinstance(embedded, dict):
+        candidate = {**embedded, **candidate}
+
+    # Promote common identifier fields for streaming events.
+    identifier = first_non_empty(
+        coerce_optional_string(candidate.get(key))
+        for key in ("id", "tool_call_id", "call_id")
+    )
+    if identifier:
+        candidate["id"] = identifier
+
+    raw_type = coerce_optional_string(candidate.get("type"))
+    tool_name = coerce_optional_string(candidate.get("tool_name"))
+    tool_type = coerce_optional_string(candidate.get("tool_type"))
+
+    normalized_type: str | None = None
+    if raw_type and raw_type.endswith("_call"):
+        normalized_type = raw_type
+    elif tool_name:
+        normalized_type = f"{tool_name.replace('.', '_')}_call"
+    elif tool_type:
+        normalized_type = f"{tool_type.replace('.', '_')}_call"
+    elif raw_type and raw_type.endswith("_delta"):
+        normalized_type = f"{raw_type[: -len('_delta')]}_call"
+
+    if normalized_type:
+        candidate["type"] = normalized_type
+
+    status = first_non_empty(
+        coerce_optional_string(candidate.get(key))
+        for key in ("status", "state")
+    )
+    if status:
+        candidate["status"] = status
+
+    if "arguments" in candidate and "action" not in candidate:
+        candidate["action"] = _coerce_action_payload(
+            candidate.pop("arguments")
+        )
+
+    if "call_arguments" in candidate and "action" not in candidate:
+        candidate["action"] = _coerce_action_payload(
+            candidate.pop("call_arguments")
+        )
+
+    if "input" in candidate and "action" not in candidate:
+        candidate["action"] = _coerce_action_payload(candidate.pop("input"))
+
+    if not coerce_optional_string(candidate.get("type")):
+        return None
+
+    return candidate
+
+
 def emit_trace_updates_from_item(
     item: Any,
     *,
@@ -58,8 +145,12 @@ def accumulate_stream_tool_event(
     """Merge incremental fragments for a single tool call while streaming."""
     fragments = collect_stream_fragments(item)
     event_id = first_non_empty(
-        coerce_optional_string(fragment.get("id"))
+        first_non_empty(
+            coerce_optional_string(fragment.get(key))
+            for key in ("id", "tool_call_id", "call_id")
+        )
         for fragment in fragments
+        if isinstance(fragment, dict)
     )
 
     tool_events: dict[str, dict[str, Any]] = stream_state.setdefault(
@@ -97,13 +188,16 @@ def extract_stream_tool_fragment(
     existing: dict[str, Any],
 ) -> dict[str, Any] | None:
     for fragment in fragments:
-        item_type = coerce_optional_string(fragment.get("type"))
-        if item_type and item_type.endswith("_call"):
-            return fragment
+        normalized_fragment = normalize_tool_fragment(fragment)
+        if normalized_fragment is not None:
+            return normalized_fragment
 
         if (
-            fragment.get("response") is not None
-            or fragment.get("result") is not None
+            isinstance(fragment, dict)
+            and (
+                fragment.get("response") is not None
+                or fragment.get("result") is not None
+            )
         ):
             snapshot = dict(existing)
             if fragment.get("response") is not None:
@@ -114,7 +208,8 @@ def extract_stream_tool_fragment(
                 snapshot.setdefault("result", {}).update(
                     fragment.get("result") or {}
                 )
-            return snapshot
+            normalized_snapshot = normalize_tool_fragment(snapshot)
+            return normalized_snapshot or snapshot
 
     return None
 
@@ -123,31 +218,34 @@ def merge_tool_fragment(
     existing: dict[str, Any],
     fragment: dict[str, Any],
 ) -> dict[str, Any]:
-    merged = dict(existing)
+    normalized_existing = normalize_tool_fragment(existing) or existing
+    normalized_fragment = normalize_tool_fragment(fragment) or fragment
 
-    if fragment.get("type"):
-        merged["type"] = fragment["type"]
-    if fragment.get("id"):
-        merged["id"] = fragment["id"]
-    if fragment.get("status"):
-        merged["status"] = fragment["status"]
+    merged = dict(normalized_existing)
 
-    action_fragment = fragment.get("action")
+    if normalized_fragment.get("type"):
+        merged["type"] = normalized_fragment["type"]
+    if normalized_fragment.get("id"):
+        merged["id"] = normalized_fragment["id"]
+    if normalized_fragment.get("status"):
+        merged["status"] = normalized_fragment["status"]
+
+    action_fragment = normalized_fragment.get("action")
     if action_fragment is not None:
         merged_action = merged.get("action", {})
         merged_action = merge_action_payload(merged_action, action_fragment)
         merged["action"] = merged_action
 
-    if fragment.get("response") is not None:
+    if normalized_fragment.get("response") is not None:
         merged["response"] = merge_response_payload(
             merged.get("response"),
-            fragment["response"],
+            normalized_fragment["response"],
         )
 
-    if fragment.get("result") is not None:
+    if normalized_fragment.get("result") is not None:
         merged["result"] = merge_response_payload(
             merged.get("result"),
-            fragment["result"],
+            normalized_fragment["result"],
         )
 
     return merged
