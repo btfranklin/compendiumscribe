@@ -83,7 +83,7 @@ def test_compendium_to_xml_contains_expected_structure():
         root.find("citations/citation/title").text
         == "A Survey on Quantum Error Correction"
     )
-    assert root.find("research_trace/trace_event").attrib["id"] == "ws_1"
+    assert root.find("research_trace") is None
 
     lines = xml_string.splitlines()
     assert lines[0].startswith("<compendium")
@@ -105,14 +105,77 @@ def test_compendium_additional_exports():
     markdown = compendium.to_markdown()
     assert markdown.startswith("# Synthetic Biology")
     assert "## Overview" in markdown
+    assert "Research Trace" not in markdown
 
     html_doc = compendium.to_html()
     assert html_doc.lstrip().startswith("<!DOCTYPE html>")
     assert "Synthetic Biology" in html_doc
+    assert "Research Trace" not in html_doc
 
     pdf_bytes = compendium.to_pdf_bytes()
     assert pdf_bytes.startswith(b"%PDF-1.4\n")
     assert pdf_bytes.rstrip().endswith(b"%%EOF")
+
+
+def test_inline_links_render_per_format():
+    compendium = Compendium(
+        topic="Inline Link Rendering",
+        overview="See [Example](https://example.com) reference.",
+        methodology=["Review [Docs](https://docs.example.com)"],
+        sections=[
+            Section(
+                identifier="S1",
+                title="Context",
+                summary="Use [Guide](https://guide.example.com) often.",
+                key_terms=["[Term](https://term.example.com)"],
+                guiding_questions=[
+                    "What is [link](https://q.example.com)?"
+                ],
+                insights=[
+                    Insight(
+                        title="Linked insight",
+                        evidence=(
+                            "Check [evidence](https://evidence.example.com)."
+                        ),
+                        implications=(
+                            "Consider [impact](https://impact.example.com)."
+                        ),
+                    )
+                ],
+            )
+        ],
+        citations=[
+            Citation(
+                identifier="C1",
+                title="[Citation](https://citation.example.com)",
+                url="https://citation.example.com",
+                summary="Summarize [source](https://source.example.com).",
+            )
+        ],
+        open_questions=["Next [steps](https://steps.example.com)?"],
+        trace=[],
+    )
+
+    markdown = compendium.to_markdown()
+    assert "[Example](https://example.com)" in markdown
+
+    html_doc = compendium.to_html()
+    anchor = (
+        "<a href=\"https://example.com\" rel=\"noopener noreferrer\">"
+        "Example</a>"
+    )
+    assert anchor in html_doc
+    assert "[Example](https://example.com)" not in html_doc
+
+    xml_root = ET.fromstring(compendium.to_xml_string())
+    assert (
+        xml_root.findtext("overview")
+        == "See Example (https://example.com) reference."
+    )
+
+    plain_text = "\n".join(compendium._plain_text_lines())
+    assert "Example (https://example.com)" in plain_text
+    assert "[Example](https://example.com)" not in plain_text
 
 
 def test_compendium_from_payload_normalizes_fields():
