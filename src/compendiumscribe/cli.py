@@ -45,6 +45,15 @@ def _default_output_path(topic: str) -> Path:
     help="Disable streaming updates from the deep research run.",
 )
 @click.option(
+    "--export-format",
+    "export_formats",
+    type=click.Choice(["md", "html", "pdf"], case_sensitive=False),
+    multiple=True,
+    help=(
+        "Additional formats to export alongside XML (may be repeated)."
+    ),
+)
+@click.option(
     "--max-tool-calls",
     type=int,
     default=None,
@@ -55,6 +64,7 @@ def main(
     output_path: Path | None,
     no_background: bool,
     no_stream_progress: bool,
+    export_formats: tuple[str, ...],
     max_tool_calls: int | None,
 ):
     """Generate a research compendium for TOPIC and save it as XML."""
@@ -98,6 +108,26 @@ def main(
     output_path.write_text(compendium.to_xml_string(), encoding="utf-8")
 
     click.echo(f"Compendium written to {output_path}")
+
+    additional_outputs: list[tuple[str, Path]] = []
+    normalized_formats = tuple(
+        dict.fromkeys(fmt.lower() for fmt in export_formats)
+    )
+
+    for fmt in normalized_formats:
+        target = output_path.with_suffix(f".{fmt}")
+        if fmt == "md":
+            target.write_text(compendium.to_markdown(), encoding="utf-8")
+        elif fmt == "html":
+            target.write_text(compendium.to_html(), encoding="utf-8")
+        elif fmt == "pdf":
+            target.write_bytes(compendium.to_pdf_bytes())
+        else:  # pragma: no cover - guarded by Click choice
+            continue
+        additional_outputs.append((fmt.upper(), target))
+
+    for label, path in additional_outputs:
+        click.echo(f"{label} export written to {path}")
 
 
 if __name__ == "__main__":  # pragma: no cover
