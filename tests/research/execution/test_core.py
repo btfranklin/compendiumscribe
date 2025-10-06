@@ -9,73 +9,29 @@ from compendiumscribe.research.errors import DeepResearchError
 from compendiumscribe.research.execution import execute_deep_research
 
 
-class StubStream:
-    def __init__(self, events, final_response=None):
-        self._events = list(events)
-        self._final_response = final_response
-        self.get_final_response_called = False
-
-    def __iter__(self):
-        for event in self._events:
-            yield event
-
-    def get_final_response(self):
-        self.get_final_response_called = True
-        return self._final_response
-
-
 def test_execute_deep_research_requires_data_source():
     config = ResearchConfig(
         use_web_search=False,
         enable_code_interpreter=False,
-        stream_progress=False,
     )
 
     with pytest.raises(DeepResearchError):
         execute_deep_research(SimpleNamespace(), "prompt", config)
 
 
-def test_execute_deep_research_streaming_returns_final_response():
-    progress_updates = []
+def test_execute_deep_research_returns_completed_response():
+    progress_updates: list[tuple[str, str, str]] = []
 
     def callback(update):
-        progress_updates.append((update.phase, update.status, update.message))
+        progress_updates.append(
+            (update.phase, update.status, update.message)
+        )
 
     final_response = SimpleNamespace(
-        id="resp_123",
+        id="resp_completed",
         status="completed",
-        output_text='{"result": "ok"}',
         output=[],
     )
-
-    events = [
-        SimpleNamespace(type="response.created"),
-        SimpleNamespace(
-            type="response.tool_call.delta",
-            delta={
-                "type": "web_search_call",
-                "id": "ws_1",
-                "status": "in_progress",
-                "action": {
-                    "type": "search",
-                    "query_delta": "double ",
-                },
-            },
-        ),
-        SimpleNamespace(
-            type="response.tool_call.completed",
-            item={
-                "type": "web_search_call",
-                "id": "ws_1",
-                "status": "completed",
-                "action": {
-                    "type": "search",
-                    "query": "double bubble bath",
-                },
-            },
-        ),
-        SimpleNamespace(type="response.completed", response=final_response),
-    ]
 
     class StubResponses:
         def __init__(self):
@@ -83,97 +39,87 @@ def test_execute_deep_research_streaming_returns_final_response():
 
         def create(self, **kwargs):
             self.calls.append(kwargs)
-            return StubStream(events, final_response)
+            return final_response
 
     responses = StubResponses()
     client = SimpleNamespace(responses=responses)
 
-    config = ResearchConfig(stream_progress=True, progress_callback=callback)
+    config = ResearchConfig(
+        background=False,
+        progress_callback=callback,
+    )
 
-    response = execute_deep_research(client, "prompt", config)
+    result = execute_deep_research(client, "prompt", config)
 
-    assert response is final_response
+    assert result is final_response
     assert responses.calls
-    call_kwargs = responses.calls[0]
-    assert call_kwargs["stream"] is True
-    assert call_kwargs["background"] is False
-    assert any(
-        phase == "trace" and "Exploring sources" in message
-        for phase, _status, message in progress_updates
-    )
+    payload = responses.calls[0]
+    assert payload["background"] is False
+    assert (
+        "deep_research",
+        "starting",
+        "Submitting deep research request to OpenAI.",
+    ) in progress_updates
+    assert (
+        "deep_research",
+        "completed",
+        "Deep research completed synchronously.",
+    ) in progress_updates
 
 
-def test_execute_deep_research_streaming_handles_tool_name_payload():
-    progress_updates = []
+def test_execute_deep_research_polls_until_complete():
+    progress_updates: list[tuple[str, str, str]] = []
 
     def callback(update):
-        if update.phase == "trace":
-            progress_updates.append(update.message)
+        progress_updates.append(
+            (update.phase, update.status, update.message)
+        )
 
+    pending = SimpleNamespace(
+        id="resp_poll",
+        status="in_progress",
+        output=[],
+    )
     final_response = SimpleNamespace(
-        id="resp_456",
+        id="resp_poll",
         status="completed",
-        output_text='{"result": "ok"}',
         output=[],
     )
 
-    events = [
-        SimpleNamespace(type="response.created"),
-        SimpleNamespace(
-            type="response.tool_call.delta",
-            delta={
-                "type": "tool_call_delta",
-                "tool_name": "web.search",
-                "tool_call_id": "ws_2",
-                "arguments": {"query_delta": "history of"},
-            },
-        ),
-        SimpleNamespace(
-            type="response.tool_call.completed",
-            item={
-                "tool_name": "web.search",
-                "tool_call_id": "ws_2",
-                "status": "completed",
-                "arguments": {"query": "history of flutes"},
-            },
-        ),
-        SimpleNamespace(type="response.completed", response=final_response),
-    ]
-
-    class StubResponses:
+    class PollingResponses:
         def __init__(self):
-            self.calls: list[dict[str, object]] = []
+            self.create_calls: list[dict[str, object]] = []
+            self.get_calls: list[str] = []
 
         def create(self, **kwargs):
-            self.calls.append(kwargs)
-            return StubStream(events, final_response)
+            self.create_calls.append(kwargs)
+            return pending
 
-    responses = StubResponses()
+        def get(self, response_id: str):
+            self.get_calls.append(response_id)
+            return final_response
+
+    responses = PollingResponses()
     client = SimpleNamespace(responses=responses)
 
-    config = ResearchConfig(stream_progress=True, progress_callback=callback)
+    config = ResearchConfig(
+        background=True,
+        poll_interval_seconds=0,
+        max_poll_attempts=3,
+        progress_callback=callback,
+    )
 
-    execute_deep_research(client, "prompt", config)
+    result = execute_deep_research(client, "prompt", config)
 
-    assert progress_updates
-    assert any("history of flutes" in message for message in progress_updates)
-
-
-def test_execute_deep_research_streaming_raises_on_error():
-    events = [
-        SimpleNamespace(type="response.created"),
-        SimpleNamespace(
-            type="response.failed",
-            error={"message": "rate limited"},
-        ),
-    ]
-
-    class StubResponses:
-        def create(self, **kwargs):
-            return StubStream(events)
-
-    client = SimpleNamespace(responses=StubResponses())
-    config = ResearchConfig(stream_progress=True)
-
-    with pytest.raises(DeepResearchError, match="rate limited"):
-        execute_deep_research(client, "prompt", config)
+    assert result is final_response
+    assert responses.get_calls == ["resp_poll"]
+    assert (
+        "deep_research",
+        "in_progress",
+        "Polling for deep research completion.",
+    ) in progress_updates
+    assert (
+        "deep_research",
+        "completed",
+        "Deep research run finished; decoding payload.",
+    ) in progress_updates

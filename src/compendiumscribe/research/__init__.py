@@ -3,18 +3,8 @@ from __future__ import annotations
 from .config import ResearchConfig
 from .errors import DeepResearchError
 from .execution import (
-    accumulate_stream_tool_event,
     await_completion,
-    collect_stream_fragments,
-    emit_trace_updates_from_item,
     execute_deep_research,
-    execute_deep_research_streaming,
-    extract_stream_error_message,
-    extract_stream_tool_fragment,
-    handle_stream_event,
-    merge_action_payload,
-    merge_response_payload,
-    merge_tool_fragment,
 )
 from .orchestrator import build_compendium
 from .parsing import (
@@ -73,17 +63,7 @@ __all__ = [
     "extract_trace_events",
     "parse_deep_research_response",
     "execute_deep_research",
-    "execute_deep_research_streaming",
     "await_completion",
-    "handle_stream_event",
-    "emit_trace_updates_from_item",
-    "accumulate_stream_tool_event",
-    "collect_stream_fragments",
-    "extract_stream_tool_fragment",
-    "merge_tool_fragment",
-    "merge_action_payload",
-    "merge_response_payload",
-    "extract_stream_error_message",
     "summaries_from_trace_events",
     "summarize_trace_event",
     "trace_event_from_item",

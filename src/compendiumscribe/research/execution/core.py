@@ -7,7 +7,6 @@ from ..errors import DeepResearchError
 from ..progress import emit_progress
 from ..utils import coerce_optional_string, get_field
 from .polling import await_completion
-from .streaming import execute_deep_research_streaming
 
 
 __all__ = ["execute_deep_research"]
@@ -48,13 +47,6 @@ def execute_deep_research(
         status="starting",
         message="Submitting deep research request to OpenAI.",
     )
-
-    if config.stream_progress:
-        return execute_deep_research_streaming(
-            client,
-            request_payload,
-            config,
-        )
 
     response = client.responses.create(**request_payload)
 

@@ -20,7 +20,6 @@ class ResearchConfig:
     prompt_refiner_model: str = "gpt-4.1"
     use_prompt_refinement: bool = True
     background: bool = True
-    stream_progress: bool = True
     poll_interval_seconds: float = 5.0
     max_poll_attempts: int = 240
     enable_code_interpreter: bool = True
