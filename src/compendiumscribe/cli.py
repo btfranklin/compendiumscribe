@@ -40,11 +40,6 @@ def _default_output_path(topic: str) -> Path:
     help="Run deep research synchronously instead of background mode.",
 )
 @click.option(
-    "--no-stream-progress",
-    is_flag=True,
-    help="Disable streaming updates from the deep research run.",
-)
-@click.option(
     "--export-format",
     "export_formats",
     type=click.Choice(["md", "html", "pdf"], case_sensitive=False),
@@ -63,7 +58,6 @@ def main(
     topic: str,
     output_path: Path | None,
     no_background: bool,
-    no_stream_progress: bool,
     export_formats: tuple[str, ...],
     max_tool_calls: int | None,
 ):
@@ -86,7 +80,6 @@ def main(
 
     config = ResearchConfig(
         background=not no_background,
-        stream_progress=not no_stream_progress,
         max_tool_calls=max_tool_calls,
         progress_callback=handle_progress,
     )
