@@ -37,7 +37,7 @@ def await_completion(
         time.sleep(config.poll_interval_seconds)
         attempts += 1
 
-        current = client.responses.get(response.id)
+        current = client.responses.retrieve(response.id)
         status = coerce_optional_string(get_field(current, "status"))
 
         if status == "completed":

@@ -89,14 +89,14 @@ def test_execute_deep_research_polls_until_complete():
     class PollingResponses:
         def __init__(self):
             self.create_calls: list[dict[str, object]] = []
-            self.get_calls: list[str] = []
+            self.retrieve_calls: list[str] = []
 
         def create(self, **kwargs):
             self.create_calls.append(kwargs)
             return pending
 
-        def get(self, response_id: str):
-            self.get_calls.append(response_id)
+        def retrieve(self, response_id: str):
+            self.retrieve_calls.append(response_id)
             return final_response
 
     responses = PollingResponses()
@@ -112,7 +112,7 @@ def test_execute_deep_research_polls_until_complete():
     result = execute_deep_research(client, "prompt", config)
 
     assert result is final_response
-    assert responses.get_calls == ["resp_poll"]
+    assert responses.retrieve_calls == ["resp_poll"]
     assert (
         "deep_research",
         "in_progress",
