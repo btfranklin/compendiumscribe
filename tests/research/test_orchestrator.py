@@ -33,7 +33,8 @@ class FakeResponsesAPI:
             {"model": model, "input": kwargs.get("input", "")}
         )
 
-        if model in {"gpt-4.1", "gpt-4.1-mini"}:
+        # Updated to match project defaults (e.g. gpt-5.2)
+        if model in {"gpt-5.2", "gpt-4.1", "gpt-4.1-mini"}:
             return FakeResponse(
                 output_text=self.plan_json,
                 response_id="plan_1",
