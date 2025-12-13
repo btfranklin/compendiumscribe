@@ -93,13 +93,6 @@ def build_compendium(
 
         response = execute_deep_research(client, prompt, config)
 
-        emit_progress(
-            config,
-            phase="deep_research",
-            status="completed",
-            message="Deep research run finished; decoding payload.",
-        )
-
         payload = parse_deep_research_response(response)
 
         emit_progress(

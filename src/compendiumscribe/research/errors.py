@@ -5,4 +5,8 @@ class DeepResearchError(RuntimeError):
     """Raised when the deep research workflow cannot complete successfully."""
 
 
-__all__ = ["DeepResearchError"]
+class MissingConfigurationError(RuntimeError):
+    """Raised when required configuration is missing."""
+
+
+__all__ = ["DeepResearchError", "MissingConfigurationError"]

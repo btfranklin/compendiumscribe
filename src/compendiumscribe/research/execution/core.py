@@ -14,7 +14,7 @@ __all__ = ["execute_deep_research"]
 
 def execute_deep_research(
     client: Any,
-    prompt: str,
+    prompt: Any,
     config: ResearchConfig,
 ):
     """Submit a deep research request and return the completed response."""

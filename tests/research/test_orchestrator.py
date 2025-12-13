@@ -178,7 +178,32 @@ def test_build_compendium_with_stub_client():
     )
     assert not hasattr(compendium, "trace")
     assert len(client.responses.calls) == 2
-    assert "Quantum Computing" in client.responses.calls[1]["input"]
+    # The input is now a list of message objects
+    research_input = client.responses.calls[1]["input"]
+    assert isinstance(research_input, list)
+    # Check if we can find the topic in the content of the user message
+    # e.g. input[-1]["content"] ... content might be list or str depending on promptdown/OAI
+    # Promptdown `to_responses_input` returns non-str content?
+    # Actually, `planning.py` calls `to_responses_input`.
+    # Let's just fuzzy match in the string representation for now, or drill down.
+    # We expect "Quantum Computing" in one of the messages.
+    found = False
+    for msg in research_input:
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            # It's a list of parts, e.g. [{"type": "input_text", "text": "..."}]
+            for part in content:
+                if "Quantum Computing" in part.get("text", ""):
+                    found = True
+                    break
+        elif isinstance(content, str):
+            if "Quantum Computing" in content:
+                found = True
+        
+        if found:
+            break
+    
+    assert found, "Topic not found in research call input"
 
 
 def test_build_compendium_emits_progress_updates():

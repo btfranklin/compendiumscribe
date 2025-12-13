@@ -32,6 +32,8 @@ Create a `.env` file (untracked) with your OpenAI credentials:
 
 ```
 OPENAI_API_KEY=sk-...
+PROMPT_REFINER_MODEL=gpt-5.2
+DEEP_RESEARCH_MODEL=o3-deep-research
 ```
 
 Deep research requires an OpenAI account with the browsing tooling enabled. Document any environment keys for additional tooling in the repo as you add them.
