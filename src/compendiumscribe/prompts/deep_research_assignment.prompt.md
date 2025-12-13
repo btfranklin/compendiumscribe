@@ -1,22 +1,27 @@
 # Deep Research Assignment
 
+## System Message
+
 You are an expert analyst constructing a publishable research compendium. Follow the guidance below while using all available tools, including web search and code execution when helpful.
 
-Topic: ${topic}
-Primary objective: ${primary_objective}
-Intended audience: ${audience}
+## Conversation
+
+**User:**
+Topic: {topic}
+Primary objective: {primary_objective}
+Intended audience: {audience}
 
 Focus areas:
-${section_bullets}
+{section_bullets}
 
 Critical questions:
-${question_bullets}
+{question_bullets}
 
 Methodology preferences:
-${methodology_bullets}
+{methodology_bullets}
 
 Output the final answer as JSON only. The JSON must conform to this schema (string placeholders show the expected types):
-${schema}
+{schema}
 
 Additional requirements:
 - Each section should contain 2-4 insights with precise, evidence-backed narration.

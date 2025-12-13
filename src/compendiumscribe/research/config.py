@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from .progress import ResearchProgress
 
+from .errors import MissingConfigurationError
+
 
 @dataclass
 class ResearchConfig:
@@ -17,7 +19,9 @@ class ResearchConfig:
     deep_research_model: str = field(
         default_factory=lambda: _default_deep_research_model()
     )
-    prompt_refiner_model: str = "gpt-4.1"
+    prompt_refiner_model: str = field(
+        default_factory=lambda: _default_prompt_refiner_model()
+    )
     use_prompt_refinement: bool = True
     background: bool = True
     poll_interval_seconds: float = 5.0
@@ -31,12 +35,23 @@ class ResearchConfig:
 
 def _default_deep_research_model() -> str:
     load_dotenv()
-    env_value = os.getenv("RESEARCH_MODEL")
-    if env_value:
-        stripped = env_value.strip()
-        if stripped:
-            return stripped
-    return "o3-deep-research"
+    # Check specific env var first, then fallback to generic
+    model = os.getenv("DEEP_RESEARCH_MODEL") or os.getenv("RESEARCH_MODEL")
+    if not model:
+        raise MissingConfigurationError(
+            "DEEP_RESEARCH_MODEL must be set in environment."
+        )
+    return model
+
+
+def _default_prompt_refiner_model() -> str:
+    load_dotenv()
+    model = os.getenv("PROMPT_REFINER_MODEL")
+    if not model:
+        raise MissingConfigurationError(
+            "PROMPT_REFINER_MODEL must be set in environment."
+        )
+    return model
 
 
 __all__ = ["ResearchConfig", "_default_deep_research_model"]

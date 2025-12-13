@@ -17,7 +17,6 @@ from .planning import (
     default_research_plan,
     generate_research_plan,
     load_prompt_template,
-    strip_leading_markdown_header,
 )
 from .progress import (
     ProgressPhase,
@@ -48,7 +47,6 @@ __all__ = [
     "default_research_plan",
     "generate_research_plan",
     "load_prompt_template",
-    "strip_leading_markdown_header",
     "collect_response_text",
     "decode_json_payload",
     "parse_deep_research_response",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.resources as resources
 import json
-from string import Template
+from promptdown import StructuredPrompt
 from typing import Any, Iterable
 
 from .config import ResearchConfig
@@ -15,12 +15,16 @@ def generate_research_plan(
     topic: str,
     config: ResearchConfig,
 ) -> dict[str, Any] | None:
-    template = load_prompt_template("topic_blueprint.md")
-    rendered = template.substitute(topic=topic)
+    prompt_obj = load_prompt_template("topic_blueprint.prompt.md")
+    # Apply template values
+    prompt_obj.apply_template_values({"topic": topic})
+    
+    # Convert to Responses API input
+    responses_input = prompt_obj.to_responses_input()
 
     response = client.responses.create(
         model=config.prompt_refiner_model,
-        input=rendered,
+        input=responses_input,
     )
 
     try:
@@ -67,8 +71,8 @@ def default_research_plan(topic: str) -> dict[str, Any]:
     }
 
 
-def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
-    template = load_prompt_template("deep_research_assignment.md")
+def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> Any:
+    prompt_obj = load_prompt_template("deep_research_assignment.prompt.md")
 
     sections = plan.get("key_sections", [])
     if not isinstance(sections, Iterable):
@@ -135,44 +139,25 @@ def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> str:
         "\n".join(methodology_lines)
         or "- Combine qualitative synthesis with quantitative evidence"
     )
-
-    return template.substitute(
-        topic=topic,
-        primary_objective=plan.get(
+    
+    prompt_obj.apply_template_values({
+        "topic": topic,
+        "primary_objective": plan.get(
             "primary_objective",
             "Produce a research compendium",
         ),
-        audience=plan.get("audience", "Analytical readers"),
-        section_bullets=section_bullets,
-        question_bullets=question_bullets,
-        methodology_bullets=methodology_bullets,
-        schema=schema,
-    )
+        "audience": plan.get("audience", "Analytical readers"),
+        "section_bullets": section_bullets,
+        "question_bullets": question_bullets,
+        "methodology_bullets": methodology_bullets,
+        "schema": schema,
+    })
+    
+    return prompt_obj.to_responses_input()
 
 
-def load_prompt_template(filename: str) -> Template:
-    prompt_package = resources.files("compendiumscribe.prompts")
-    prompt_text = prompt_package.joinpath(filename).read_text("utf-8")
-    normalized = strip_leading_markdown_header(prompt_text)
-    return Template(normalized)
-
-
-def strip_leading_markdown_header(text: str) -> str:
-    lines = text.splitlines()
-    trimmed: list[str] = []
-    skipping = True
-
-    for line in lines:
-        stripped = line.strip()
-        if skipping and stripped.startswith("# "):
-            continue
-        if skipping and not stripped:
-            continue
-
-        skipping = False
-        trimmed.append(line)
-
-    return "\n".join(trimmed).lstrip()
+def load_prompt_template(filename: str) -> StructuredPrompt:
+    return StructuredPrompt.from_package_resource("compendiumscribe.prompts", filename)
 
 
 __all__ = [
@@ -180,5 +165,4 @@ __all__ = [
     "default_research_plan",
     "generate_research_plan",
     "load_prompt_template",
-    "strip_leading_markdown_header",
 ]
