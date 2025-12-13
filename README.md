@@ -3,7 +3,7 @@
 [![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml)
 [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
 
-Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a highly structured XML compendium for any topic. The workflow combines optional prompt refinement (powered by `gpt-4.1`), an `o3-deep-research` call with web search tooling, and deterministic post-processing to turn the model output into a dependable knowledge asset.
+Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a comprehensive research compendium for any topic. The workflow combines optional prompt refinement (powered by `gpt-4.1`), an `o3-deep-research` call with web search tooling, and deterministic post-processing. It produces human-readable Markdown by default, backed by a rich XML data model that can also be exported.
 
 ---
 
@@ -45,12 +45,12 @@ pdm run create-compendium "Lithium-ion battery recycling"
 ```
 
 Options:
-- `--output PATH` — where to write the XML file (defaults to `<slug>_<timestamp>.xml`).
+- `--output PATH` — base path/filename for the output (extension is ignored).
 - `--no-background` — force synchronous execution (useful for short or restricted queries).
 - `--max-tool-calls N` — cap the total number of tool calls for cost control.
-- `--export-format FORMAT` — repeat to emit Markdown (`md`), HTML (`html`), or PDF (`pdf`) alongside the base XML output.
+- `--format FORMAT` — output format (defaults to `md`). Available: `md`, `xml`, `html`, `pdf`. Can be repeated for multiple outputs.
 
-Example output file name: `lithium-ion-battery-recycling_20250107_143233.xml`.
+Example output file name: `lithium-ion-battery-recycling.md`.
 
 ---
 

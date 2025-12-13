@@ -18,12 +18,11 @@ from .research import (
 )
 
 
-def _default_output_path(topic: str) -> Path:
+def _generate_slug(topic: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
     if not slug:
         slug = "compendium"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return Path(f"{slug}_{timestamp}.xml")
+    return slug
 
 
 @click.command()
@@ -32,7 +31,7 @@ def _default_output_path(topic: str) -> Path:
     "--output",
     "output_path",
     type=click.Path(path_type=Path, dir_okay=False, writable=True),
-    help="Save XML to this path (defaults to a timestamped filename).",
+    help="Base path/filename for the output. Extension will be ignored.",
 )
 @click.option(
     "--no-background",
@@ -40,12 +39,14 @@ def _default_output_path(topic: str) -> Path:
     help="Run deep research synchronously instead of background mode.",
 )
 @click.option(
-    "--export-format",
-    "export_formats",
-    type=click.Choice(["md", "html", "pdf"], case_sensitive=False),
+    "--format",
+    "formats",
+    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
     multiple=True,
+    default=["md"],
+    show_default=True,
     help=(
-        "Additional formats to export alongside XML (may be repeated)."
+        "Output format(s). Can be specified multiple times."
     ),
 )
 @click.option(
@@ -58,10 +59,10 @@ def main(
     topic: str,
     output_path: Path | None,
     no_background: bool,
-    export_formats: tuple[str, ...],
+    formats: tuple[str, ...],
     max_tool_calls: int | None,
 ):
-    """Generate a research compendium for TOPIC and save it as XML."""
+    """Generate a research compendium for TOPIC."""
 
     click.echo(f"Preparing deep research assignment for '{topic}'.")
 
@@ -97,30 +98,29 @@ def main(
         click.echo(f"Unexpected error: {exc}", err=True)
         raise SystemExit(1) from exc
 
-    output_path = output_path or _default_output_path(topic)
-    output_path.write_text(compendium.to_xml_string(), encoding="utf-8")
+    # Determine base filename stem
+    if output_path:
+        base_path = output_path.parent / output_path.stem
+    else:
+        slug = _generate_slug(topic)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_path = Path(f"{slug}_{timestamp}")
 
-    click.echo(f"Compendium written to {output_path}")
+    unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
 
-    additional_outputs: list[tuple[str, Path]] = []
-    normalized_formats = tuple(
-        dict.fromkeys(fmt.lower() for fmt in export_formats)
-    )
-
-    for fmt in normalized_formats:
-        target = output_path.with_suffix(f".{fmt}")
+    for fmt in unique_formats:
+        target_file = base_path.with_suffix(f".{fmt}")
+        
         if fmt == "md":
-            target.write_text(compendium.to_markdown(), encoding="utf-8")
+            target_file.write_text(compendium.to_markdown(), encoding="utf-8")
+        elif fmt == "xml":
+            target_file.write_text(compendium.to_xml_string(), encoding="utf-8")
         elif fmt == "html":
-            target.write_text(compendium.to_html(), encoding="utf-8")
+            target_file.write_text(compendium.to_html(), encoding="utf-8")
         elif fmt == "pdf":
-            target.write_bytes(compendium.to_pdf_bytes())
-        else:  # pragma: no cover - guarded by Click choice
-            continue
-        additional_outputs.append((fmt.upper(), target))
-
-    for label, path in additional_outputs:
-        click.echo(f"{label} export written to {path}")
+            target_file.write_bytes(compendium.to_pdf_bytes())
+        
+        click.echo(f"Compendium written to {target_file}")
 
 
 if __name__ == "__main__":  # pragma: no cover

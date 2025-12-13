@@ -8,9 +8,10 @@ from unittest import mock
 
 
 def test_research_config_raises_missing_config_error():
-    with mock.patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(MissingConfigurationError):
-            ResearchConfig()
+    with mock.patch("compendiumscribe.research.config.load_dotenv"):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(MissingConfigurationError):
+                ResearchConfig()
 
 def test_research_config_uses_env_override():
     with mock.patch.dict(os.environ, {
