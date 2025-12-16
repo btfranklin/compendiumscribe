@@ -153,7 +153,7 @@ def test_inline_links_render_per_format():
     xml_root = ET.fromstring(compendium.to_xml_string())
     assert (
         xml_root.findtext("overview")
-        == "See Example (https://example.com) reference."
+        == "See [Example](https://example.com) reference."
     )
 
     plain_text = "\n".join(compendium._plain_text_lines())

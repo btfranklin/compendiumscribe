@@ -51,4 +51,4 @@ dev = [
 ]
 
 [project.scripts]
-create-compendium = "compendiumscribe.cli:main"
+compendium = "compendiumscribe.cli:cli"

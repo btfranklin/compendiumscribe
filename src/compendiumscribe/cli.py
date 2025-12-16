@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 
@@ -17,6 +18,9 @@ from .research import (
     build_compendium,
 )
 
+if TYPE_CHECKING:
+    from .compendium import Compendium
+
 
 def _generate_slug(topic: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
@@ -25,7 +29,13 @@ def _generate_slug(topic: str) -> str:
     return slug
 
 
-@click.command()
+
+@click.group()
+def cli() -> None:
+    """Compendium Scribe: AI Research & Rendering Tool."""
+
+
+@cli.command()
 @click.argument("topic", type=str)
 @click.option(
     "--output",
@@ -55,7 +65,7 @@ def _generate_slug(topic: str) -> str:
     default=None,
     help="Limit total tool calls allowed for the deep research model.",
 )
-def main(
+def create(
     topic: str,
     output_path: Path | None,
     no_background: bool,
@@ -106,6 +116,61 @@ def main(
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
+    _write_outputs(compendium, base_path, formats)
+
+
+@cli.command()
+@click.argument(
+    "input_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--format",
+    "formats",
+    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
+    multiple=True,
+    default=["html"],
+    show_default=True,
+    help="Output format(s). Can be specified multiple times.",
+)
+@click.option(
+    "--output",
+    "output_path",
+    type=click.Path(path_type=Path, dir_okay=False, writable=True),
+    help="Base path/filename for the output.",
+)
+def render(
+    input_file: Path,
+    formats: tuple[str, ...],
+    output_path: Path | None,
+):
+    """Render an existing compendium XML file to other formats.
+
+    INPUT_FILE is the path to the existing compendium XML file.
+    """
+    from .compendium import Compendium
+
+    try:
+        click.echo(f"Reading compendium from {input_file}...")
+        compendium = Compendium.from_xml_file(str(input_file))
+    except Exception as exc:
+        click.echo(f"Error parsing XML file: {exc}", err=True)
+        raise SystemExit(1) from exc
+
+    # Determine base filename stem
+    if output_path:
+        base_path = output_path.parent / output_path.stem
+    else:
+        # Defaults to the input filename (without extension) in the same directory
+        base_path = input_file.parent / input_file.stem
+
+    _write_outputs(compendium, base_path, formats)
+
+
+def _write_outputs(
+    compendium: "Compendium", base_path: Path, formats: tuple[str, ...]
+) -> None:
+    """Helper to write compendium outputs to disk."""
     unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
 
     for fmt in unique_formats:
@@ -132,4 +197,4 @@ def main(
 
 
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    cli()

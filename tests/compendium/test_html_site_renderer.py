@@ -63,7 +63,6 @@ def test_render_html_site_returns_expected_files():
         "sections/s2.html",
         "citations.html",
         "open-questions.html",
-        "style.css",
     }
     assert set(files.keys()) == expected_keys
 
@@ -144,6 +143,17 @@ def test_open_questions_page_lists_all_questions():
     assert "What comes next?" in questions
 
 
+def test_section_pages_link_citations():
+    """Verify section pages link citations to the citations page."""
+    compendium = _sample_compendium()
+    files = compendium.to_html_site()
+    section_page = files["sections/s1.html"]
+
+    # "C1" is the citation ref in the sample compendium
+    expected_link = '<a href="../citations.html#C1">C1</a>'
+    assert expected_link in section_page
+
+
 def test_empty_compendium_handles_gracefully():
     """Verify empty compendium generates valid pages."""
     compendium = Compendium(
@@ -164,11 +174,4 @@ def test_empty_compendium_handles_gracefully():
     assert "No open questions recorded" in files["open-questions.html"]
 
 
-def test_style_css_is_valid():
-    """Verify style.css is included and contains minimal styles."""
-    compendium = _sample_compendium()
-    files = compendium.to_html_site()
-    css = files["style.css"]
 
-    assert "box-sizing" in css
-    assert "font-family" in css

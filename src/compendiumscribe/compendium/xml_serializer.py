@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import xml.etree.ElementTree as ET
 
-from .text_utils import format_plain_text
 from .xml_utils import etree_to_string
 
 if TYPE_CHECKING:  # pragma: no cover - hints only
@@ -35,14 +34,12 @@ def build_xml_root(compendium: "Compendium") -> ET.Element:
     )
 
     overview_elem = ET.SubElement(root, "overview")
-    overview_elem.text = format_plain_text(compendium.overview)
+    overview_elem.text = compendium.overview
 
     if compendium.methodology:
         methodology_elem = ET.SubElement(root, "methodology")
         for step in compendium.methodology:
-            ET.SubElement(methodology_elem, "step").text = (
-                format_plain_text(step)
-            )
+            ET.SubElement(methodology_elem, "step").text = step
 
     if compendium.sections:
         sections_elem = ET.SubElement(root, "sections")
@@ -52,9 +49,7 @@ def build_xml_root(compendium: "Compendium") -> ET.Element:
     if compendium.open_questions:
         questions_elem = ET.SubElement(root, "open_questions")
         for question in compendium.open_questions:
-            ET.SubElement(questions_elem, "question").text = (
-                format_plain_text(question)
-            )
+            ET.SubElement(questions_elem, "question").text = question
 
     if compendium.citations:
         citations_elem = ET.SubElement(root, "citations")
