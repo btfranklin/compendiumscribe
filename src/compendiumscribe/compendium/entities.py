@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import xml.etree.ElementTree as ET
 
-from .text_utils import format_plain_text
+
 
 
 @dataclass
@@ -20,20 +20,18 @@ class Citation:
     def to_xml(self) -> ET.Element:
         citation_elem = ET.Element("citation", attrib={"id": self.identifier})
 
-        ET.SubElement(citation_elem, "title").text = format_plain_text(
-            self.title
-        )
+        ET.SubElement(citation_elem, "title").text = self.title
         ET.SubElement(citation_elem, "url").text = self.url
 
         if self.publisher:
             publisher_elem = ET.SubElement(citation_elem, "publisher")
-            publisher_elem.text = format_plain_text(self.publisher)
+            publisher_elem.text = self.publisher
         if self.published_at:
             published_elem = ET.SubElement(citation_elem, "published_at")
             published_elem.text = self.published_at
         if self.summary:
             summary_elem = ET.SubElement(citation_elem, "summary")
-            summary_elem.text = format_plain_text(self.summary)
+            summary_elem.text = self.summary
 
         return citation_elem
 
@@ -49,16 +47,14 @@ class Insight:
 
     def to_xml(self) -> ET.Element:
         insight_elem = ET.Element("insight")
-        ET.SubElement(insight_elem, "title").text = format_plain_text(
-            self.title
-        )
+        ET.SubElement(insight_elem, "title").text = self.title
 
         evidence_elem = ET.SubElement(insight_elem, "evidence")
-        evidence_elem.text = format_plain_text(self.evidence)
+        evidence_elem.text = self.evidence
 
         if self.implications:
             implications_elem = ET.SubElement(insight_elem, "implications")
-            implications_elem.text = format_plain_text(self.implications)
+            implications_elem.text = self.implications
 
         if self.citation_refs:
             citations_elem = ET.SubElement(insight_elem, "citations")
@@ -81,12 +77,10 @@ class Section:
 
     def to_xml(self) -> ET.Element:
         section_elem = ET.Element("section", attrib={"id": self.identifier})
-        ET.SubElement(section_elem, "title").text = format_plain_text(
-            self.title
-        )
+        ET.SubElement(section_elem, "title").text = self.title
 
         summary_elem = ET.SubElement(section_elem, "summary")
-        summary_elem.text = format_plain_text(self.summary)
+        summary_elem.text = self.summary
 
         if self.key_terms:
             key_terms_elem = ET.SubElement(
@@ -95,14 +89,12 @@ class Section:
             )
             for term in self.key_terms:
                 term_elem = ET.SubElement(key_terms_elem, "term")
-                term_elem.text = format_plain_text(term)
+                term_elem.text = term
 
         if self.guiding_questions:
             questions_elem = ET.SubElement(section_elem, "guiding_questions")
             for question in self.guiding_questions:
-                ET.SubElement(questions_elem, "question").text = (
-                    format_plain_text(question)
-                )
+                ET.SubElement(questions_elem, "question").text = question
 
         if self.insights:
             insights_elem = ET.SubElement(section_elem, "insights")

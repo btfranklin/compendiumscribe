@@ -12,6 +12,9 @@ from .markdown_renderer import render_markdown
 from .payload_parser import build_from_payload
 from .plain_text import build_plain_text_lines
 from .pdf import render_pdf_from_lines
+from .payload_parser import build_from_payload
+from .plain_text import build_plain_text_lines
+from .pdf import render_pdf_from_lines
 from .xml_serializer import build_xml_root, render_xml_string
 
 
@@ -77,6 +80,20 @@ class Compendium:
             payload=payload,
             generated_at=generated_at,
         )
+
+    @classmethod
+    def from_xml_file(cls, path: str) -> "Compendium":
+        """Load a compendium from an XML file."""
+        from .xml_parser import parse_xml_file
+
+        return parse_xml_file(path)
+
+    @classmethod
+    def from_xml_string(cls, content: str) -> "Compendium":
+        """Load a compendium from an XML string."""
+        from .xml_parser import parse_xml_string
+
+        return parse_xml_string(content)
 
 
 __all__ = ["Compendium"]

@@ -30,7 +30,6 @@ def _html_head(title: str, depth: int = 0) -> list[str]:
         '  <meta charset="utf-8">',
         '  <meta name="viewport" content="width=device-width, initial-scale=1">',
         f"  <title>{html.escape(title)}</title>",
-        f'  <link rel="stylesheet" href="{prefix}style.css">',
         "</head>",
     ]
 
@@ -186,7 +185,15 @@ def _render_section_page(section: "Section", compendium: "Compendium") -> str:
                     f"      <dd>{format_html_text(insight.implications)}</dd>"
                 )
             if insight.citation_refs:
-                refs = ", ".join(html.escape(ref) for ref in insight.citation_refs)
+                ref_links = []
+                for ref in insight.citation_refs:
+                    escaped_ref = html.escape(ref)
+                    # Link to the citation anchor on the citations page
+                    # Sections are one level deep (sections/), so we go up one level
+                    url = f"../citations.html#{escaped_ref}"
+                    ref_links.append(f'<a href="{url}">{escaped_ref}</a>')
+
+                refs = ", ".join(ref_links)
                 parts.append("      <dt>Citations</dt>")
                 parts.append(f"      <dd>{refs}</dd>")
             parts.append("    </dl>")
@@ -299,57 +306,7 @@ def _render_open_questions_page(compendium: "Compendium") -> str:
     return "\n".join(parts) + "\n"
 
 
-def _render_style_css() -> str:
-    """Render a minimal CSS stylesheet."""
-    # Minimal reset and semantic defaults only
-    return """\
-/* Minimal semantic styles */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
 
-body {
-  font-family: system-ui, -apple-system, sans-serif;
-  line-height: 1.6;
-  max-width: 70ch;
-  margin: 0 auto;
-  padding: 1rem;
-}
-
-nav ul {
-  list-style: none;
-  padding: 0;
-}
-
-nav > ul > li {
-  display: inline-block;
-  margin-right: 1rem;
-}
-
-nav ul ul {
-  padding-left: 1rem;
-}
-
-a {
-  color: inherit;
-}
-
-article {
-  margin: 1rem 0;
-  padding: 1rem 0;
-  border-top: 1px solid currentColor;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 0.5rem 1rem;
-}
-
-dt {
-  font-weight: bold;
-}
-"""
 
 
 def render_html_site(compendium: "Compendium") -> dict[str, str]:
@@ -373,9 +330,6 @@ def render_html_site(compendium: "Compendium") -> dict[str, str]:
 
     # Open Questions page
     files["open-questions.html"] = _render_open_questions_page(compendium)
-
-    # Stylesheet
-    files["style.css"] = _render_style_css()
 
     return files
 
