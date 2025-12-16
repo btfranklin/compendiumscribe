@@ -16,6 +16,10 @@ def mock_build_compendium():
         compendium.to_markdown.return_value = "# Markdown Content"
         compendium.to_xml_string.return_value = "<xml>Content</xml>"
         compendium.to_html.return_value = "<html>Content</html>"
+        compendium.to_html_site.return_value = {
+            "index.html": "<html>Index</html>",
+            "style.css": "/* styles */",
+        }
         compendium.to_pdf_bytes.return_value = b"PDF Content"
         mock_build.return_value = compendium
         yield mock_build
@@ -62,3 +66,20 @@ def test_cli_output_path_override(runner, mock_build_compendium, mock_create_cli
         # Should rely on default format (md) but use the custom stem
         expected_file = Path("custom_report.md")
         assert expected_file.exists()
+
+
+def test_cli_html_format_creates_directory(runner, mock_build_compendium, mock_create_client):
+    with runner.isolated_filesystem():
+        result = runner.invoke(main, ["Test Topic", "--format", "html", "--no-background"])
+        assert result.exit_code == 0
+        
+        # Should create a directory, not a single file
+        dirs = [d for d in Path(".").iterdir() if d.is_dir()]
+        assert len(dirs) == 1
+        site_dir = dirs[0]
+        assert "test-topic" in site_dir.name
+        
+        # Check expected files exist in the directory
+        assert (site_dir / "index.html").exists()
+        assert (site_dir / "style.css").exists()
+        assert (site_dir / "index.html").read_text() == "<html>Index</html>"
