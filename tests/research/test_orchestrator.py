@@ -182,12 +182,9 @@ def test_build_compendium_with_stub_client():
     # The input is now a list of message objects
     research_input = client.responses.calls[1]["input"]
     assert isinstance(research_input, list)
-    # Check if we can find the topic in the content of the user message
-    # e.g. input[-1]["content"] ... content might be list or str depending on promptdown/OAI
-    # Promptdown `to_responses_input` returns non-str content?
-    # Actually, `planning.py` calls `to_responses_input`.
-    # Let's just fuzzy match in the string representation for now, or drill down.
-    # We expect "Quantum Computing" in one of the messages.
+    # Check if we can find the topic in the content of the user message.
+    # The content structure varies (str or list of parts) depending on the source.
+    # We perform a robust check against both formats.
     found = False
     for msg in research_input:
         content = msg.get("content", "")
