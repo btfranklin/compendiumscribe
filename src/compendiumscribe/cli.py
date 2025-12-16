@@ -109,18 +109,26 @@ def main(
     unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
 
     for fmt in unique_formats:
-        target_file = base_path.with_suffix(f".{fmt}")
-        
-        if fmt == "md":
-            target_file.write_text(compendium.to_markdown(), encoding="utf-8")
-        elif fmt == "xml":
-            target_file.write_text(compendium.to_xml_string(), encoding="utf-8")
-        elif fmt == "html":
-            target_file.write_text(compendium.to_html(), encoding="utf-8")
-        elif fmt == "pdf":
-            target_file.write_bytes(compendium.to_pdf_bytes())
-        
-        click.echo(f"Compendium written to {target_file}")
+        if fmt == "html":
+            # HTML creates a directory of files
+            site_dir = base_path.parent / base_path.name
+            site_files = compendium.to_html_site()
+            for rel_path, content in site_files.items():
+                target = site_dir / rel_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            click.echo(f"HTML site written to {site_dir}/")
+        else:
+            target_file = base_path.with_suffix(f".{fmt}")
+
+            if fmt == "md":
+                target_file.write_text(compendium.to_markdown(), encoding="utf-8")
+            elif fmt == "xml":
+                target_file.write_text(compendium.to_xml_string(), encoding="utf-8")
+            elif fmt == "pdf":
+                target_file.write_bytes(compendium.to_pdf_bytes())
+
+            click.echo(f"Compendium written to {target_file}")
 
 
 if __name__ == "__main__":  # pragma: no cover
