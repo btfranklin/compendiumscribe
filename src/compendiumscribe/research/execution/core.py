@@ -20,7 +20,7 @@ def execute_deep_research(
     """Submit a deep research request and return the completed response."""
     tools: list[dict[str, Any]] = []
     if config.use_web_search:
-        tools.append({"type": "web_search_preview"})
+        tools.append({"type": "web_search"})
     if config.enable_code_interpreter:
         tools.append(
             {"type": "code_interpreter", "container": {"type": "auto"}}

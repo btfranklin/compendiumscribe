@@ -1,9 +1,8 @@
 # Compendium Scribe
 
-[![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml)
-[![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
+![Social Preview](.github/social%20preview/compendiumscribe_social_preview.jpg)
 
-Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a comprehensive research compendium for any topic. The workflow combines optional prompt refinement (powered by `gpt-4.1`), an `o3-deep-research` call with web search tooling, and deterministic post-processing. It produces human-readable Markdown by default, backed by a rich XML data model that can also be exported.
+Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a comprehensive research compendium for any topic. The workflow combines optional prompt refinement, a "deep research" call with web search tooling, and deterministic post-processing. It produces human-readable Markdown by default, backed by a rich XML data model that can also be exported.
 
 ---
 
