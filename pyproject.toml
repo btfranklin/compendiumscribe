@@ -9,16 +9,15 @@ dependencies = [
     "openai>=2.11.0",
     "python-dotenv>=1.2.1",
     "click>=8.3.1",
-    "promptdown>=0.1.0",
+    "promptdown>=1.0.1",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
