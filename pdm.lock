@@ -363,13 +363,13 @@ files = [
 
 [[package]]
 name = "promptdown"
-version = "1.0.1"
+version = "1.1.0"
 requires_python = ">=3.10"
 summary = "A package for loading promptdown files, which are a special type of markdown file for defining structured LLM prompts"
 groups = ["default"]
 files = [
-    {file = "promptdown-1.0.1-py3-none-any.whl", hash = "sha256:804593aa9b7514b3d92363501abe25e922a0f352e53d63a4cd27c209f88a3700"},
-    {file = "promptdown-1.0.1.tar.gz", hash = "sha256:1602011ed19d52bbb4b70a7e0d4d594bcd2c34dc7a951df66666af9e5607003e"},
+    {file = "promptdown-1.1.0-py3-none-any.whl", hash = "sha256:fd95fbd011613326ffa5ea6b4bd3b75e42a73723b149ef940f95933fd8e73432"},
+    {file = "promptdown-1.1.0.tar.gz", hash = "sha256:0d95380a5db58f656500371f961cdc34557e068be079c2b7305fc080146c2040"},
 ]
 
 [[package]]

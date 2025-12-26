@@ -67,7 +67,7 @@ def await_completion(
             config,
             phase="deep_research",
             status="update",
-            message="Deep research still running; awaiting updated status.",
+            message="In progress...",
             metadata={
                 "status": status,
                 "poll_attempt": attempts,
