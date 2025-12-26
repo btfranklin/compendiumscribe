@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import time
 
 from ..config import ResearchConfig
-from ..errors import DeepResearchError, ResearchTimeoutError
+from ..errors import DeepResearchError, ResearchCancelledError, ResearchTimeoutError
 from ..progress import emit_progress
 from ..utils import coerce_optional_string, get_field
+
+if TYPE_CHECKING:
+    from ..cancellation import CancellationContext
 
 
 __all__ = ["await_completion"]
@@ -16,6 +19,7 @@ def await_completion(
     client: Any,
     response: Any,
     config: ResearchConfig,
+    cancel_ctx: "CancellationContext | None" = None,
 ):
     """Poll the OpenAI responses API until the run completes or fails."""
     attempts = 0
@@ -58,6 +62,19 @@ def await_completion(
             )
             break
 
+        if status == "cancelled":
+            emit_progress(
+                config,
+                phase="deep_research",
+                status="cancelled",
+                message="Research cancelled.",
+                metadata={"elapsed_seconds": elapsed_seconds},
+            )
+            raise ResearchCancelledError(
+                "Research was cancelled by user.",
+                research_id=response.id,
+            )
+
         if status in {"failed", "error"}:
             raise DeepResearchError(
                 f"Deep research run failed with status: {status}"
@@ -76,3 +93,4 @@ def await_completion(
         )
 
     return current
+

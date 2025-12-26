@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from openai import OpenAI
 
@@ -18,12 +18,16 @@ from .planning import (
 from .progress import emit_progress
 from .utils import coerce_optional_string, get_field
 
+if TYPE_CHECKING:
+    from .cancellation import CancellationContext
+
 
 def build_compendium(
     topic: str,
     *,
     client: OpenAI | None = None,
     config: ResearchConfig | None = None,
+    cancel_ctx: "CancellationContext | None" = None,
 ) -> Compendium:
     """High-level API: build a compendium for a topic using deep research."""
 
@@ -97,7 +101,7 @@ def build_compendium(
             metadata={"sections": len(plan.get("key_sections", []) or [])},
         )
 
-        response = execute_deep_research(client, prompt, config)
+        response = execute_deep_research(client, prompt, config, cancel_ctx)
 
         payload = parse_deep_research_response(response)
 

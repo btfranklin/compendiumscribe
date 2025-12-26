@@ -17,8 +17,17 @@ class ResearchTimeoutError(DeepResearchError):
         self.research_id = research_id
 
 
+class ResearchCancelledError(DeepResearchError):
+    """Raised when research is cancelled by user."""
+
+    def __init__(self, message: str, research_id: str):
+        super().__init__(message)
+        self.research_id = research_id
+
+
 __all__ = [
     "DeepResearchError",
     "MissingConfigurationError",
+    "ResearchCancelledError",
     "ResearchTimeoutError",
 ]
