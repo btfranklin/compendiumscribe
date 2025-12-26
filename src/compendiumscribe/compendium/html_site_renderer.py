@@ -5,19 +5,11 @@ from __future__ import annotations
 import html
 from typing import TYPE_CHECKING
 
-from .text_utils import format_html_text
+from .text_utils import format_html_text, slugify
 
 if TYPE_CHECKING:  # pragma: no cover - hints only
     from .compendium import Compendium
     from .entities import Citation, Section
-
-
-def _slugify(text: str) -> str:
-    """Convert text to a URL-friendly slug."""
-    import re
-
-    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug or "page"
 
 
 def _html_head(title: str, depth: int = 0) -> list[str]:
@@ -50,7 +42,7 @@ def _nav_links(
         parts.append("    <li>Sections:")
         parts.append("      <ul>")
         for section in sections:
-            section_slug = _slugify(section.identifier)
+            section_slug = slugify(section.identifier)
             href = f"{prefix}sections/{section_slug}.html"
             label = html.escape(section.title)
             parts.append(f'        <li><a href="{href}">{label}</a></li>')
@@ -105,7 +97,7 @@ def _render_index_page(compendium: "Compendium") -> str:
         parts.append("  <h2>Sections</h2>")
         parts.append("  <ul>")
         for section in compendium.sections:
-            section_slug = _slugify(section.identifier)
+            section_slug = slugify(section.identifier)
             href = f"sections/{section_slug}.html"
             label = html.escape(section.title)
             summary = format_html_text(section.summary)
@@ -320,7 +312,7 @@ def render_html_site(compendium: "Compendium") -> dict[str, str]:
 
     # Section pages
     for section in compendium.sections:
-        section_slug = _slugify(section.identifier)
+        section_slug = slugify(section.identifier)
         path = f"sections/{section_slug}.html"
         files[path] = _render_section_page(section, compendium)
 

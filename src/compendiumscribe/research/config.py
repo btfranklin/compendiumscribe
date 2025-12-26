@@ -11,6 +11,8 @@ if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
 
 from .errors import MissingConfigurationError
 
+load_dotenv()
+
 
 @dataclass
 class ResearchConfig:
@@ -42,7 +44,6 @@ class ResearchConfig:
 
 
 def _default_deep_research_model() -> str:
-    load_dotenv()
     # Check specific env var first, then fallback to generic
     model = os.getenv("DEEP_RESEARCH_MODEL") or os.getenv("RESEARCH_MODEL")
     if not model:
@@ -53,7 +54,6 @@ def _default_deep_research_model() -> str:
 
 
 def _default_prompt_refiner_model() -> str:
-    load_dotenv()
     model = os.getenv("PROMPT_REFINER_MODEL")
     if not model:
         raise MissingConfigurationError(
