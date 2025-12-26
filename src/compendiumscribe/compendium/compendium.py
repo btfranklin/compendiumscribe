@@ -9,8 +9,6 @@ from .entities import Citation, Section
 from .html_site_renderer import render_html_site
 from .markdown_renderer import render_markdown
 from .payload_parser import build_from_payload
-from .plain_text import build_plain_text_lines
-from .pdf import render_pdf_from_lines
 from .xml_serializer import build_xml_root, render_xml_string
 
 
@@ -48,15 +46,10 @@ class Compendium:
         return render_html_site(self)
 
     def to_pdf_bytes(self) -> bytes:
-        """Render the compendium as a lightweight PDF document."""
+        """Render the compendium as a professional PDF document."""
+        from .pdf import render_pdf
 
-        lines = self._plain_text_lines()
-        if not lines:
-            lines = [""]
-        return render_pdf_from_lines(lines)
-
-    def _plain_text_lines(self) -> list[str]:
-        return build_plain_text_lines(self)
+        return render_pdf(self)
 
     @classmethod
     def from_payload(

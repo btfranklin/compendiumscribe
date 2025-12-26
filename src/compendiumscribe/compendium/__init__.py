@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .compendium import Compendium
 from .entities import Citation, Insight, Section
-from .pdf import render_pdf_from_lines
+from .pdf import render_pdf
 from .text_utils import (
     format_html_text,
     format_plain_text,
@@ -15,7 +15,7 @@ __all__ = [
     "Citation",
     "Insight",
     "Section",
-    "render_pdf_from_lines",
+    "render_pdf",
     "format_html_text",
     "format_plain_text",
     "iter_markdown_links",

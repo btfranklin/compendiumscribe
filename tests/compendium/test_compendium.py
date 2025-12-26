@@ -92,7 +92,7 @@ def test_compendium_additional_exports():
     assert "Research Trace" not in markdown
 
     pdf_bytes = compendium.to_pdf_bytes()
-    assert pdf_bytes.startswith(b"%PDF-1.4\n")
+    assert pdf_bytes.startswith(b"%PDF-")
     assert pdf_bytes.rstrip().endswith(b"%%EOF")
 
 
@@ -142,10 +142,6 @@ def test_inline_links_render_per_format():
         xml_root.findtext("overview")
         == "See [Example](https://example.com) reference."
     )
-
-    plain_text = "\n".join(compendium._plain_text_lines())
-    assert "Example (https://example.com)" in plain_text
-    assert "[Example](https://example.com)" not in plain_text
 
 
 def test_compendium_from_payload_normalizes_fields():

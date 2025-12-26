@@ -1,144 +1,134 @@
 from __future__ import annotations
 
-_PDF_PAGE_WIDTH = 612
-_PDF_PAGE_HEIGHT = 792
-_PDF_MARGIN = 72
-_PDF_LINE_HEIGHT = 14
+from typing import TYPE_CHECKING
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
+
+if TYPE_CHECKING:
+    from .compendium import Compendium
 
 
-def render_pdf_from_lines(lines: list[str]) -> bytes:
-    """Render a lightweight PDF document from pre-wrapped lines."""
+class CompendiumPDF(FPDF):
+    def header(self):
+        # We don't need a default header for every page yet
+        pass
 
-    lines_per_page = max(
-        1,
-        int((
-            _PDF_PAGE_HEIGHT - 2 * _PDF_MARGIN
-        ) // _PDF_LINE_HEIGHT),
-    )
-    if not lines:
-        lines = [""]
-
-    pages: list[list[str]] = []
-    for index in range(0, len(lines), lines_per_page):
-        pages.append(lines[index:index + lines_per_page])
-    if not pages:
-        pages = [[""]]
-
-    page_streams = [_build_pdf_stream(page) for page in pages]
-    return _assemble_pdf_document(page_streams)
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("helvetica", "I", 8)
+        self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", align="C")
 
 
-def _build_pdf_stream(lines: list[str]) -> str:
-    if not lines:
-        lines = [""]
+def render_pdf(compendium: Compendium) -> bytes:
+    """Render a professional PDF document from a Compendium object."""
 
-    stream_lines = [
-        "BT",
-        "/F1 12 Tf",
-        f"{_PDF_LINE_HEIGHT} TL",
-        f"1 0 0 1 {_PDF_MARGIN} {_PDF_PAGE_HEIGHT - _PDF_MARGIN} Tm",
-    ]
+    pdf = CompendiumPDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    
+    # Title
+    pdf.set_font("helvetica", "B", 24)
+    pdf.cell(0, 20, compendium.topic, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    
+    pdf.set_font("helvetica", "I", 10)
+    generated_at = compendium.generated_at.strftime("%Y-%m-%d %H:%M:%S")
+    pdf.cell(0, 10, f"Generated at: {generated_at} UTC", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.ln(10)
 
-    for line in lines:
-        sanitized = _pdf_escape_text(line)
-        stream_lines.append(f"({sanitized}) Tj")
-        stream_lines.append("T*")
+    # Overview
+    if compendium.overview:
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "Overview", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("helvetica", "", 11)
+        pdf.multi_cell(0, 6, compendium.overview)
+        pdf.ln(5)
 
-    stream_lines.append("ET")
-    return "\n".join(stream_lines)
+    # Methodology
+    if compendium.methodology:
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "Methodology", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("helvetica", "", 11)
+        for step in compendium.methodology:
+            if step.strip():
+                pdf.multi_cell(0, 6, f"- {step}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(5)
 
+    # Sections
+    if compendium.sections:
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "Sections", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(2)
+        
+        for section in compendium.sections:
+            # Check for page break if near bottom
+            if pdf.get_y() > 250:
+                pdf.add_page()
+                
+            pdf.set_font("helvetica", "B", 14)
+            title = section.title
+            if section.identifier:
+                title = f"{section.identifier}: {title}"
+            pdf.cell(0, 10, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            
+            pdf.set_font("helvetica", "", 11)
+            pdf.multi_cell(0, 6, section.summary)
+            pdf.ln(2)
 
-def _pdf_escape_text(text: str) -> str:
-    safe_text = text.encode("latin-1", "replace").decode("latin-1")
-    safe_text = safe_text.replace("\\", "\\\\")
-    safe_text = safe_text.replace("(", "\\(")
-    safe_text = safe_text.replace(")", "\\)")
-    return safe_text
+            if section.key_terms:
+                pdf.set_font("helvetica", "B", 10)
+                pdf.cell(0, 6, "Key Terms: ", ln=False)
+                pdf.set_font("helvetica", "", 10)
+                pdf.multi_cell(0, 6, ", ".join(section.key_terms))
+            
+            if section.insights:
+                pdf.ln(2)
+                for insight in section.insights:
+                    pdf.set_font("helvetica", "B", 11)
+                    pdf.cell(0, 8, f"Insight: {insight.title}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.set_font("helvetica", "", 11)
+                    pdf.multi_cell(0, 6, insight.evidence)
+                    if insight.implications:
+                        pdf.set_font("helvetica", "I", 11)
+                        pdf.multi_cell(0, 6, f"Implications: {insight.implications}")
+                    if insight.citation_refs:
+                        pdf.set_font("helvetica", "", 9)
+                        pdf.cell(0, 6, f"Citations: {', '.join(insight.citation_refs)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.ln(2)
+            pdf.ln(5)
 
+    # Citations
+    if compendium.citations:
+        if pdf.get_y() > 220:
+            pdf.add_page()
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "Citations", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("helvetica", "", 10)
+        for citation in compendium.citations:
+            pdf.set_font("helvetica", "B", 10)
+            label = f"[{citation.identifier}] {citation.title}"
+            pdf.multi_cell(0, 6, label)
+            pdf.set_font("helvetica", "", 10)
+            pdf.set_text_color(0, 0, 255)
+            pdf.cell(0, 6, citation.url, new_x=XPos.LMARGIN, new_y=YPos.NEXT, link=citation.url)
+            pdf.set_text_color(0, 0, 0)
+            if citation.summary:
+                pdf.multi_cell(0, 6, citation.summary)
+            pdf.ln(2)
 
-def _assemble_pdf_document(page_streams: list[str]) -> bytes:
-    if not page_streams:
-        page_streams = [_build_pdf_stream([""])]
+    # Open Questions
+    if compendium.open_questions:
+        if pdf.get_y() > 220:
+            pdf.add_page()
+        pdf.ln(5)
+        pdf.set_font("helvetica", "B", 16)
+        pdf.cell(0, 10, "Open Questions", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("helvetica", "", 11)
+        for question in compendium.open_questions:
+            pdf.multi_cell(0, 6, f"\u2022 {question}")
 
-    num_pages = len(page_streams)
-    page_ids = [4 + index for index in range(num_pages)]
-    content_ids = [4 + num_pages + index for index in range(num_pages)]
-
-    objects: dict[int, str] = {
-        1: "<< /Type /Catalog /Pages 2 0 R >>",
-        3: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    }
-
-    kids_entries = " ".join(f"{page_id} 0 R" for page_id in page_ids) or ""
-    objects[2] = (
-        "<< /Type /Pages /Kids ["
-        f"{kids_entries}"
-        "] /Count "
-        f"{num_pages} >>"
-    )
-
-    for index, page_id in enumerate(page_ids):
-        content_id = content_ids[index]
-        page_dict = (
-            "<< /Type /Page /Parent 2 0 R "
-            f"/MediaBox [0 0 {_PDF_PAGE_WIDTH} {_PDF_PAGE_HEIGHT}] "
-            "/Resources << /Font << /F1 3 0 R >> >> "
-            f"/Contents {content_id} 0 R >>"
-        )
-        objects[page_id] = page_dict
-
-        stream = page_streams[index]
-        stream_bytes = stream.encode("latin-1")
-        content_object = (
-            f"<< /Length {len(stream_bytes)} >>\n"
-            f"stream\n{stream}\nendstream"
-        )
-        objects[content_id] = content_object
-
-    max_object_id = max(objects)
-
-    pdf_parts: list[str] = ["%PDF-1.4\n"]
-    offsets: dict[int, int] = {}
-    current_offset = len(pdf_parts[0].encode("latin-1"))
-
-    for object_id in range(1, max_object_id + 1):
-        content = objects.get(object_id)
-        if content is None:
-            continue
-        serialized = f"{object_id} 0 obj\n{content}\nendobj\n"
-        offsets[object_id] = current_offset
-        encoded = serialized.encode("latin-1")
-        pdf_parts.append(serialized)
-        current_offset += len(encoded)
-
-    xref_start = current_offset
-
-    total_objects = max_object_id
-    xref_lines = [
-        "xref",
-        f"0 {total_objects + 1}",
-        "0000000000 65535 f ",
-    ]
-    for object_id in range(1, total_objects + 1):
-        offset = offsets.get(object_id, 0)
-        xref_lines.append(f"{offset:010} 00000 n ")
-
-    xref_text = "\n".join(xref_lines) + "\n"
-    pdf_parts.append(xref_text)
-    current_offset += len(xref_text.encode("latin-1"))
-
-    trailer = (
-        "trailer\n"
-        f"<< /Size {total_objects + 1} /Root 1 0 R >>\n"
-        "startxref\n"
-        f"{xref_start}\n"
-        "%%EOF\n"
-    )
-    pdf_parts.append(trailer)
-
-    return "".join(pdf_parts).encode("latin-1")
+    return pdf.output()
 
 
 __all__ = [
-    "render_pdf_from_lines",
+    "render_pdf",
 ]
