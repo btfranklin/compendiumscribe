@@ -36,6 +36,8 @@ Create a `.env` file (untracked) with your OpenAI credentials:
 OPENAI_API_KEY=sk-...
 PROMPT_REFINER_MODEL=gpt-5.2
 DEEP_RESEARCH_MODEL=o3-deep-research
+POLLING_INTERVAL_IN_SECONDS=10
+MAX_POLL_TIME_IN_MINUTES=60
 ```
 
 Deep research requires an OpenAI account with the browsing tooling enabled. Document any environment keys for additional tooling in the repo as you add them.
@@ -68,6 +70,17 @@ pdm run compendium render my-topic.xml --format html
 - `--format FORMAT` — Output format(s) to generate (`md`, `xml`, `html`, `pdf`).
 - `--output PATH` — Base path/filename for the output.
 
+### 5. Recover from a timeout
+
+If a research task times out (exceeding `MAX_POLL_TIME_IN_MINUTES`), recovery information is saved to `timed_out_research.json`. You can resume checking for its completion without starting over:
+
+```bash
+pdm run compendium recover
+```
+
+**Options:**
+- `--input PATH` — Path to the recovery JSON file (defaults to `timed_out_research.json`).
+
 ---
 
 ## Library Usage
@@ -78,7 +91,11 @@ from compendiumscribe import build_compendium, ResearchConfig, DeepResearchError
 try:
     compendium = build_compendium(
         "Emerging pathogen surveillance",
-        config=ResearchConfig(background=False, max_tool_calls=30),
+        config=ResearchConfig(
+            background=False, 
+            max_tool_calls=30,
+            max_poll_time_minutes=15,
+        ),
     )
 except DeepResearchError as exc:
     # Handle or log deep research failures

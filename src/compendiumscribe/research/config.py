@@ -24,8 +24,16 @@ class ResearchConfig:
     )
     use_prompt_refinement: bool = True
     background: bool = True
-    poll_interval_seconds: float = 5.0
-    max_poll_attempts: int = 240
+    polling_interval_seconds: float = field(
+        default_factory=lambda: float(
+            os.getenv("POLLING_INTERVAL_IN_SECONDS", "10.0")
+        )
+    )
+    max_poll_time_minutes: float = field(
+        default_factory=lambda: float(
+            os.getenv("MAX_POLL_TIME_IN_MINUTES", "60.0")
+        )
+    )
     enable_code_interpreter: bool = True
     use_web_search: bool = True
     max_tool_calls: int | None = None
