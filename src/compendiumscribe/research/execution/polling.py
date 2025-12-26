@@ -4,7 +4,7 @@ from typing import Any
 import time
 
 from ..config import ResearchConfig
-from ..errors import DeepResearchError
+from ..errors import DeepResearchError, ResearchTimeoutError
 from ..progress import emit_progress
 from ..utils import coerce_optional_string, get_field
 
@@ -27,9 +27,20 @@ def await_completion(
     )
 
     current = response
-    while attempts < config.max_poll_attempts:
-        time.sleep(config.poll_interval_seconds)
+    start_time = time.monotonic()
+    max_seconds = config.max_poll_time_minutes * 60
+
+    while True:
+        elapsed_seconds = int(time.monotonic() - start_time)
+        if elapsed_seconds > max_seconds:
+            raise ResearchTimeoutError(
+                f"Deep research did not complete within the {config.max_poll_time_minutes} minute limit.",
+                research_id=response.id,
+            )
+
+        time.sleep(config.polling_interval_seconds)
         attempts += 1
+        elapsed_seconds = int(time.monotonic() - start_time)
 
         current = client.responses.retrieve(response.id)
         status = coerce_optional_string(get_field(current, "status"))
@@ -40,7 +51,10 @@ def await_completion(
                 phase="deep_research",
                 status="completed",
                 message="Deep research run finished; decoding payload.",
-                metadata={"status": status},
+                metadata={
+                    "status": status,
+                    "elapsed_seconds": elapsed_seconds,
+                },
             )
             break
 
@@ -57,11 +71,8 @@ def await_completion(
             metadata={
                 "status": status,
                 "poll_attempt": attempts,
+                "elapsed_seconds": elapsed_seconds,
             },
-        )
-    else:
-        raise DeepResearchError(
-            "Deep research did not complete within the polling limit."
         )
 
     return current

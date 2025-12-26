@@ -1,9 +1,8 @@
-from __future__ import annotations
-
+import json
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import click
 
@@ -15,6 +14,7 @@ from .research import (
     DeepResearchError,
     ResearchConfig,
     ResearchProgress,
+    ResearchTimeoutError,
     build_compendium,
 )
 
@@ -83,6 +83,13 @@ def create(
         meta = update.metadata or {}
         if "poll_attempt" in meta:
             suffix = f" (poll #{meta['poll_attempt']})"
+        
+        if "elapsed_seconds" in meta:
+            seconds = meta["elapsed_seconds"]
+            mins, secs = divmod(seconds, 60)
+            time_str = f"{mins}m {secs}s" if mins > 0 else f"{secs}s"
+            suffix += f" [Time elapsed: {time_str}]"
+
         stream_kwargs = {"err": update.status == "error"}
         click.echo(
             f"[{timestamp}] {phase_label}: {update.message}{suffix}",
@@ -98,6 +105,19 @@ def create(
     try:
         client = create_openai_client(timeout=config.request_timeout_seconds)
         compendium = build_compendium(topic, client=client, config=config)
+    except ResearchTimeoutError as exc:
+        timeout_data = {
+            "research_id": exc.research_id,
+            "topic": topic,
+            "no_background": no_background,
+            "formats": list(formats),
+            "max_tool_calls": max_tool_calls,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        Path("timed_out_research.json").write_text(json.dumps(timeout_data, indent=2))
+        click.echo(f"\n[!] Deep research timed out (ID: {exc.research_id}).", err=True)
+        click.echo(f"Stored recovery information in timed_out_research.json", err=True)
+        raise SystemExit(1) from exc
     except MissingAPIKeyError as exc:
         click.echo(f"Configuration error: {exc}", err=True)
         raise SystemExit(1) from exc
@@ -165,6 +185,72 @@ def render(
         base_path = input_file.parent / input_file.stem
 
     _write_outputs(compendium, base_path, formats)
+
+
+@cli.command()
+@click.option(
+    "--input",
+    "input_file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path("timed_out_research.json"),
+    show_default=True,
+    help="Path to the recovery JSON file.",
+)
+def recover(input_file: Path):
+    """Recover a timed-out deep research run."""
+    if not input_file.exists():
+        click.echo(f"Error: Recovery file {input_file} not found.", err=True)
+        raise SystemExit(1)
+
+    try:
+        data = json.loads(input_file.read_text(encoding="utf-8"))
+        research_id = data["research_id"]
+        topic = data["topic"]
+        formats = tuple(data["formats"])
+        max_tool_calls = data.get("max_tool_calls")
+        no_background = data.get("no_background", False)
+    except (json.JSONDecodeError, KeyError) as exc:
+        click.echo(f"Error: Failed to parse recovery file: {exc}", err=True)
+        raise SystemExit(1)
+
+    click.echo(f"Checking status for research ID: {research_id} ('{topic}')...")
+
+    config = ResearchConfig(
+        background=not no_background,
+        max_tool_calls=max_tool_calls,
+    )
+
+    try:
+        client = create_openai_client(timeout=config.request_timeout_seconds)
+        response = client.responses.retrieve(research_id)
+        from .research.utils import coerce_optional_string, get_field
+        status = coerce_optional_string(get_field(response, "status"))
+
+        if status != "completed":
+            click.echo(f"Research is not yet completed (current status: {status}).")
+            click.echo("Please try again later.")
+            return
+
+        click.echo("Research completed! Decoding payload and writing outputs.")
+        from .research.parsing import parse_deep_research_response
+        from .compendium import Compendium
+        
+        payload = parse_deep_research_response(response)
+        compendium = Compendium.from_payload(
+            topic=topic,
+            payload=payload,
+            generated_at=datetime.now(timezone.utc),
+        )
+
+        slug = _generate_slug(topic)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_path = Path(f"{slug}_{timestamp}")
+
+        _write_outputs(compendium, base_path, formats)
+        
+    except Exception as exc:
+        click.echo(f"Error during recovery: {exc}", err=True)
+        raise SystemExit(1)
 
 
 def _write_outputs(

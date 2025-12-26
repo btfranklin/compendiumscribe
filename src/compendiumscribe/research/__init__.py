@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from .config import ResearchConfig
-from .errors import DeepResearchError
+from .errors import (
+    DeepResearchError,
+    ResearchTimeoutError,
+)
 from .execution import (
     await_completion,
     execute_deep_research,
@@ -37,6 +40,7 @@ from .utils import (
 
 __all__ = [
     "DeepResearchError",
+    "ResearchTimeoutError",
     "ResearchConfig",
     "ProgressPhase",
     "ProgressStatus",

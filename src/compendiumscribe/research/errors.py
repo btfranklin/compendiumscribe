@@ -9,4 +9,16 @@ class MissingConfigurationError(RuntimeError):
     """Raised when required configuration is missing."""
 
 
-__all__ = ["DeepResearchError", "MissingConfigurationError"]
+class ResearchTimeoutError(DeepResearchError):
+    """Raised when deep research exceeds the configured time limit."""
+
+    def __init__(self, message: str, research_id: str):
+        super().__init__(message)
+        self.research_id = research_id
+
+
+__all__ = [
+    "DeepResearchError",
+    "MissingConfigurationError",
+    "ResearchTimeoutError",
+]

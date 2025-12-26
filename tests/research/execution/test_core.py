@@ -104,8 +104,8 @@ def test_execute_deep_research_polls_until_complete():
 
     config = ResearchConfig(
         background=True,
-        poll_interval_seconds=0,
-        max_poll_attempts=3,
+        polling_interval_seconds=0,
+        max_poll_time_minutes=1,
         progress_callback=callback,
     )
 
@@ -123,3 +123,34 @@ def test_execute_deep_research_polls_until_complete():
         "completed",
         "Deep research run finished; decoding payload.",
     ) in progress_updates
+
+
+def test_execute_deep_research_raises_timeout_error():
+    pending = SimpleNamespace(
+        id="resp_poll",
+        status="in_progress",
+        output=[],
+    )
+
+    class FastPollingResponses:
+        def create(self, **kwargs):
+            return pending
+
+        def retrieve(self, response_id: str):
+            return pending
+
+    responses = FastPollingResponses()
+    client = SimpleNamespace(responses=responses)
+
+    # Set a very short timeout and interval
+    config = ResearchConfig(
+        background=True,
+        polling_interval_seconds=0.01,
+        max_poll_time_minutes=0.0001,  # Fraction of a second
+    )
+
+    from compendiumscribe.research.errors import ResearchTimeoutError
+    with pytest.raises(ResearchTimeoutError) as excinfo:
+        execute_deep_research(client, "prompt", config)
+    
+    assert excinfo.value.research_id == "resp_poll"
