@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from .cancellation import CancellationContext
 from .config import ResearchConfig
 from .errors import (
     DeepResearchError,
     MissingConfigurationError,
+    ResearchCancelledError,
     ResearchTimeoutError,
 )
 from .execution import (
@@ -34,8 +36,10 @@ from .utils import (
 )
 
 __all__ = [
+    "CancellationContext",
     "DeepResearchError",
     "MissingConfigurationError",
+    "ResearchCancelledError",
     "ResearchTimeoutError",
     "ResearchConfig",
     "ProgressPhase",
@@ -56,3 +60,4 @@ __all__ = [
     "coerce_optional_string",
     "get_field",
 ]
+

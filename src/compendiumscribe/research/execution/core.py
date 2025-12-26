@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from ..config import ResearchConfig
 from ..errors import DeepResearchError
 from ..progress import emit_progress
 from ..utils import coerce_optional_string, get_field
 from .polling import await_completion
+
+if TYPE_CHECKING:
+    from ..cancellation import CancellationContext
 
 
 __all__ = ["execute_deep_research"]
@@ -16,6 +19,7 @@ def execute_deep_research(
     client: Any,
     prompt: Any,
     config: ResearchConfig,
+    cancel_ctx: "CancellationContext | None" = None,
 ):
     """Submit a deep research request and return the completed response."""
     tools: list[dict[str, Any]] = []
@@ -50,12 +54,16 @@ def execute_deep_research(
 
     response = client.responses.create(**request_payload)
 
+    # Register response ID with cancellation context for potential cancellation
+    if cancel_ctx is not None:
+        cancel_ctx.register_response(response.id)
+
     status = (
         coerce_optional_string(get_field(response, "status"))
         or "completed"
     )
     if status in {"in_progress", "queued"}:
-        response = await_completion(client, response, config)
+        response = await_completion(client, response, config, cancel_ctx)
     else:
         emit_progress(
             config,
@@ -75,3 +83,4 @@ def execute_deep_research(
         )
 
     return response
+

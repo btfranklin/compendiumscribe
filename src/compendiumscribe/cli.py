@@ -12,8 +12,10 @@ from .create_llm_clients import (
     create_openai_client,
 )
 from .research import (
+    CancellationContext,
     DeepResearchError,
     MissingConfigurationError,
+    ResearchCancelledError,
     ResearchConfig,
     ResearchProgress,
     ResearchTimeoutError,
@@ -101,7 +103,23 @@ def create(
             progress_callback=handle_progress,
         )
         client = create_openai_client(timeout=config.request_timeout_seconds)
-        compendium = build_compendium(topic, client=client, config=config)
+
+        # Set up cancellation context for graceful Ctrl+C handling
+        cancel_ctx = CancellationContext(client, config)
+        cancel_ctx.install_signal_handler()
+
+        try:
+            compendium = build_compendium(
+                topic, client=client, config=config, cancel_ctx=cancel_ctx
+            )
+        finally:
+            cancel_ctx.restore_signal_handler()
+    except ResearchCancelledError as exc:
+        click.echo(f"\nResearch cancelled (ID: {exc.research_id}).", err=True)
+        raise SystemExit(1) from exc
+    except KeyboardInterrupt:
+        click.echo("\nHard shutdown requested.", err=True)
+        raise SystemExit(1)
     except ResearchTimeoutError as exc:
         timeout_data = {
             "research_id": exc.research_id,
