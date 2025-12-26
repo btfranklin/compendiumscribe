@@ -7,6 +7,7 @@ from openai import OpenAI
 
 from ..compendium import Compendium
 from .config import ResearchConfig
+from .errors import DeepResearchError
 from .execution import execute_deep_research
 from .parsing import parse_deep_research_response
 from .planning import (
@@ -15,6 +16,7 @@ from .planning import (
     generate_research_plan,
 )
 from .progress import emit_progress
+from .utils import coerce_optional_string, get_field
 
 
 def build_compendium(
@@ -117,4 +119,36 @@ def build_compendium(
         raise
 
 
-__all__ = ["build_compendium"]
+def recover_compendium(
+    research_id: str,
+    topic: str,
+    *,
+    client: OpenAI | None = None,
+    config: ResearchConfig | None = None,
+) -> Compendium:
+    """Finish a previously timed-out research run and return the compendium."""
+    config = config or ResearchConfig()
+
+    if client is None:
+        from ..create_llm_clients import create_openai_client
+
+        client = create_openai_client(timeout=config.request_timeout_seconds)
+
+    response = client.responses.retrieve(research_id)
+    status = coerce_optional_string(get_field(response, "status"))
+
+    if status != "completed":
+        raise DeepResearchError(
+            f"Research is not yet completed (current status: {status})."
+        )
+
+    payload = parse_deep_research_response(response)
+
+    return Compendium.from_payload(
+        topic=topic,
+        payload=payload,
+        generated_at=datetime.now(timezone.utc),
+    )
+
+
+__all__ = ["build_compendium", "recover_compendium"]

@@ -6,6 +6,7 @@ from typing import Any, TYPE_CHECKING
 
 import click
 
+from .compendium import Compendium
 from .create_llm_clients import (
     MissingAPIKeyError,
     create_openai_client,
@@ -17,10 +18,8 @@ from .research import (
     ResearchProgress,
     ResearchTimeoutError,
     build_compendium,
+    recover_compendium,
 )
-
-if TYPE_CHECKING:
-    from .compendium import Compendium
 
 
 def _generate_slug(topic: str) -> str:
@@ -171,8 +170,6 @@ def render(
 
     INPUT_FILE is the path to the existing compendium XML file.
     """
-    from .compendium import Compendium
-
     try:
         click.echo(f"Reading compendium from {input_file}...")
         compendium = Compendium.from_xml_file(str(input_file))
@@ -224,33 +221,23 @@ def recover(input_file: Path):
     )
 
     try:
-        client = create_openai_client(timeout=config.request_timeout_seconds)
-        response = client.responses.retrieve(research_id)
-        from .research.utils import coerce_optional_string, get_field
-        status = coerce_optional_string(get_field(response, "status"))
-
-        if status != "completed":
-            click.echo(f"Research is not yet completed (current status: {status}).")
-            click.echo("Please try again later.")
-            return
-
-        click.echo("Research completed! Decoding payload and writing outputs.")
-        from .research.parsing import parse_deep_research_response
-        from .compendium import Compendium
-        
-        payload = parse_deep_research_response(response)
-        compendium = Compendium.from_payload(
+        compendium = recover_compendium(
+            research_id=research_id,
             topic=topic,
-            payload=payload,
-            generated_at=datetime.now(timezone.utc),
+            config=config,
         )
+
+        click.echo("Research completed! Writing outputs.")
 
         slug = _generate_slug(topic)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
         _write_outputs(compendium, base_path, formats)
-        
+
+    except DeepResearchError as exc:
+        click.echo(str(exc), err=True)
+        return
     except Exception as exc:
         click.echo(f"Error during recovery: {exc}", err=True)
         raise SystemExit(1)

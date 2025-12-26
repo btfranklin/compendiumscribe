@@ -21,8 +21,7 @@ def _slugify(text: str) -> str:
 
 
 def _html_head(title: str, depth: int = 0) -> list[str]:
-    """Generate HTML head section with appropriate relative path for CSS."""
-    prefix = "../" * depth
+    """Generate HTML head section."""
     return [
         "<!DOCTYPE html>",
         '<html lang="en">',

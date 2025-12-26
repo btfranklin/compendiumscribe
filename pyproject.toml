@@ -51,3 +51,6 @@ dev = [
 
 [project.scripts]
 compendium = "compendiumscribe.cli:cli"
+
+[tool.pdm.scripts]
+test = "pytest"
