@@ -2,16 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-ACTION_SUMMARY_KEYS = (
-    "type",
-    "name",
-    "query",
-    "input",
-    "instructions",
-    "code",
-    "prompt",
-)
-
 
 def first_non_empty(values: Iterable[str | None]) -> str | None:
     for value in values:
@@ -55,48 +45,10 @@ def stringify_metadata_value(value: Any) -> Any:
     return str(value)
 
 
-def simplify_action_snapshot(action: Any) -> dict[str, Any]:
-    if not action:
-        return {}
-
-    if isinstance(action, dict):
-        snapshot: dict[str, Any] = {}
-        for key in ACTION_SUMMARY_KEYS:
-            value = action.get(key)
-            if value not in (None, ""):
-                snapshot[key] = stringify_metadata_value(value)
-        return snapshot
-
-    snapshot = {}
-    for key in ACTION_SUMMARY_KEYS:
-        value = getattr(action, key, None)
-        if value not in (None, ""):
-            snapshot[key] = stringify_metadata_value(value)
-    return snapshot
-
-
-def normalize_response_snapshot(response: Any) -> Any:
-    if response is None:
-        return None
-    if isinstance(response, (str, int, float, bool)):
-        return response
-    if isinstance(response, dict):
-        return {
-            key: stringify_metadata_value(value)
-            for key, value in response.items()
-        }
-    if isinstance(response, list):
-        return [stringify_metadata_value(item) for item in response]
-    return stringify_metadata_value(response)
-
-
 __all__ = [
-    "ACTION_SUMMARY_KEYS",
     "coerce_optional_string",
     "first_non_empty",
     "get_field",
-    "normalize_response_snapshot",
-    "simplify_action_snapshot",
     "stringify_metadata_value",
     "truncate_text",
 ]

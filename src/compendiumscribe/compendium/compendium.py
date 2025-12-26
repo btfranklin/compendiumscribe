@@ -6,12 +6,8 @@ from typing import Any
 import xml.etree.ElementTree as ET
 
 from .entities import Citation, Section
-from .html_renderer import render_html
 from .html_site_renderer import render_html_site
 from .markdown_renderer import render_markdown
-from .payload_parser import build_from_payload
-from .plain_text import build_plain_text_lines
-from .pdf import render_pdf_from_lines
 from .payload_parser import build_from_payload
 from .plain_text import build_plain_text_lines
 from .pdf import render_pdf_from_lines
@@ -42,11 +38,6 @@ class Compendium:
         """Render the compendium as human-readable Markdown."""
 
         return render_markdown(self)
-
-    def to_html(self) -> str:
-        """Render the compendium as a simple styled HTML document."""
-
-        return render_html(self)
 
     def to_html_site(self) -> dict[str, str]:
         """Render the compendium as a navigable multi-file HTML site.

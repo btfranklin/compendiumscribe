@@ -91,11 +91,6 @@ def test_compendium_additional_exports():
     assert "## Overview" in markdown
     assert "Research Trace" not in markdown
 
-    html_doc = compendium.to_html()
-    assert html_doc.lstrip().startswith("<!DOCTYPE html>")
-    assert "Synthetic Biology" in html_doc
-    assert "Research Trace" not in html_doc
-
     pdf_bytes = compendium.to_pdf_bytes()
     assert pdf_bytes.startswith(b"%PDF-1.4\n")
     assert pdf_bytes.rstrip().endswith(b"%%EOF")
@@ -141,14 +136,6 @@ def test_inline_links_render_per_format():
 
     markdown = compendium.to_markdown()
     assert "[Example](https://example.com)" in markdown
-
-    html_doc = compendium.to_html()
-    anchor = (
-        "<a href=\"https://example.com\" rel=\"noopener noreferrer\">"
-        "Example</a>"
-    )
-    assert anchor in html_doc
-    assert "[Example](https://example.com)" not in html_doc
 
     xml_root = ET.fromstring(compendium.to_xml_string())
     assert (
