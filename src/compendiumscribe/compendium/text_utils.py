@@ -4,12 +4,24 @@ from typing import Iterator
 import mistune
 
 
-def slugify(text: str) -> str:
-    """Convert text to a URL-friendly slug."""
+def slugify(text: str, max_length: int | None = 100) -> str:
+    """Convert text to a URL-friendly slug.
+    
+    Args:
+        text: The text to convert to a slug.
+        max_length: Maximum length of the resulting slug. If None, no truncation.
+                   Defaults to 100 to leave room for timestamps and extensions.
+    """
     import re
 
     slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return slug or "page"
+    slug = slug or "page"
+    
+    if max_length is not None and len(slug) > max_length:
+        # Truncate and remove any trailing hyphen from the cut
+        slug = slug[:max_length].rstrip("-")
+    
+    return slug
 
 
 
