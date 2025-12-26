@@ -16,6 +16,16 @@ from .xml_utils import etree_to_string
 class Compendium:
     """Structured representation of a research compendium."""
 
+    XML_CDATA_TAGS = {
+        "overview",
+        "summary",
+        "evidence",
+        "implications",
+        "step",
+        "question",
+        "title",
+    }
+
     topic: str
     overview: str
     methodology: list[str] = field(default_factory=list)
@@ -65,16 +75,7 @@ class Compendium:
 
     def to_xml_string(self) -> str:
         """Render the compendium to a UTF-8 XML string with CDATA wrapping."""
-        cdata_tags = {
-            "overview",
-            "summary",
-            "evidence",
-            "implications",
-            "step",
-            "question",
-            "title",
-        }
-        return etree_to_string(self.to_xml(), cdata_tags=cdata_tags)
+        return etree_to_string(self.to_xml(), cdata_tags=self.XML_CDATA_TAGS)
 
     def to_markdown(self) -> str:
         """Render the compendium as human-readable Markdown."""
