@@ -70,13 +70,13 @@ def create(
     click.echo(f"Preparing deep research assignment for '{topic}'.")
 
     def handle_progress(update: ResearchProgress) -> None:
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
         phase_label = update.phase.replace("_", " ").title()
         suffix = ""
         meta = update.metadata or {}
         if "poll_attempt" in meta:
             suffix = f" (poll #{meta['poll_attempt']})"
-        
+
         if "elapsed_seconds" in meta:
             seconds = meta["elapsed_seconds"]
             mins, secs = divmod(seconds, 60)
@@ -125,10 +125,11 @@ def create(
 
     # Determine base filename stem
     if output_path:
+        # If output_path has a suffix, we use it as the stem to avoid out.md.md
         base_path = output_path.parent / output_path.stem
     else:
         slug = slugify(topic)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
     _write_outputs(compendium, base_path, formats)
@@ -223,7 +224,7 @@ def recover(input_file: Path):
         click.echo("Research completed! Writing outputs.")
 
         slug = slugify(topic)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
         _write_outputs(compendium, base_path, formats)

@@ -21,10 +21,12 @@ def create_openai_client(*, timeout: int | None = None) -> OpenAI:
             "OPENAI_API_KEY missing; set via env or .env file."
         )
 
-    client_kwargs: dict[str, object] = {"api_key": api_key}
-    client_kwargs["timeout"] = timeout or DEFAULT_TIMEOUT_SECONDS
+    # Use a default timeout if none specified to prevent indefinite hangs
+    actual_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
-    client = OpenAI(**client_kwargs)
+    client = OpenAI(api_key=api_key, timeout=actual_timeout)
+    
+    # Quick sanity check for the required API capability
     if not hasattr(client, "responses"):
         raise RuntimeError(
             "Installed openai package does not expose the Responses API. "

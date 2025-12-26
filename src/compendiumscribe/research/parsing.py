@@ -8,7 +8,11 @@ from .utils import coerce_optional_string, get_field
 
 
 def _iter_text_fragments(value: Any) -> list[str]:
-    """Recursively extract textual fragments from nested response payloads."""
+    """Recursively extract textual fragments from nested response payloads.
+    
+    This is necessary because the Responses API can return text nested in 
+    various structures (e.g. within "message" or "output_text" items).
+    """
 
     fragments: list[str] = []
 
@@ -27,13 +31,13 @@ def _iter_text_fragments(value: Any) -> list[str]:
             return
 
         if isinstance(candidate, dict):
-            # Many response payloads nest text inside these keys.
+            # Known keys where text content is typically stored.
             for key in ("text", "value", "content"):
-                if key in candidate:
-                    visit(candidate[key])
+                if (val := candidate.get(key)) is not None:
+                    visit(val)
             return
 
-        # Safety fallback: stringify scalars only (avoid object reprs).
+        # Safety fallback: stringify basic scalars only.
         if isinstance(candidate, (int, float, bool)):
             fragments.append(str(candidate))
 

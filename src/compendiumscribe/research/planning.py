@@ -75,23 +75,16 @@ def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> Any:
     prompt_obj = load_prompt_template("deep_research_assignment.prompt.md")
 
     sections = plan.get("key_sections", [])
-    if not isinstance(sections, Iterable):
-        sections = []
-    section_lines: list[str] = []
-    for item in sections:
-        title = item.get("title", "Section")
-        focus = (item.get("focus", "") or "").strip()
-        section_lines.append(f"- {title}: {focus}")
+    section_lines = _format_bullets(
+        sections,
+        lambda item: f"{item.get('title', 'Section')}: {(item.get('focus', '') or '').strip()}",
+    )
 
     research_questions = plan.get("research_questions", [])
-    if not isinstance(research_questions, Iterable):
-        research_questions = []
-    question_lines = [f"- {question}" for question in research_questions]
+    question_lines = _format_bullets(research_questions)
 
     methodology = plan.get("methodology_preferences", [])
-    if not isinstance(methodology, Iterable):
-        methodology = []
-    methodology_lines = [f"- {step}" for step in methodology]
+    methodology_lines = _format_bullets(methodology)
 
     schema = json.dumps(
         {
@@ -129,35 +122,50 @@ def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> Any:
         indent=2,
     )
 
-    section_bullets = (
-        "\n".join(section_lines) or "- No specific sections provided"
+    prompt_obj.apply_template_values(
+        {
+            "topic": topic,
+            "primary_objective": plan.get(
+                "primary_objective",
+                "Produce a research compendium",
+            ),
+            "audience": plan.get("audience", "Analytical readers"),
+            "section_bullets": "\n".join(section_lines)
+            or "- No specific sections provided",
+            "question_bullets": "\n".join(question_lines)
+            or "- Derive the most pertinent questions",
+            "methodology_bullets": "\n".join(methodology_lines)
+            or "- Combine qualitative synthesis with quantitative evidence",
+            "schema": schema,
+        }
     )
-    question_bullets = (
-        "\n".join(question_lines) or "- Derive the most pertinent questions"
-    )
-    methodology_bullets = (
-        "\n".join(methodology_lines)
-        or "- Combine qualitative synthesis with quantitative evidence"
-    )
-    
-    prompt_obj.apply_template_values({
-        "topic": topic,
-        "primary_objective": plan.get(
-            "primary_objective",
-            "Produce a research compendium",
-        ),
-        "audience": plan.get("audience", "Analytical readers"),
-        "section_bullets": section_bullets,
-        "question_bullets": question_bullets,
-        "methodology_bullets": methodology_bullets,
-        "schema": schema,
-    })
-    
+
     return prompt_obj.to_responses_input()
 
 
+def _format_bullets(
+    items: Any, formatter: Any | None = None
+) -> list[str]:
+    """Helper to format a list of items as Markdown bullet points."""
+    if not isinstance(items, Iterable):
+        return []
+    
+    lines: list[str] = []
+    for item in items:
+        if formatter:
+            formatted = formatter(item)
+        else:
+            formatted = str(item).strip()
+        
+        if formatted:
+            lines.append(f"- {formatted}")
+    return lines
+
+
 def load_prompt_template(filename: str) -> StructuredPrompt:
-    return StructuredPrompt.from_package_resource("compendiumscribe.prompts", filename)
+    return StructuredPrompt.from_package_resource(
+        "compendiumscribe.prompts", filename
+    )
 
 
 __all__ = [
