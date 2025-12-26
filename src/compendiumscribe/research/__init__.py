@@ -10,7 +10,7 @@ from .execution import (
     await_completion,
     execute_deep_research,
 )
-from .orchestrator import build_compendium
+from .orchestrator import build_compendium, recover_compendium
 from .parsing import (
     collect_response_text,
     decode_json_payload,
@@ -46,6 +46,7 @@ __all__ = [
     "ResearchProgress",
     "emit_progress",
     "build_compendium",
+    "recover_compendium",
     "compose_deep_research_prompt",
     "default_research_plan",
     "generate_research_plan",
