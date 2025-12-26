@@ -84,6 +84,12 @@ def collect_response_text(response: Any) -> str:
 def decode_json_payload(text: str) -> dict[str, Any]:
     candidate = text.strip()
 
+    # Helper to create a preview snippet for error messages
+    def _snippet(s: str, max_len: int = 200) -> str:
+        if len(s) <= max_len:
+            return s
+        return s[:max_len] + "..."
+
     if candidate.startswith("```"):
         candidate = candidate.strip("`").strip()
         if candidate.startswith("json"):
@@ -94,7 +100,8 @@ def decode_json_payload(text: str) -> dict[str, Any]:
         end = candidate.rfind("}")
         if start == -1 or end == -1:
             raise DeepResearchError(
-                "Unable to locate JSON object in response."
+                f"Unable to locate JSON object in response. "
+                f"Received: {_snippet(text)!r}"
             )
         candidate = candidate[start:end + 1]
 
@@ -102,12 +109,15 @@ def decode_json_payload(text: str) -> dict[str, Any]:
         payload = json.loads(candidate)
     except json.JSONDecodeError as exc:
         raise DeepResearchError(
-            "Deep research response was not valid JSON."
+            f"Deep research response was not valid JSON. "
+            f"Parse error at position {exc.pos}: {exc.msg}. "
+            f"Content: {_snippet(candidate)!r}"
         ) from exc
 
     if not isinstance(payload, dict):
         raise DeepResearchError(
-            "Expected JSON object at top level of response."
+            f"Expected JSON object at top level of response, "
+            f"got {type(payload).__name__}: {_snippet(str(payload))!r}"
         )
 
     return payload

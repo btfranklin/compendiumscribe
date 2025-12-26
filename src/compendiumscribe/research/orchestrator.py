@@ -70,16 +70,20 @@ def build_compendium(
             )
             plan = default_research_plan(normalized_topic)
         else:
+            key_sections = plan.get("key_sections", []) or []
             emit_progress(
                 config,
                 phase="planning",
                 status="completed",
                 message="Received refined research blueprint.",
                 metadata={
-                    "sections": len(plan.get("key_sections", []) or []),
+                    "sections": len(key_sections),
                     "questions": len(
                         plan.get("research_questions", []) or []
                     ),
+                    "section_titles": [
+                        s.get("title") for s in key_sections if s.get("title")
+                    ],
                 },
             )
 

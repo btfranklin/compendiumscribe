@@ -89,6 +89,11 @@ def create(
             **stream_kwargs,
         )
 
+        # Display blueprint section titles when available
+        if "section_titles" in meta and meta["section_titles"]:
+            for title in meta["section_titles"]:
+                click.echo(f"           - {title}")
+
     try:
         config = ResearchConfig(
             background=not no_background,

@@ -17,7 +17,7 @@ def generate_research_plan(
 ) -> dict[str, Any] | None:
     prompt_obj = load_prompt_template("topic_blueprint.prompt.md")
     # Apply template values
-    prompt_obj.apply_template_values({"topic": topic})
+    prompt_obj = prompt_obj.apply_template_values({"topic": topic})
     
     # Convert to Responses API input
     responses_input = prompt_obj.to_responses_input()
@@ -122,7 +122,7 @@ def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> Any:
         indent=2,
     )
 
-    prompt_obj.apply_template_values(
+    prompt_obj = prompt_obj.apply_template_values(
         {
             "topic": topic,
             "primary_objective": plan.get(
