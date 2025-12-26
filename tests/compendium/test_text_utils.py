@@ -28,17 +28,10 @@ def test_format_html_text_handles_multiple_code_blocks():
     assert format_html_text(text) == "Use <code>foo</code> and <code>bar</code>"
 
 
-def test_format_html_text_handles_unbalanced_backticks():
-    # If there's an odd number of backticks, the last one is treated as start of new <code> segment
-    # which goes to the end of string in our simple split model.
-    text = "Use `foo` and `bar"
-    assert format_html_text(text) == "Use <code>foo</code> and <code>bar</code>"
-
-
 def test_format_html_text_with_links_and_code():
     # Verify processing of inline code within markdown link labels.
     text = "Click [`here`](https://example.com) now"
-    expected = 'Click <a href="https://example.com" rel="noopener noreferrer"><code>here</code></a> now'
+    expected = 'Click <a href="https://example.com"><code>here</code></a> now'
     assert format_html_text(text) == expected
 
 

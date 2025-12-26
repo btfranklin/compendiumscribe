@@ -10,6 +10,8 @@ dependencies = [
     "python-dotenv>=1.2.1",
     "click>=8.3.1",
     "promptdown>=1.0.1",
+    "mistune>=3.2.0",
+    "fpdf2>=2.8.5",
 ]
 requires-python = ">=3.14"
 readme = "README.md"

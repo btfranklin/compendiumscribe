@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Iterator
 import html
+import mistune
 
 
 def iter_markdown_links(text: str) -> Iterator[tuple[int, int, str, str]]:
@@ -10,6 +11,7 @@ def iter_markdown_links(text: str) -> Iterator[tuple[int, int, str, str]]:
     index = 0
     length = len(text)
     while index < length:
+        # Avoid complexity if no '['
         start = text.find("[", index)
         if start == -1:
             break
@@ -68,99 +70,26 @@ def format_plain_text(text: str) -> str:
     return "".join(segments)
 
 
-def process_italic(text: str) -> str:
-    """Wrap *text* in <em> tags."""
-    # Split by *
-    parts_star = text.split("*")
-    processed_parts: list[str] = []
-    
-    for i, part in enumerate(parts_star):
-        if i % 2 == 1:
-            # Odd segments inside *
-            processed_parts.append(f"<em>{html.escape(part)}</em>")
-        else:
-            # Even segments outside *, handle _ next
-            sub_parts = part.split("_")
-            for j, sub in enumerate(sub_parts):
-                if j % 2 == 1:
-                    sub_parts[j] = f"<em>{html.escape(sub)}</em>"
-                else:
-                    sub_parts[j] = html.escape(sub)
-            processed_parts.append("".join(sub_parts))
-            
-    return "".join(processed_parts)
-
-
-def process_bold(text: str) -> str:
-    """Wrap **text** or __text__ in <strong> tags."""
-    # Split by ** first
-    parts = text.split("**")
-    processed_parts: list[str] = []
-    
-    for i, part in enumerate(parts):
-        if i % 2 == 1:
-            # Odd segments inside **
-            # Recurse for italics inside bold
-            processed_parts.append(f"<strong>{process_italic(part)}</strong>")
-        else:
-            # Even segments outside **, handle __ next
-            # Note: __ splits
-            sub_parts = part.split("__")
-            for j, sub in enumerate(sub_parts):
-                if j % 2 == 1:
-                    sub_parts[j] = f"<strong>{process_italic(sub)}</strong>"
-                else:
-                    sub_parts[j] = process_italic(sub)
-            processed_parts.append("".join(sub_parts))
-    
-    return "".join(processed_parts)
-
-
-def process_inline_markdown(text: str) -> str:
-    """Escape text for HTML and wrap inline markdown (code, bold, italic)."""
-    parts = text.split("`")
-    for i, part in enumerate(parts):
-        if i % 2 == 1:
-            # Odd segments are inside backticks: escaping only
-            parts[i] = f"<code>{html.escape(part)}</code>"
-        else:
-            # Even segments are outside backticks: process bold/italic
-            parts[i] = process_bold(part)
-    return "".join(parts)
-
-
 def format_html_text(text: str | None) -> str:
-    """Render Markdown-style links and inline formatting as HTML."""
+    """Render Markdown-style text (including links) as HTML using mistune."""
 
-    if text is None:
-        return ""
-    if text == "":
+    if not text:
         return ""
 
-    parts: list[str] = []
-    cursor = 0
-    for start, end, label, url in iter_markdown_links(text):
-        # Process text before the link
-        parts.append(process_inline_markdown(text[cursor:start]))
+    # Create a markdown parser with escaping enabled in the renderer
+    # This prevents raw HTML tags from being passed through while 
+    # ensuring that markdown-generated HTML (like <code>) is NOT double-escaped.
+    renderer = mistune.HTMLRenderer(escape=True)
+    markdown = mistune.create_markdown(renderer=renderer)
+    
+    result = markdown(text).strip()
+    
+    # If mistune wrapped it in <p>...</p> and it's a single paragraph, 
+    # we might want to strip it for inline use.
+    if result.startswith("<p>") and result.endswith("</p>") and result.count("<p>") == 1:
+        result = result[3:-4]
         
-        clean_url = url.strip()
-        # Process markdown inside the link label
-        processed_label = process_inline_markdown(label)
-        
-        if clean_url:
-            escaped_url = html.escape(clean_url, quote=True)
-            anchor = (
-                f"<a href=\"{escaped_url}\" "
-                f"rel=\"noopener noreferrer\">{processed_label}</a>"
-            )
-            parts.append(anchor)
-        else:
-            parts.append(processed_label)
-        cursor = end
-
-    # Process remaining text
-    parts.append(process_inline_markdown(text[cursor:]))
-    return "".join(parts)
+    return result
 
 
 __all__ = [
