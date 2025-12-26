@@ -5,8 +5,7 @@ from .entities import Citation, Insight, Section
 from .pdf import render_pdf
 from .text_utils import (
     format_html_text,
-    format_plain_text,
-    iter_markdown_links,
+    slugify,
 )
 from .xml_utils import etree_to_string
 
@@ -17,7 +16,6 @@ __all__ = [
     "Section",
     "render_pdf",
     "format_html_text",
-    "format_plain_text",
-    "iter_markdown_links",
+    "slugify",
     "etree_to_string",
 ]

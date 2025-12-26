@@ -9,7 +9,7 @@ from .entities import Citation, Section
 from .html_site_renderer import render_html_site
 from .markdown_renderer import render_markdown
 from .payload_parser import build_from_payload
-from .xml_serializer import build_xml_root, render_xml_string
+from .xml_utils import etree_to_string
 
 
 @dataclass
@@ -27,10 +27,54 @@ class Compendium:
     )
 
     def to_xml(self) -> ET.Element:
-        return build_xml_root(self)
+        """Return an XML element representing the compendium."""
+        root = ET.Element(
+            "compendium",
+            attrib={
+                "topic": self.topic,
+                "generated_at": self.generated_at.replace(
+                    microsecond=0
+                ).isoformat(),
+            },
+        )
+
+        overview_elem = ET.SubElement(root, "overview")
+        overview_elem.text = self.overview
+
+        if self.methodology:
+            methodology_elem = ET.SubElement(root, "methodology")
+            for step in self.methodology:
+                ET.SubElement(methodology_elem, "step").text = step
+
+        if self.sections:
+            sections_elem = ET.SubElement(root, "sections")
+            for section in self.sections:
+                sections_elem.append(section.to_xml())
+
+        if self.open_questions:
+            questions_elem = ET.SubElement(root, "open_questions")
+            for question in self.open_questions:
+                ET.SubElement(questions_elem, "question").text = question
+
+        if self.citations:
+            citations_elem = ET.SubElement(root, "citations")
+            for citation in self.citations:
+                citations_elem.append(citation.to_xml())
+
+        return root
 
     def to_xml_string(self) -> str:
-        return render_xml_string(self)
+        """Render the compendium to a UTF-8 XML string with CDATA wrapping."""
+        cdata_tags = {
+            "overview",
+            "summary",
+            "evidence",
+            "implications",
+            "step",
+            "question",
+            "title",
+        }
+        return etree_to_string(self.to_xml(), cdata_tags=cdata_tags)
 
     def to_markdown(self) -> str:
         """Render the compendium as human-readable Markdown."""

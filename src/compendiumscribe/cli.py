@@ -6,7 +6,7 @@ from typing import Any, TYPE_CHECKING
 
 import click
 
-from .compendium import Compendium
+from .compendium import Compendium, slugify
 from .create_llm_clients import (
     MissingAPIKeyError,
     create_openai_client,
@@ -20,13 +20,6 @@ from .research import (
     build_compendium,
     recover_compendium,
 )
-
-
-def _generate_slug(topic: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", topic.lower()).strip("-")
-    if not slug:
-        slug = "compendium"
-    return slug
 
 
 
@@ -134,7 +127,7 @@ def create(
     if output_path:
         base_path = output_path.parent / output_path.stem
     else:
-        slug = _generate_slug(topic)
+        slug = slugify(topic)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
@@ -229,7 +222,7 @@ def recover(input_file: Path):
 
         click.echo("Research completed! Writing outputs.")
 
-        slug = _generate_slug(topic)
+        slug = slugify(topic)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 

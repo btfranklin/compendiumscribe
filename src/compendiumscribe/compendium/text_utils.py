@@ -5,69 +5,14 @@ import html
 import mistune
 
 
-def iter_markdown_links(text: str) -> Iterator[tuple[int, int, str, str]]:
-    """Yield ranges and components for Markdown-style inline links."""
+def slugify(text: str) -> str:
+    """Convert text to a URL-friendly slug."""
+    import re
 
-    index = 0
-    length = len(text)
-    while index < length:
-        # Avoid complexity if no '['
-        start = text.find("[", index)
-        if start == -1:
-            break
-
-        end_label = text.find("]", start + 1)
-        if end_label == -1:
-            break
-        if end_label + 1 >= length or text[end_label + 1] != "(":
-            index = end_label + 1
-            continue
-
-        url_start = end_label + 2
-        depth = 1
-        position = url_start
-        while position < length and depth > 0:
-            char = text[position]
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-                if depth == 0:
-                    break
-            position += 1
-
-        if depth != 0:
-            break
-
-        url_end = position
-        label = text[start + 1:end_label]
-        url = text[url_start:url_end]
-        yield start, url_end + 1, label, url
-        index = url_end + 1
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug or "page"
 
 
-def format_plain_text(text: str) -> str:
-    """Replace Markdown-style links with plain text equivalents."""
-
-    if not text:
-        return text
-
-    segments: list[str] = []
-    cursor = 0
-    transformed = False
-    for start, end, label, url in iter_markdown_links(text):
-        segments.append(text[cursor:start])
-        clean_url = url.strip()
-        replacement = f"{label} ({clean_url})" if clean_url else label
-        segments.append(replacement)
-        cursor = end
-        transformed = True
-
-    if not transformed:
-        return text
-
-    segments.append(text[cursor:])
-    return "".join(segments)
 
 
 def format_html_text(text: str | None) -> str:
@@ -93,7 +38,6 @@ def format_html_text(text: str | None) -> str:
 
 
 __all__ = [
-    "iter_markdown_links",
-    "format_plain_text",
+    "slugify",
     "format_html_text",
 ]
