@@ -15,7 +15,6 @@ def mock_build_compendium():
         compendium = mock.Mock(spec=Compendium)
         compendium.to_markdown.return_value = "# Markdown Content"
         compendium.to_xml_string.return_value = "<xml>Content</xml>"
-        compendium.to_html.return_value = "<html>Content</html>"
         compendium.to_html_site.return_value = {
             "index.html": "<html>Index</html>",
         }

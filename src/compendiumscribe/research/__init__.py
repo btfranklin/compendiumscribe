@@ -3,6 +3,7 @@ from __future__ import annotations
 from .config import ResearchConfig
 from .errors import (
     DeepResearchError,
+    MissingConfigurationError,
     ResearchTimeoutError,
 )
 from .execution import (
@@ -28,18 +29,16 @@ from .progress import (
     emit_progress,
 )
 from .utils import (
-    ACTION_SUMMARY_KEYS,
     coerce_optional_string,
     first_non_empty,
     get_field,
-    normalize_response_snapshot,
-    simplify_action_snapshot,
     stringify_metadata_value,
     truncate_text,
 )
 
 __all__ = [
     "DeepResearchError",
+    "MissingConfigurationError",
     "ResearchTimeoutError",
     "ResearchConfig",
     "ProgressPhase",
@@ -56,12 +55,9 @@ __all__ = [
     "parse_deep_research_response",
     "execute_deep_research",
     "await_completion",
-    "ACTION_SUMMARY_KEYS",
     "coerce_optional_string",
     "first_non_empty",
     "get_field",
-    "normalize_response_snapshot",
-    "simplify_action_snapshot",
     "stringify_metadata_value",
     "truncate_text",
 ]

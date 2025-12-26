@@ -12,6 +12,7 @@ from .create_llm_clients import (
 )
 from .research import (
     DeepResearchError,
+    MissingConfigurationError,
     ResearchConfig,
     ResearchProgress,
     ResearchTimeoutError,
@@ -96,13 +97,12 @@ def create(
             **stream_kwargs,
         )
 
-    config = ResearchConfig(
-        background=not no_background,
-        max_tool_calls=max_tool_calls,
-        progress_callback=handle_progress,
-    )
-
     try:
+        config = ResearchConfig(
+            background=not no_background,
+            max_tool_calls=max_tool_calls,
+            progress_callback=handle_progress,
+        )
         client = create_openai_client(timeout=config.request_timeout_seconds)
         compendium = build_compendium(topic, client=client, config=config)
     except ResearchTimeoutError as exc:
@@ -119,6 +119,9 @@ def create(
         click.echo(f"Stored recovery information in timed_out_research.json", err=True)
         raise SystemExit(1) from exc
     except MissingAPIKeyError as exc:
+        click.echo(f"Configuration error: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except MissingConfigurationError as exc:
         click.echo(f"Configuration error: {exc}", err=True)
         raise SystemExit(1) from exc
     except DeepResearchError as exc:
