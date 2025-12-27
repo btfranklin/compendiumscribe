@@ -185,13 +185,15 @@ def test_build_compendium_with_stub_client():
     research_input = client.responses.calls[1]["input"]
     assert isinstance(research_input, list)
     # Check if we can find the topic in the content of the user message.
-    # The content structure varies (str or list of parts) depending on the source.
+    # The content structure varies (str or list of parts) depending on the
+    # source.
     # We perform a robust check against both formats.
     found = False
     for msg in research_input:
         content = msg.get("content", "")
         if isinstance(content, list):
-            # It's a list of parts, e.g. [{"type": "input_text", "text": "..."}]
+            # It's a list of parts, e.g.
+            # [{"type": "input_text", "text": "..."}]
             for part in content:
                 if "Quantum Computing" in part.get("text", ""):
                     found = True

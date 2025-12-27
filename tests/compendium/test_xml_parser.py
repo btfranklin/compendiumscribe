@@ -15,6 +15,10 @@ from compendiumscribe.compendium.xml_parser import parse_xml_string
 
 def _create_full_compendium() -> Compendium:
     """Create a populated Compendium object for testing."""
+    citation_url = (
+        "https://docs.python.org/3/library/"
+        "xml.etree.elementtree.html"
+    )
     return Compendium(
         topic="XML Round Trip",
         overview="Testing deserialization fidelity.",
@@ -40,7 +44,7 @@ def _create_full_compendium() -> Compendium:
             Citation(
                 identifier="C1",
                 title="Python XML Docs",
-                url="https://docs.python.org/3/library/xml.etree.elementtree.html",
+                url=citation_url,
                 publisher="Python Software Foundation",
                 published_at="2024-10-01",
                 summary="Official documentation.",
@@ -144,4 +148,5 @@ def test_markdown_links_are_preserved():
 
     # Verify round-trip
     reconstructed = parse_xml_string(xml_output)
-    assert reconstructed.overview == "Check [Link](https://example.com) preservation."
+    expected = "Check [Link](https://example.com) preservation."
+    assert reconstructed.overview == expected

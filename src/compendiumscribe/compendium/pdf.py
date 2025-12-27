@@ -28,11 +28,25 @@ def render_pdf(compendium: Compendium) -> bytes:
 
     # Title
     pdf.set_font("helvetica", "B", 24)
-    pdf.cell(0, 20, compendium.topic, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.cell(
+        0,
+        20,
+        compendium.topic,
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        align="C",
+    )
 
     pdf.set_font("helvetica", "I", 10)
     generated_at = compendium.generated_at.strftime("%Y-%m-%d %H:%M:%S")
-    pdf.cell(0, 10, f"Generated at: {generated_at} UTC", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
+    pdf.cell(
+        0,
+        10,
+        f"Generated at: {generated_at} UTC",
+        new_x=XPos.LMARGIN,
+        new_y=YPos.NEXT,
+        align="C",
+    )
     pdf.ln(10)
 
     # Overview
@@ -46,17 +60,35 @@ def render_pdf(compendium: Compendium) -> bytes:
     # Methodology
     if compendium.methodology:
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Methodology", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(
+            0,
+            10,
+            "Methodology",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
         pdf.set_font("helvetica", "", 11)
         for step in compendium.methodology:
             if step.strip():
-                pdf.multi_cell(0, 6, f"- {step}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.multi_cell(
+                    0,
+                    6,
+                    f"- {step}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
         pdf.ln(5)
 
     # Sections
     if compendium.sections:
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Sections", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(
+            0,
+            10,
+            "Sections",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
         pdf.ln(2)
 
         for section in compendium.sections:
@@ -68,7 +100,13 @@ def render_pdf(compendium: Compendium) -> bytes:
             title = section.title
             if section.identifier:
                 title = f"{section.identifier}: {title}"
-            pdf.cell(0, 10, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.cell(
+                0,
+                10,
+                title,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
+            )
 
             pdf.set_font("helvetica", "", 11)
             pdf.multi_cell(0, 6, section.summary)
@@ -84,15 +122,31 @@ def render_pdf(compendium: Compendium) -> bytes:
                 pdf.ln(2)
                 for insight in section.insights:
                     pdf.set_font("helvetica", "B", 11)
-                    pdf.cell(0, 8, f"Insight: {insight.title}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.cell(
+                        0,
+                        8,
+                        f"Insight: {insight.title}",
+                        new_x=XPos.LMARGIN,
+                        new_y=YPos.NEXT,
+                    )
                     pdf.set_font("helvetica", "", 11)
                     pdf.multi_cell(0, 6, insight.evidence)
                     if insight.implications:
                         pdf.set_font("helvetica", "I", 11)
-                        pdf.multi_cell(0, 6, f"Implications: {insight.implications}")
+                        pdf.multi_cell(
+                            0,
+                            6,
+                            f"Implications: {insight.implications}",
+                        )
                     if insight.citation_refs:
                         pdf.set_font("helvetica", "", 9)
-                        pdf.cell(0, 6, f"Citations: {', '.join(insight.citation_refs)}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                        pdf.cell(
+                            0,
+                            6,
+                            f"Citations: {', '.join(insight.citation_refs)}",
+                            new_x=XPos.LMARGIN,
+                            new_y=YPos.NEXT,
+                        )
                     pdf.ln(2)
             pdf.ln(5)
 
@@ -101,7 +155,13 @@ def render_pdf(compendium: Compendium) -> bytes:
         if pdf.get_y() > 220:
             pdf.add_page()
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Citations", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(
+            0,
+            10,
+            "Citations",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
         pdf.set_font("helvetica", "", 10)
         for citation in compendium.citations:
             pdf.set_font("helvetica", "B", 10)
@@ -109,7 +169,14 @@ def render_pdf(compendium: Compendium) -> bytes:
             pdf.multi_cell(0, 6, label)
             pdf.set_font("helvetica", "", 10)
             pdf.set_text_color(0, 0, 255)
-            pdf.cell(0, 6, citation.url, new_x=XPos.LMARGIN, new_y=YPos.NEXT, link=citation.url)
+            pdf.cell(
+                0,
+                6,
+                citation.url,
+                new_x=XPos.LMARGIN,
+                new_y=YPos.NEXT,
+                link=citation.url,
+            )
             pdf.set_text_color(0, 0, 0)
             if citation.summary:
                 pdf.multi_cell(0, 6, citation.summary)
@@ -121,7 +188,13 @@ def render_pdf(compendium: Compendium) -> bytes:
             pdf.add_page()
         pdf.ln(5)
         pdf.set_font("helvetica", "B", 16)
-        pdf.cell(0, 10, "Open Questions", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(
+            0,
+            10,
+            "Open Questions",
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
         pdf.set_font("helvetica", "", 11)
         for question in compendium.open_questions:
             pdf.multi_cell(0, 6, f"\u2022 {question}")

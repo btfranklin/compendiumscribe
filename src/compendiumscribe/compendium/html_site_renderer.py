@@ -19,7 +19,10 @@ def _html_head(title: str, depth: int = 0) -> list[str]:
         '<html lang="en">',
         "<head>",
         '  <meta charset="utf-8">',
-        '  <meta name="viewport" content="width=device-width, initial-scale=1">',
+        (
+            '  <meta name="viewport" content="width=device-width, '
+            'initial-scale=1">'
+        ),
         f"  <title>{html.escape(title)}</title>",
         "</head>",
     ]
@@ -49,9 +52,12 @@ def _nav_links(
         parts.append("      </ul>")
         parts.append("    </li>")
 
-    parts.append(f'    <li><a href="{prefix}citations.html">Citations</a></li>')
     parts.append(
-        f'    <li><a href="{prefix}open-questions.html">Open Questions</a></li>'
+        f'    <li><a href="{prefix}citations.html">Citations</a></li>'
+    )
+    parts.append(
+        f'    <li><a href="{prefix}open-questions.html">'
+        "Open Questions</a></li>"
     )
     parts.append("  </ul>")
     parts.append("</nav>")
@@ -102,7 +108,9 @@ def _render_index_page(compendium: "Compendium") -> str:
             label = html.escape(section.title)
             summary = format_html_text(section.summary)
             parts.append("    <li>")
-            parts.append(f'      <a href="{href}"><strong>{label}</strong></a>')
+            parts.append(
+                f'      <a href="{href}"><strong>{label}</strong></a>'
+            )
             parts.append(f"      <p>{summary}</p>")
             parts.append("    </li>")
         parts.append("  </ul>")
@@ -169,7 +177,9 @@ def _render_section_page(section: "Section", compendium: "Compendium") -> str:
             parts.append(f"    <h3>{format_html_text(insight.title)}</h3>")
             parts.append("    <dl>")
             parts.append("      <dt>Evidence</dt>")
-            parts.append(f"      <dd>{format_html_text(insight.evidence)}</dd>")
+            parts.append(
+                f"      <dd>{format_html_text(insight.evidence)}</dd>"
+            )
             if insight.implications:
                 parts.append("      <dt>Implications</dt>")
                 parts.append(
@@ -180,7 +190,8 @@ def _render_section_page(section: "Section", compendium: "Compendium") -> str:
                 for ref in insight.citation_refs:
                     escaped_ref = html.escape(ref)
                     # Link to the citation anchor on the citations page
-                    # Sections are one level deep (sections/), so we go up one level
+                    # Sections are one level deep (sections/), so we go up
+                    # one level.
                     url = f"../citations.html#{escaped_ref}"
                     ref_links.append(f'<a href="{url}">{escaped_ref}</a>')
 
@@ -209,7 +220,9 @@ def _render_citations_page(compendium: "Compendium") -> str:
     parts.append("<body>")
     parts.append("<header>")
     parts.append("  <h1>Citations</h1>")
-    parts.append(f"  <p>Sources for <em>{html.escape(compendium.topic)}</em></p>")
+    parts.append(
+        f"  <p>Sources for <em>{html.escape(compendium.topic)}</em></p>"
+    )
     parts.append("</header>")
     parts.append("<main>")
 
@@ -230,7 +243,8 @@ def _render_citations_page(compendium: "Compendium") -> str:
             )
             parts.append(
                 f'        <p><a href="{html.escape(citation.url)}" '
-                f'rel="noopener noreferrer">{html.escape(citation.url)}</a></p>'
+                f'rel="noopener noreferrer">'
+                f"{html.escape(citation.url)}</a></p>"
             )
             details: list[str] = []
             if citation.publisher:
@@ -269,7 +283,8 @@ def _render_open_questions_page(compendium: "Compendium") -> str:
     parts.append("<header>")
     parts.append("  <h1>Open Questions</h1>")
     parts.append(
-        f"  <p>Unanswered questions about <em>{html.escape(compendium.topic)}</em></p>"
+        "  <p>Unanswered questions about "
+        f"<em>{html.escape(compendium.topic)}</em></p>"
     )
     parts.append("</header>")
     parts.append("<main>")

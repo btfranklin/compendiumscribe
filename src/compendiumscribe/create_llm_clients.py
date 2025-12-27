@@ -22,7 +22,11 @@ def create_openai_client(*, timeout: int | None = None) -> OpenAI:
         )
 
     # Use a default timeout if none specified to prevent indefinite hangs
-    actual_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS
+    actual_timeout = (
+        timeout
+        if timeout is not None
+        else DEFAULT_TIMEOUT_SECONDS
+    )
 
     client = OpenAI(api_key=api_key, timeout=actual_timeout)
 

@@ -28,13 +28,22 @@ def mock_build_compendium():
 
 @pytest.fixture
 def mock_create_client():
-    with mock.patch("compendiumscribe.cli.create_openai_client") as mock_client:
+    with mock.patch(
+        "compendiumscribe.cli.create_openai_client"
+    ) as mock_client:
         yield mock_client
 
 
-def test_cli_create_default_format_is_markdown(runner, mock_build_compendium, mock_create_client):
+def test_cli_create_default_format_is_markdown(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["create", "Test Topic", "--no-background"])
+        result = runner.invoke(
+            cli,
+            ["create", "Test Topic", "--no-background"],
+        )
         assert result.exit_code == 0, result.output
 
         # Should generate a markdown file by default
@@ -44,9 +53,16 @@ def test_cli_create_default_format_is_markdown(runner, mock_build_compendium, mo
         assert files[0].read_text() == "# Markdown Content"
 
 
-def test_cli_create_format_xml(runner, mock_build_compendium, mock_create_client):
+def test_cli_create_format_xml(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["create", "Test Topic", "--format", "xml", "--no-background"])
+        result = runner.invoke(
+            cli,
+            ["create", "Test Topic", "--format", "xml", "--no-background"],
+        )
         assert result.exit_code == 0
 
         files = list(Path(".").glob("*.xml"))
@@ -54,19 +70,47 @@ def test_cli_create_format_xml(runner, mock_build_compendium, mock_create_client
         assert files[0].read_text() == "<xml>Content</xml>"
 
 
-def test_cli_create_multiple_formats(runner, mock_build_compendium, mock_create_client):
+def test_cli_create_multiple_formats(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["create", "Test Topic", "--format", "md", "--format", "pdf", "--no-background"])
+        result = runner.invoke(
+            cli,
+            [
+                "create",
+                "Test Topic",
+                "--format",
+                "md",
+                "--format",
+                "pdf",
+                "--no-background",
+            ],
+        )
         assert result.exit_code == 0
 
         assert len(list(Path(".").glob("*.md"))) == 1
         assert len(list(Path(".").glob("*.pdf"))) == 1
 
 
-def test_cli_create_output_path_override(runner, mock_build_compendium, mock_create_client):
+def test_cli_create_output_path_override(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
     with runner.isolated_filesystem():
         # Provide base path, ignoring extension
-        result = runner.invoke(cli, ["create", "Test Topic", "--output", "custom_report.txt", "--no-background"])
+        result = runner.invoke(
+            cli,
+            [
+                "create",
+                "Test Topic",
+                "--output",
+                "custom_report.txt",
+                "--no-background",
+            ],
+        )
         assert result.exit_code == 0
 
         # Should rely on default format (md) but use the custom stem
@@ -74,9 +118,16 @@ def test_cli_create_output_path_override(runner, mock_build_compendium, mock_cre
         assert expected_file.exists()
 
 
-def test_cli_create_html_format_creates_directory(runner, mock_build_compendium, mock_create_client):
+def test_cli_create_html_format_creates_directory(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ["create", "Test Topic", "--format", "html", "--no-background"])
+        result = runner.invoke(
+            cli,
+            ["create", "Test Topic", "--format", "html", "--no-background"],
+        )
         assert result.exit_code == 0
 
         # Should create a directory, not a single file
@@ -109,7 +160,10 @@ def test_cli_render_html(tmp_path):
     input_file.write_text(xml_content, encoding="utf-8")
 
     # Run CLI
-    result = runner.invoke(cli, ["render", str(input_file), "--format", "html"])
+    result = runner.invoke(
+        cli,
+        ["render", str(input_file), "--format", "html"],
+    )
 
     assert result.exit_code == 0, result.output
     assert "Reading compendium from" in result.output
@@ -133,7 +187,10 @@ def test_cli_render_markdown(tmp_path):
     input_file.write_text(xml_content, encoding="utf-8")
 
     # Run CLI
-    result = runner.invoke(cli, ["render", str(input_file), "--format", "md"])
+    result = runner.invoke(
+        cli,
+        ["render", str(input_file), "--format", "md"],
+    )
 
     assert result.exit_code == 0, result.output
 
@@ -146,7 +203,7 @@ def test_cli_render_markdown(tmp_path):
 
 
 def test_cli_render_invalid_file(tmp_path):
-    """Verify render subcommand handles non-existent or invalid files gracefully."""
+    """Verify render subcommand handles non-existent or invalid files."""
     runner = CliRunner()
 
     # Non-existent file - handled by click type=Path(exists=True)

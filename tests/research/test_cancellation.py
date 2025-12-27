@@ -65,7 +65,7 @@ class TestPollingWithCancellation:
     """Tests for cancelled status detection in polling."""
 
     def test_polling_raises_cancelled_error_on_cancelled_status(self):
-        """Verify polling raises ResearchCancelledError when status is cancelled."""
+        """Verify polling raises ResearchCancelledError on cancelled status."""
         pending = SimpleNamespace(
             id="resp_cancel_test",
             status="in_progress",

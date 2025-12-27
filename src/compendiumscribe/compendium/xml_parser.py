@@ -49,7 +49,8 @@ def _parse_root(root: ET.Element) -> Compendium:
         try:
             generated_at = datetime.fromisoformat(generated_at_str)
         except ValueError:
-            pass  # Fallback to default (now) in Compendium constructor if needed
+            # Fallback to default (now) in Compendium constructor if needed.
+            pass
 
     overview = _get_text(root.find("overview"))
 

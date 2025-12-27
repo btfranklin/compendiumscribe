@@ -8,8 +8,9 @@ def slugify(text: str, max_length: int | None = 100) -> str:
 
     Args:
         text: The text to convert to a slug.
-        max_length: Maximum length of the resulting slug. If None, no truncation.
-                   Defaults to 100 to leave room for timestamps and extensions.
+        max_length: Maximum length of the resulting slug. If None, no
+            truncation. Defaults to 100 to leave room for timestamps and
+            extensions.
     """
     import re
 
@@ -31,7 +32,8 @@ def format_html_text(text: str | None) -> str:
 
     # Create a markdown parser with escaping enabled in the renderer
     # This prevents raw HTML tags from being passed through while
-    # ensuring that markdown-generated HTML (like <code>) is NOT double-escaped.
+    # ensuring that markdown-generated HTML (like <code>) is NOT
+    # double-escaped.
     renderer = mistune.HTMLRenderer(escape=True)
     markdown = mistune.create_markdown(renderer=renderer)
 
@@ -39,7 +41,11 @@ def format_html_text(text: str | None) -> str:
 
     # If mistune wrapped it in <p>...</p> and it's a single paragraph,
     # we might want to strip it for inline use.
-    if result.startswith("<p>") and result.endswith("</p>") and result.count("<p>") == 1:
+    if (
+        result.startswith("<p>")
+        and result.endswith("</p>")
+        and result.count("<p>") == 1
+    ):
         result = result[3:-4]
 
     return result
