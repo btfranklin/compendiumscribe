@@ -1,8 +1,6 @@
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
 
 import click
 
@@ -22,7 +20,6 @@ from .research import (
     build_compendium,
     recover_compendium,
 )
-
 
 
 @click.group()
@@ -124,9 +121,11 @@ def create(
         click.echo("\nHard shutdown requested.", err=True)
         raise SystemExit(1)
     except ResearchTimeoutError as exc:
+        compendium_title = getattr(exc, "compendium_title", None)
         timeout_data = {
             "research_id": exc.research_id,
             "topic": topic,
+            "title": compendium_title or topic,
             "no_background": no_background,
             "formats": list(formats),
             "max_tool_calls": max_tool_calls,
@@ -134,7 +133,10 @@ def create(
         }
         Path("timed_out_research.json").write_text(json.dumps(timeout_data, indent=2))
         click.echo(f"\n[!] Deep research timed out (ID: {exc.research_id}).", err=True)
-        click.echo(f"Stored recovery information in timed_out_research.json", err=True)
+        click.echo(
+            "Stored recovery information in timed_out_research.json",
+            err=True,
+        )
         raise SystemExit(1) from exc
     except MissingAPIKeyError as exc:
         click.echo(f"Configuration error: {exc}", err=True)
@@ -154,7 +156,8 @@ def create(
         # If output_path has a suffix, we use it as the stem to avoid out.md.md
         base_path = output_path.parent / output_path.stem
     else:
-        slug = slugify(topic)
+        name_for_slug = compendium.topic or topic
+        slug = slugify(name_for_slug)
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
@@ -226,6 +229,7 @@ def recover(input_file: Path):
         data = json.loads(input_file.read_text(encoding="utf-8"))
         research_id = data["research_id"]
         topic = data["topic"]
+        title = data.get("title") or topic
         formats = tuple(data["formats"])
         max_tool_calls = data.get("max_tool_calls")
         no_background = data.get("no_background", False)
@@ -233,7 +237,7 @@ def recover(input_file: Path):
         click.echo(f"Error: Failed to parse recovery file: {exc}", err=True)
         raise SystemExit(1)
 
-    click.echo(f"Checking status for research ID: {research_id} ('{topic}')...")
+    click.echo(f"Checking status for research ID: {research_id} ('{title}')...")
 
     config = ResearchConfig(
         background=not no_background,
@@ -243,13 +247,13 @@ def recover(input_file: Path):
     try:
         compendium = recover_compendium(
             research_id=research_id,
-            topic=topic,
+            topic=title,
             config=config,
         )
 
         click.echo("Research completed! Writing outputs.")
 
-        slug = slugify(topic)
+        slug = slugify(title)
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 

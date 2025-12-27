@@ -25,7 +25,7 @@ def create_openai_client(*, timeout: int | None = None) -> OpenAI:
     actual_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS
 
     client = OpenAI(api_key=api_key, timeout=actual_timeout)
-    
+
     # Quick sanity check for the required API capability
     if not hasattr(client, "responses"):
         raise RuntimeError(

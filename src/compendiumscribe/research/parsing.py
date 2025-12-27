@@ -9,8 +9,8 @@ from .utils import coerce_optional_string, get_field
 
 def _iter_text_fragments(value: Any) -> list[str]:
     """Recursively extract textual fragments from nested response payloads.
-    
-    This is necessary because the Responses API can return text nested in 
+
+    This is necessary because the Responses API can return text nested in
     various structures (e.g. within "message" or "output_text" items).
     """
 

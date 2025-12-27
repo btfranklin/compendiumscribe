@@ -54,20 +54,20 @@ def _create_full_compendium() -> Compendium:
 def test_round_trip_serialization():
     """Verify that an object converted to XML and back matches the original."""
     original = _create_full_compendium()
-    
+
     # 1. Serialize to XML string
     xml_output = original.to_xml_string()
-    
+
     # 2. Parse back to object
     reconstructed = parse_xml_string(xml_output)
-    
+
     # 3. Assert equality
     assert reconstructed.topic == original.topic
     assert reconstructed.overview == original.overview
     assert reconstructed.methodology == original.methodology
     assert reconstructed.open_questions == original.open_questions
     assert reconstructed.generated_at == original.generated_at
-    
+
     # Sections match
     assert len(reconstructed.sections) == len(original.sections)
     s1_orig = original.sections[0]
@@ -77,7 +77,7 @@ def test_round_trip_serialization():
     assert s1_new.summary == s1_orig.summary
     assert s1_new.key_terms == s1_orig.key_terms
     assert s1_new.guiding_questions == s1_orig.guiding_questions
-    
+
     # Insights match
     assert len(s1_new.insights) == len(s1_orig.insights)
     i1_orig = s1_orig.insights[0]
@@ -86,7 +86,7 @@ def test_round_trip_serialization():
     assert i1_new.evidence == i1_orig.evidence
     assert i1_new.implications == i1_orig.implications
     assert i1_new.citation_refs == i1_orig.citation_refs
-    
+
     # Citations match
     assert len(reconstructed.citations) == len(original.citations)
     c1_orig = original.citations[0]
@@ -107,10 +107,10 @@ def test_minimal_object_round_trip():
     )
     # Ensure generated_at is fixed for comparison, or ignore it
     minimal.generated_at = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-    
+
     xml_output = minimal.to_xml_string()
     reconstructed = parse_xml_string(xml_output)
-    
+
     assert reconstructed.topic == "Minimal"
     assert reconstructed.overview == "Just basics."
     assert reconstructed.methodology == []
@@ -135,13 +135,13 @@ def test_markdown_links_are_preserved():
         topic="Link Test",
         overview="Check [Link](https://example.com) preservation.",
     )
-    
+
     xml_output = compendium.to_xml_string()
-    
+
     # Verify XML content has the markdown link, NOT the flattened version
     assert "[Link](https://example.com)" in xml_output
     assert "Link (https://example.com)" not in xml_output
-    
+
     # Verify round-trip
     reconstructed = parse_xml_string(xml_output)
     assert reconstructed.overview == "Check [Link](https://example.com) preservation."

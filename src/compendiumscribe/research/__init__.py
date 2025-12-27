@@ -60,4 +60,3 @@ __all__ = [
     "coerce_optional_string",
     "get_field",
 ]
-

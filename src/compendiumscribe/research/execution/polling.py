@@ -93,4 +93,3 @@ def await_completion(
         )
 
     return current
-

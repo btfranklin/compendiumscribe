@@ -9,7 +9,7 @@ from .progress import emit_progress
 
 class CancellationContext:
     """Manages cancellation state and signal handling for deep research runs.
-    
+
     Usage:
         ctx = CancellationContext(client)
         ctx.install_signal_handler()
@@ -43,7 +43,7 @@ class CancellationContext:
 
     def request_cancel(self) -> None:
         """Request cancellation of the current research run.
-        
+
         Calls the OpenAI cancel endpoint if a response is registered.
         """
         if self._cancel_requested:
@@ -68,7 +68,7 @@ class CancellationContext:
 
     def install_signal_handler(self) -> None:
         """Install SIGINT handler for graceful cancellation.
-        
+
         First Ctrl+C requests cancellation.
         Second Ctrl+C raises KeyboardInterrupt for hard exit.
         """

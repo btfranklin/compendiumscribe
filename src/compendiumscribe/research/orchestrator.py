@@ -8,7 +8,7 @@ from openai import OpenAI
 
 from ..compendium import Compendium
 from .config import ResearchConfig
-from .errors import DeepResearchError
+from .errors import DeepResearchError, ResearchTimeoutError
 from .execution import execute_deep_research
 from .parsing import parse_deep_research_response
 from .planning import (
@@ -43,6 +43,7 @@ def build_compendium(
         client = create_openai_client(timeout=config.request_timeout_seconds)
 
     normalized_topic = topic.strip()
+    compendium_title = normalized_topic
 
     try:
         emit_progress(
@@ -94,6 +95,10 @@ def build_compendium(
                 },
             )
 
+        compendium_title = (
+            coerce_optional_string(plan.get("title"))
+            or normalized_topic
+        )
         prompt = compose_deep_research_prompt(normalized_topic, plan)
 
         emit_progress(
@@ -116,11 +121,13 @@ def build_compendium(
         )
 
         return Compendium.from_payload(
-            topic=normalized_topic,
+            topic=compendium_title,
             payload=payload,
             generated_at=datetime.now(timezone.utc),
         )
     except Exception as exc:
+        if isinstance(exc, ResearchTimeoutError):
+            setattr(exc, "compendium_title", compendium_title)
         emit_progress(
             config,
             phase="completion",

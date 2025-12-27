@@ -172,6 +172,3 @@ def test_empty_compendium_handles_gracefully():
     assert "<!DOCTYPE html>" in files["index.html"]
     assert "No citations available" in files["citations.html"]
     assert "No open questions recorded" in files["open-questions.html"]
-
-
-

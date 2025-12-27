@@ -25,11 +25,11 @@ def render_pdf(compendium: Compendium) -> bytes:
     pdf = CompendiumPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
-    
+
     # Title
     pdf.set_font("helvetica", "B", 24)
     pdf.cell(0, 20, compendium.topic, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-    
+
     pdf.set_font("helvetica", "I", 10)
     generated_at = compendium.generated_at.strftime("%Y-%m-%d %H:%M:%S")
     pdf.cell(0, 10, f"Generated at: {generated_at} UTC", new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
@@ -58,18 +58,18 @@ def render_pdf(compendium: Compendium) -> bytes:
         pdf.set_font("helvetica", "B", 16)
         pdf.cell(0, 10, "Sections", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(2)
-        
+
         for section in compendium.sections:
             # Check for page break if near bottom
             if pdf.get_y() > 250:
                 pdf.add_page()
-                
+
             pdf.set_font("helvetica", "B", 14)
             title = section.title
             if section.identifier:
                 title = f"{section.identifier}: {title}"
             pdf.cell(0, 10, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-            
+
             pdf.set_font("helvetica", "", 11)
             pdf.multi_cell(0, 6, section.summary)
             pdf.ln(2)
@@ -79,7 +79,7 @@ def render_pdf(compendium: Compendium) -> bytes:
                 pdf.cell(0, 6, "Key Terms: ", ln=False)
                 pdf.set_font("helvetica", "", 10)
                 pdf.multi_cell(0, 6, ", ".join(section.key_terms))
-            
+
             if section.insights:
                 pdf.ln(2)
                 for insight in section.insights:

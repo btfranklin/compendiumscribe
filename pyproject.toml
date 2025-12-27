@@ -56,3 +56,4 @@ compendium = "compendiumscribe.cli:cli"
 
 [tool.pdm.scripts]
 test = "pytest"
+lint = "flake8 src tests"

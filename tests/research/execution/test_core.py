@@ -152,5 +152,5 @@ def test_execute_deep_research_raises_timeout_error():
     from compendiumscribe.research.errors import ResearchTimeoutError
     with pytest.raises(ResearchTimeoutError) as excinfo:
         execute_deep_research(client, "prompt", config)
-    
+
     assert excinfo.value.research_id == "resp_poll"

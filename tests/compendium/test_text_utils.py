@@ -77,5 +77,3 @@ def test_format_html_text_ignores_bold_inside_code():
 def test_format_html_text_ignores_underscore_inside_code():
     text = "Code `_not italic_` block"
     assert format_html_text(text) == "Code <code>_not italic_</code> block"
-
-

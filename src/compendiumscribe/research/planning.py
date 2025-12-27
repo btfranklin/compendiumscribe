@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.resources as resources
 import json
 from promptdown import StructuredPrompt
 from typing import Any, Iterable
@@ -18,13 +17,14 @@ def generate_research_plan(
     prompt_obj = load_prompt_template("topic_blueprint.prompt.md")
     # Apply template values
     prompt_obj = prompt_obj.apply_template_values({"topic": topic})
-    
+
     # Convert to Responses API input
     responses_input = prompt_obj.to_responses_input()
 
     response = client.responses.create(
         model=config.prompt_refiner_model,
         input=responses_input,
+        reasoning={"effort": "high"},
     )
 
     try:
@@ -35,6 +35,7 @@ def generate_research_plan(
 
 def default_research_plan(topic: str) -> dict[str, Any]:
     return {
+        "title": topic,
         "primary_objective": (
             f"Compile a multi-layered compendium covering {topic}"
         ),
@@ -149,14 +150,14 @@ def _format_bullets(
     """Helper to format a list of items as Markdown bullet points."""
     if not isinstance(items, Iterable):
         return []
-    
+
     lines: list[str] = []
     for item in items:
         if formatter:
             formatted = formatter(item)
         else:
             formatted = str(item).strip()
-        
+
         if formatted:
             lines.append(f"- {formatted}")
     return lines
