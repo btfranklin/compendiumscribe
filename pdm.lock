@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:1da6486a9ab0c6247a8c3484610825a3fcdc9bc38159546d469c3671194011c0"
+content_hash = "sha256:b4a365d9221b49c8036090338d3f10c95b08c1304d2003c5234c378b26334038"
 
 [[metadata.targets]]
 requires_python = ">=3.14"
@@ -363,13 +363,13 @@ files = [
 
 [[package]]
 name = "promptdown"
-version = "1.1.0"
+version = "1.1.1"
 requires_python = ">=3.10"
 summary = "A package for loading promptdown files, which are a special type of markdown file for defining structured LLM prompts"
 groups = ["default"]
 files = [
-    {file = "promptdown-1.1.0-py3-none-any.whl", hash = "sha256:fd95fbd011613326ffa5ea6b4bd3b75e42a73723b149ef940f95933fd8e73432"},
-    {file = "promptdown-1.1.0.tar.gz", hash = "sha256:0d95380a5db58f656500371f961cdc34557e068be079c2b7305fc080146c2040"},
+    {file = "promptdown-1.1.1-py3-none-any.whl", hash = "sha256:2f91ee394deb12af616b8cd51cdae846b2d68b86305624e5a275ae46bbcd5868"},
+    {file = "promptdown-1.1.1.tar.gz", hash = "sha256:7cd9ea2d5c5fbe790c459dc1fd16d7449784cb0f03d2564cf863b8eda049062b"},
 ]
 
 [[package]]
