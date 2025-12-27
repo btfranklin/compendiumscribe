@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from typing import Any, TYPE_CHECKING
 
 from openai import OpenAI
@@ -75,6 +76,7 @@ def build_compendium(
             plan = default_research_plan(normalized_topic)
         else:
             key_sections = plan.get("key_sections", []) or []
+            plan_json = json.dumps(plan, indent=2)
             emit_progress(
                 config,
                 phase="planning",
@@ -88,6 +90,7 @@ def build_compendium(
                     "section_titles": [
                         s.get("title") for s in key_sections if s.get("title")
                     ],
+                    "plan_json": plan_json,
                 },
             )
 

@@ -95,6 +95,9 @@ def create(
         if "section_titles" in meta and meta["section_titles"]:
             for title in meta["section_titles"]:
                 click.echo(f"           - {title}")
+        if "plan_json" in meta and meta["plan_json"]:
+            click.echo("           Research blueprint JSON:")
+            click.echo(meta["plan_json"])
 
     try:
         config = ResearchConfig(
