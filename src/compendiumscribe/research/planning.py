@@ -76,10 +76,13 @@ def compose_deep_research_prompt(topic: str, plan: dict[str, Any]) -> Any:
     prompt_obj = load_prompt_template("deep_research_assignment.prompt.md")
 
     sections = plan.get("key_sections", [])
-    section_lines = _format_bullets(
-        sections,
-        lambda item: f"{item.get('title', 'Section')}: {(item.get('focus', '') or '').strip()}",
-    )
+
+    def _format_section_line(item: dict[str, Any]) -> str:
+        title = item.get("title", "Section")
+        focus = (item.get("focus", "") or "").strip()
+        return f"{title}: {focus}"
+
+    section_lines = _format_bullets(sections, _format_section_line)
 
     research_questions = plan.get("research_questions", [])
     question_lines = _format_bullets(research_questions)

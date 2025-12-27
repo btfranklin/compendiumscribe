@@ -25,7 +25,8 @@ def test_format_html_text_converts_backticks_with_html_chars():
 
 def test_format_html_text_handles_multiple_code_blocks():
     text = "Use `foo` and `bar`"
-    assert format_html_text(text) == "Use <code>foo</code> and <code>bar</code>"
+    expected = "Use <code>foo</code> and <code>bar</code>"
+    assert format_html_text(text) == expected
 
 
 def test_format_html_text_with_links_and_code():
@@ -54,13 +55,15 @@ def test_format_html_text_handles_italic_underscores():
 
 def test_format_html_text_handles_mixed_emphasis():
     text = "**Bold** and *Italic*"
-    assert format_html_text(text) == "<strong>Bold</strong> and <em>Italic</em>"
+    expected = "<strong>Bold</strong> and <em>Italic</em>"
+    assert format_html_text(text) == expected
 
 
 def test_format_html_text_handles_nested_bold_italic():
     text = "**Bold *and* Italic**"
     # Expect: <strong>Bold <em>and</em> Italic</strong>
-    assert format_html_text(text) == "<strong>Bold <em>and</em> Italic</strong>"
+    expected = "<strong>Bold <em>and</em> Italic</strong>"
+    assert format_html_text(text) == expected
 
 
 def test_format_html_text_does_not_emphasize_code():

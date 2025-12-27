@@ -4,7 +4,11 @@ from typing import Any, TYPE_CHECKING
 import time
 
 from ..config import ResearchConfig
-from ..errors import DeepResearchError, ResearchCancelledError, ResearchTimeoutError
+from ..errors import (
+    DeepResearchError,
+    ResearchCancelledError,
+    ResearchTimeoutError,
+)
 from ..progress import emit_progress
 from ..utils import coerce_optional_string, get_field
 
@@ -38,7 +42,10 @@ def await_completion(
         elapsed_seconds = int(time.monotonic() - start_time)
         if elapsed_seconds > max_seconds:
             raise ResearchTimeoutError(
-                f"Deep research did not complete within the {config.max_poll_time_minutes} minute limit.",
+                (
+                    "Deep research did not complete within the "
+                    f"{config.max_poll_time_minutes} minute limit."
+                ),
                 research_id=response.id,
             )
 

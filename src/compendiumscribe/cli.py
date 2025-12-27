@@ -131,8 +131,12 @@ def create(
             "max_tool_calls": max_tool_calls,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        Path("timed_out_research.json").write_text(json.dumps(timeout_data, indent=2))
-        click.echo(f"\n[!] Deep research timed out (ID: {exc.research_id}).", err=True)
+        timeout_payload = json.dumps(timeout_data, indent=2)
+        Path("timed_out_research.json").write_text(timeout_payload)
+        click.echo(
+            f"\n[!] Deep research timed out (ID: {exc.research_id}).",
+            err=True,
+        )
         click.echo(
             "Stored recovery information in timed_out_research.json",
             err=True,
@@ -204,7 +208,8 @@ def render(
     if output_path:
         base_path = output_path.parent / output_path.stem
     else:
-        # Defaults to the input filename (without extension) in the same directory
+        # Defaults to the input filename (without extension) in the same
+        # directory.
         base_path = input_file.parent / input_file.stem
 
     _write_outputs(compendium, base_path, formats)
@@ -237,7 +242,9 @@ def recover(input_file: Path):
         click.echo(f"Error: Failed to parse recovery file: {exc}", err=True)
         raise SystemExit(1)
 
-    click.echo(f"Checking status for research ID: {research_id} ('{title}')...")
+    click.echo(
+        f"Checking status for research ID: {research_id} ('{title}')..."
+    )
 
     config = ResearchConfig(
         background=not no_background,
@@ -287,9 +294,15 @@ def _write_outputs(
             target_file = base_path.with_suffix(f".{fmt}")
 
             if fmt == "md":
-                target_file.write_text(compendium.to_markdown(), encoding="utf-8")
+                target_file.write_text(
+                    compendium.to_markdown(),
+                    encoding="utf-8",
+                )
             elif fmt == "xml":
-                target_file.write_text(compendium.to_xml_string(), encoding="utf-8")
+                target_file.write_text(
+                    compendium.to_xml_string(),
+                    encoding="utf-8",
+                )
             elif fmt == "pdf":
                 target_file.write_bytes(compendium.to_pdf_bytes())
 
