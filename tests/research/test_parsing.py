@@ -23,6 +23,7 @@ def test_decode_json_payload_handles_wrappers(payload):
 
     assert result == {"key": "value"}
 
+
 def test_collect_response_text_handles_nested_fragments():
     response = SimpleNamespace(
         output=[

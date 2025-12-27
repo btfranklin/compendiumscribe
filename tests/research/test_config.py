@@ -13,6 +13,7 @@ def test_research_config_raises_missing_config_error():
             with pytest.raises(MissingConfigurationError):
                 ResearchConfig()
 
+
 def test_research_config_uses_env_override():
     with mock.patch.dict(os.environ, {
         "PROMPT_REFINER_MODEL": "custom-refiner",

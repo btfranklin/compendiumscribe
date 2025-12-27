@@ -34,10 +34,10 @@ class TestCancellationContext:
         client = MagicMock()
         ctx = CancellationContext(client=client)
         ctx.register_response("resp_123")
-        
+
         ctx.request_cancel()
         ctx.request_cancel()  # Second call
-        
+
         # Should only call cancel once
         assert client.responses.cancel.call_count == 1
 
@@ -45,9 +45,9 @@ class TestCancellationContext:
         client = MagicMock()
         ctx = CancellationContext(client=client)
         ctx.register_response("resp_abc")
-        
+
         ctx.request_cancel()
-        
+
         client.responses.cancel.assert_called_once_with("resp_abc")
 
     def test_request_cancel_handles_api_error_gracefully(self):
@@ -55,7 +55,7 @@ class TestCancellationContext:
         client.responses.cancel.side_effect = Exception("API error")
         ctx = CancellationContext(client=client)
         ctx.register_response("resp_fail")
-        
+
         # Should not raise
         ctx.request_cancel()
         assert ctx.is_cancel_requested is True

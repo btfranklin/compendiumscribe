@@ -16,7 +16,7 @@ def test_compose_deep_research_prompt_uses_plan_details():
 
     # Prompt is now a list of OpenAI Responses API input messages
     assert isinstance(prompt, list)
-    
+
     # Flatten text content to check for keywords
     all_text = ""
     for msg in prompt:

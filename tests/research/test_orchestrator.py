@@ -82,6 +82,7 @@ class FakeOpenAI:
 
 def test_build_compendium_with_stub_client():
     plan = {
+        "title": "Quantum Computing Compendium",
         "primary_objective": "Build a comprehensive compendium",
         "audience": "Strategic leadership teams",
         "key_sections": [
@@ -177,6 +178,7 @@ def test_build_compendium_with_stub_client():
         compendium.citations[1].title
         == "Google Quantum AI Progress Update"
     )
+    assert compendium.topic == "Quantum Computing Compendium"
     assert not hasattr(compendium, "trace")
     assert len(client.responses.calls) == 2
     # The input is now a list of message objects
@@ -197,10 +199,10 @@ def test_build_compendium_with_stub_client():
         elif isinstance(content, str):
             if "Quantum Computing" in content:
                 found = True
-        
+
         if found:
             break
-    
+
     assert found, "Topic not found in research call input"
 
 

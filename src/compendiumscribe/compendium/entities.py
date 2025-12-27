@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 import xml.etree.ElementTree as ET
 
 
-
-
 @dataclass
 class Citation:
     """Represents a single cited source returned by deep research."""

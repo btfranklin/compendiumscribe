@@ -85,7 +85,7 @@ def _parse_root(root: ET.Element) -> Compendium:
         citations=citations,
         open_questions=open_questions,
     )
-    
+
     if generated_at:
         compendium.generated_at = generated_at
 

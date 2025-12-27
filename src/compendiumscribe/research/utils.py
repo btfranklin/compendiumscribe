@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any
 
 
 def get_field(source: Any, name: str) -> Any:

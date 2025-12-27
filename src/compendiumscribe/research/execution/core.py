@@ -83,4 +83,3 @@ def execute_deep_research(
         )
 
     return response
-

@@ -9,7 +9,7 @@ from .text_utils import format_html_text, slugify
 
 if TYPE_CHECKING:  # pragma: no cover - hints only
     from .compendium import Compendium
-    from .entities import Citation, Section
+    from .entities import Section
 
 
 def _html_head(title: str, depth: int = 0) -> list[str]:
@@ -295,9 +295,6 @@ def _render_open_questions_page(compendium: "Compendium") -> str:
     parts.append("</html>")
 
     return "\n".join(parts) + "\n"
-
-
-
 
 
 def render_html_site(compendium: "Compendium") -> dict[str, str]:
