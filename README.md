@@ -1,6 +1,8 @@
 # Compendium Scribe
 
-![Social Preview](.github/social%20preview/compendiumscribe_social_preview.jpg)
+![Compendium Scribe banner](https://raw.githubusercontent.com/btfranklin/compendiumscribe/main/.github/social%20preview/compendiumscribe_social_preview.jpg "Compendium Scribe")
+
+[![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml) [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
 
 Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a comprehensive research compendium for any topic. The workflow combines optional prompt refinement, a "deep research" call with web search tooling, and deterministic post-processing. It produces human-readable Markdown by default, backed by a rich XML data model that can also be exported.
 
@@ -23,7 +25,7 @@ Compendium Scribe is a Click-driven command line tool and library that uses Open
 ### 1. Install
 
 ```bash
-pdm install --dev
+pdm install --group dev
 ```
 
 Ensure `PDM_HOME` points to a writable location when developing within a sandboxed environment.
@@ -179,7 +181,7 @@ If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to 
 ## Contributing
 
 1. Fork and clone the repository.
-2. Run `pdm install --dev`.
+2. Run `pdm install --group dev`.
 3. Make changes following the style guide and update/add tests.
 4. Run `pdm run pytest` and `pdm run flake8 src tests`.
 5. Raise a pull request with:
