@@ -9,17 +9,20 @@ dependencies = [
     "openai>=2.11.0",
     "python-dotenv>=1.2.1",
     "click>=8.3.1",
-    "promptdown>=1.1.1",
+    "promptdown>=1.1.4",
     "mistune>=3.2.0",
     "fpdf2>=2.8.5",
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
@@ -45,7 +48,7 @@ distribution = true
 [tool.pdm.build]
 excludes = ["tests/**"]
 
-[tool.pdm.dev-dependencies]
+[dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "flake8>=7.3.0",
