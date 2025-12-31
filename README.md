@@ -56,6 +56,7 @@ pdm run compendium create "Lithium-ion battery recycling"
 ```
 
 **Options:**
+
 - `--output PATH` — Base path/filename for the output (extension is ignored).
 - `--no-background` — Force synchronous execution (useful for short or restricted queries).
 - `--max-tool-calls N` — Cap the total number of tool calls for cost control.
@@ -74,6 +75,7 @@ pdm run compendium render my-topic.xml --format html
 ```
 
 **Options:**
+
 - `--format FORMAT` — Output format(s) to generate (`md`, `xml`, `html`, `pdf`, `skill`).
 - `--output PATH` — Base path/filename for the output.
 
@@ -86,6 +88,7 @@ pdm run compendium recover
 ```
 
 **Options:**
+
 - `--input PATH` — Path to the recovery JSON file (defaults to `timed_out_research.json`).
 
 ---
@@ -175,8 +178,8 @@ This format is intentionally verbose to support downstream transformation. Markd
 
 ## Testing & Quality
 
-- `pdm run pytest` — Executes the unit suite. Tests stub the OpenAI client, so they run offline.
-- `pdm run flake8 src tests` — Linting.
+- `pdm run test` — Executes the unit suite. Tests stub the OpenAI client, so they run offline.
+- `pdm run lint` — Linting.
 - `pdm build` — Produce distributable artifacts.
 
 If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to a writable directory (for example, `export PDM_HOME=.pdm_home`).
@@ -188,14 +191,8 @@ If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to 
 1. Fork and clone the repository.
 2. Run `pdm install --group dev`.
 3. Make changes following the style guide and update/add tests.
-4. Run `pdm run pytest` and `pdm run flake8 src tests`.
+4. Run `pdm run test` and `pdm run lint`.
 5. Raise a pull request with:
    - A concise description of the change.
    - Verification commands executed locally.
    - Representative XML samples if the user-facing structure changes.
-
----
-
-## License
-
-MIT © B.T. Franklin and contributors.
