@@ -1,6 +1,6 @@
 [project]
 name = "compendiumscribe"
-version = "0.2.0"
+version = "0.3.0"
 description = "A package for automating the creation of comprehensive and organized domain knowledge bases for AI applications."
 authors = [
     {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
