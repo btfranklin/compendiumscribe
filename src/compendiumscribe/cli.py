@@ -20,6 +20,11 @@ from .research import (
     build_compendium,
     recover_compendium,
 )
+from .skill_output import (
+    SkillConfig,
+    SkillGenerationError,
+    render_skill_folder,
+)
 
 
 @click.group()
@@ -43,7 +48,9 @@ def cli() -> None:
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(
+        ["md", "xml", "html", "pdf", "skill"], case_sensitive=False
+    ),
     multiple=True,
     default=["md"],
     show_default=True,
@@ -165,7 +172,19 @@ def create(
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
-    _write_outputs(compendium, base_path, formats)
+    skill_config = None
+    skill_client = None
+    if "skill" in {fmt.lower() for fmt in formats}:
+        skill_config = SkillConfig()
+        skill_client = client
+
+    _write_outputs(
+        compendium,
+        base_path,
+        formats,
+        skill_client=skill_client,
+        skill_config=skill_config,
+    )
 
 
 @cli.command()
@@ -176,7 +195,9 @@ def create(
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(
+        ["md", "xml", "html", "pdf", "skill"], case_sensitive=False
+    ),
     multiple=True,
     default=["html"],
     show_default=True,
@@ -212,7 +233,23 @@ def render(
         # directory.
         base_path = input_file.parent / input_file.stem
 
-    _write_outputs(compendium, base_path, formats)
+    skill_config = None
+    skill_client = None
+    if "skill" in {fmt.lower() for fmt in formats}:
+        try:
+            skill_config = SkillConfig()
+            skill_client = create_openai_client()
+        except MissingAPIKeyError as exc:
+            click.echo(f"Configuration error: {exc}", err=True)
+            raise SystemExit(1) from exc
+
+    _write_outputs(
+        compendium,
+        base_path,
+        formats,
+        skill_client=skill_client,
+        skill_config=skill_config,
+    )
 
 
 @cli.command()
@@ -264,7 +301,25 @@ def recover(input_file: Path):
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_path = Path(f"{slug}_{timestamp}")
 
-        _write_outputs(compendium, base_path, formats)
+        skill_config = None
+        skill_client = None
+        if "skill" in {fmt.lower() for fmt in formats}:
+            try:
+                skill_config = SkillConfig()
+                skill_client = create_openai_client(
+                    timeout=config.request_timeout_seconds
+                )
+            except MissingAPIKeyError as exc:
+                click.echo(f"Configuration error: {exc}", err=True)
+                raise SystemExit(1) from exc
+
+        _write_outputs(
+            compendium,
+            base_path,
+            formats,
+            skill_client=skill_client,
+            skill_config=skill_config,
+        )
 
     except DeepResearchError as exc:
         click.echo(str(exc), err=True)
@@ -275,13 +330,52 @@ def recover(input_file: Path):
 
 
 def _write_outputs(
-    compendium: "Compendium", base_path: Path, formats: tuple[str, ...]
+    compendium: "Compendium",
+    base_path: Path,
+    formats: tuple[str, ...],
+    *,
+    skill_client: object | None = None,
+    skill_config: SkillConfig | None = None,
 ) -> None:
     """Helper to write compendium outputs to disk."""
     unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
+    if "skill" in unique_formats:
+        unique_formats.remove("skill")
+        unique_formats.append("skill")
 
     for fmt in unique_formats:
-        if fmt == "html":
+        if fmt == "skill":
+            if skill_client is None or skill_config is None:
+                raise click.ClickException(
+                    "Skill output requires an OpenAI client and config."
+                )
+            try:
+                skill_dir = render_skill_folder(
+                    compendium,
+                    base_path,
+                    skill_client,
+                    skill_config,
+                )
+                click.echo(f"Skill written to {skill_dir}/")
+            except SkillGenerationError as exc:
+                fallback_file = base_path.with_suffix(".md")
+                fallback_file.write_text(
+                    compendium.to_markdown(),
+                    encoding="utf-8",
+                )
+                click.echo(
+                    (
+                        "[!] Skill generation failed after "
+                        f"{skill_config.max_retries} attempts: {exc}"
+                    ),
+                    err=True,
+                )
+                click.echo(
+                    f"Wrote markdown fallback to {fallback_file}",
+                    err=True,
+                )
+                raise SystemExit(1) from exc
+        elif fmt == "html":
             # HTML creates a directory of files
             site_dir = base_path.parent / base_path.name
             site_files = compendium.to_html_site()

@@ -14,6 +14,7 @@ Compendium Scribe is a Click-driven command line tool and library that uses Open
 - 🧱 **Rich data model** — Includes sections, insights, and citations for cross-format rendering.
 - 🧾 **Structured XML output** — Produces a schema-friendly document ready for downstream conversion (HTML, Markdown, PDF pipelines, etc.).
 - 🌐 **HTML Site Export** — Generates a static, multi-page HTML site with navigation and semantic structure.
+- 🧩 **Skill Export** — Emits an AI agent skill folder with `SKILL.md` plus the compendium Markdown in `references/`.
 - 🔄 **Re-rendering** — Ingest existing XML compendiums to generate new output formats without re-running costly research.
 - ⚙️ **Configurable CLI** — Control background execution, tool call limits, and output paths via a unified command structure.
 - 🧪 **Testable architecture** — Research orchestration is decoupled from the OpenAI client, making it simple to stub in tests.
@@ -38,6 +39,8 @@ Create a `.env` file (untracked) with your OpenAI credentials:
 OPENAI_API_KEY=sk-...
 PROMPT_REFINER_MODEL=gpt-5.2
 DEEP_RESEARCH_MODEL=o3-deep-research
+SKILL_NAMER_MODEL=gpt-5.2
+SKILL_WRITER_MODEL=gpt-5.2
 POLLING_INTERVAL_IN_SECONDS=10
 MAX_POLL_TIME_IN_MINUTES=60
 ```
@@ -56,9 +59,11 @@ pdm run compendium create "Lithium-ion battery recycling"
 - `--output PATH` — Base path/filename for the output (extension is ignored).
 - `--no-background` — Force synchronous execution (useful for short or restricted queries).
 - `--max-tool-calls N` — Cap the total number of tool calls for cost control.
-- `--format FORMAT` — Output format (defaults to `md`). Available: `md`, `xml`, `html`, `pdf`. Can be repeated for multiple outputs.
+- `--format FORMAT` — Output format (defaults to `md`). Available: `md`, `xml`, `html`, `pdf`, `skill`. Can be repeated for multiple outputs.
 
 Example output file name: `lithium-ion-battery-recycling.md`.
+Skill output writes a folder named after the skill with `SKILL.md` and a
+`references/` markdown file using the standard output filename.
 
 ### 4. Render formats from existing XML
 
@@ -69,7 +74,7 @@ pdm run compendium render my-topic.xml --format html
 ```
 
 **Options:**
-- `--format FORMAT` — Output format(s) to generate (`md`, `xml`, `html`, `pdf`).
+- `--format FORMAT` — Output format(s) to generate (`md`, `xml`, `html`, `pdf`, `skill`).
 - `--output PATH` — Base path/filename for the output.
 
 ### 5. Recover from a timeout
