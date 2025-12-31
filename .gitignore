@@ -137,9 +137,6 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
-
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -167,6 +164,9 @@ cython_debug/
 
 # Pickled Pipeline cache
 pipeline_cache/
+
+# Generated HTML site
+/site
 
 # macOS
 .DS_Store
