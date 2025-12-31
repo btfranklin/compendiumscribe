@@ -336,15 +336,15 @@ def recover(input_file: Path):
                     status_label = update.status.replace("_", " ").title()
                     suffix = ""
                     meta = update.metadata or {}
-                if (
-                    meta.get("attempt")
-                    and meta.get("max_attempts")
-                    and meta["attempt"] > 1
-                ):
-                    suffix = (
-                        f" (attempt {meta['attempt']}/"
-                        f"{meta['max_attempts']})"
-                    )
+                    if (
+                        meta.get("attempt")
+                        and meta.get("max_attempts")
+                        and meta["attempt"] > 1
+                    ):
+                        suffix = (
+                            f" (attempt {meta['attempt']}/"
+                            f"{meta['max_attempts']})"
+                        )
                     click.echo(
                         f"[{timestamp}] {phase_label}: "
                         f"{status_label}. {update.message}{suffix}"
