@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import os
 import re
-from typing import Any
+from typing import Any, Callable
 
 from dotenv import load_dotenv
 from promptdown import StructuredPrompt
@@ -21,6 +21,14 @@ class SkillGenerationError(RuntimeError):
     """Raised when skill naming or authoring fails."""
 
 
+@dataclass(frozen=True)
+class SkillProgress:
+    phase: str
+    status: str
+    message: str
+    metadata: dict[str, Any] | None = None
+
+
 @dataclass
 class SkillConfig:
     """Configuration for skill naming and authoring calls."""
@@ -33,6 +41,7 @@ class SkillConfig:
     )
     reasoning_effort: str = "high"
     max_retries: int = 3
+    progress_callback: Callable[[SkillProgress], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +88,25 @@ def _ensure_ascii(value: str, label: str) -> None:
         raise SkillGenerationError(
             f"{label} must use ASCII characters only."
         )
+
+
+def _emit_progress(
+    config: SkillConfig,
+    phase: str,
+    status: str,
+    message: str,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    if config.progress_callback is None:
+        return
+    config.progress_callback(
+        SkillProgress(
+            phase=phase,
+            status=status,
+            message=message,
+            metadata=metadata,
+        )
+    )
 
 
 def _validate_skill_name(name: str) -> None:
@@ -200,13 +228,44 @@ def generate_skill_markdown(
     return markdown
 
 
-def _retry(action: Any, max_retries: int) -> Any:
+def _retry(
+    action: Any,
+    *,
+    max_retries: int,
+    config: SkillConfig,
+    phase: str,
+    action_label: str,
+    success_message: str,
+) -> Any:
     last_error: Exception | None = None
-    for _attempt in range(max_retries):
+    for attempt in range(1, max_retries + 1):
+        _emit_progress(
+            config,
+            phase=phase,
+            status="in_progress",
+            message=action_label,
+            metadata={"attempt": attempt, "max_attempts": max_retries},
+        )
         try:
-            return action()
+            result = action()
         except SkillGenerationError as exc:
             last_error = exc
+            _emit_progress(
+                config,
+                phase=phase,
+                status="error",
+                message=f"{action_label} failed: {exc}",
+                metadata={"attempt": attempt, "max_attempts": max_retries},
+            )
+            continue
+        _emit_progress(
+            config,
+            phase=phase,
+            status="completed",
+            message=success_message,
+            metadata={"attempt": attempt, "max_attempts": max_retries},
+        )
+        return result
     if last_error is None:
         raise SkillGenerationError("Skill generation failed unexpectedly.")
     raise last_error
@@ -225,7 +284,14 @@ def render_skill_folder(
 
     metadata = _retry(
         lambda: generate_skill_metadata(client, compendium, config),
-        config.max_retries,
+        max_retries=config.max_retries,
+        config=config,
+        phase="skill_naming",
+        action_label=(
+            "Generating skill name and description with "
+            f"{config.skill_namer_model}"
+        ),
+        success_message="Skill name and description ready.",
     )
     skill_markdown = _retry(
         lambda: generate_skill_markdown(
@@ -235,7 +301,14 @@ def render_skill_folder(
             reference_filename,
             config,
         ),
-        config.max_retries,
+        max_retries=config.max_retries,
+        config=config,
+        phase="skill_writing",
+        action_label=(
+            "Writing SKILL.md with "
+            f"{config.skill_writer_model}"
+        ),
+        success_message="SKILL.md content ready.",
     )
 
     skill_dir = base_path.parent / metadata.name
@@ -255,5 +328,6 @@ __all__ = [
     "SkillConfig",
     "SkillGenerationError",
     "SkillMetadata",
+    "SkillProgress",
     "render_skill_folder",
 ]

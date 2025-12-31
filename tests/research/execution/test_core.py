@@ -58,7 +58,10 @@ def test_execute_deep_research_returns_completed_response():
     assert (
         "deep_research",
         "starting",
-        "Submitting deep research request to OpenAI.",
+        (
+            "Submitting deep research request to OpenAI with "
+            f"{config.deep_research_model}."
+        ),
     ) in progress_updates
     assert (
         "deep_research",

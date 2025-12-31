@@ -49,7 +49,10 @@ def execute_deep_research(
         config,
         phase="deep_research",
         status="starting",
-        message="Submitting deep research request to OpenAI.",
+        message=(
+            "Submitting deep research request to OpenAI with "
+            f"{config.deep_research_model}."
+        ),
     )
 
     response = client.responses.create(**request_payload)

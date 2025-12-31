@@ -23,6 +23,7 @@ from .research import (
 from .skill_output import (
     SkillConfig,
     SkillGenerationError,
+    SkillProgress,
     render_skill_folder,
 )
 
@@ -237,7 +238,29 @@ def render(
     skill_client = None
     if "skill" in {fmt.lower() for fmt in formats}:
         try:
-            skill_config = SkillConfig()
+            def handle_skill_progress(update: SkillProgress) -> None:
+                timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
+                phase_label = update.phase.replace("_", " ").title()
+                status_label = update.status.replace("_", " ").title()
+                suffix = ""
+                meta = update.metadata or {}
+                if (
+                    meta.get("attempt")
+                    and meta.get("max_attempts")
+                    and meta["attempt"] > 1
+                ):
+                    suffix = (
+                        f" (attempt {meta['attempt']}/"
+                        f"{meta['max_attempts']})"
+                    )
+                click.echo(
+                    f"[{timestamp}] {phase_label}: "
+                    f"{status_label}. {update.message}{suffix}"
+                )
+
+            skill_config = SkillConfig(
+                progress_callback=handle_skill_progress
+            )
             skill_client = create_openai_client()
         except MissingAPIKeyError as exc:
             click.echo(f"Configuration error: {exc}", err=True)
@@ -305,7 +328,31 @@ def recover(input_file: Path):
         skill_client = None
         if "skill" in {fmt.lower() for fmt in formats}:
             try:
-                skill_config = SkillConfig()
+                def handle_skill_progress(update: SkillProgress) -> None:
+                    timestamp = datetime.now(timezone.utc).strftime(
+                        "%H:%M:%S"
+                    )
+                    phase_label = update.phase.replace("_", " ").title()
+                    status_label = update.status.replace("_", " ").title()
+                    suffix = ""
+                    meta = update.metadata or {}
+                if (
+                    meta.get("attempt")
+                    and meta.get("max_attempts")
+                    and meta["attempt"] > 1
+                ):
+                    suffix = (
+                        f" (attempt {meta['attempt']}/"
+                        f"{meta['max_attempts']})"
+                    )
+                    click.echo(
+                        f"[{timestamp}] {phase_label}: "
+                        f"{status_label}. {update.message}{suffix}"
+                    )
+
+                skill_config = SkillConfig(
+                    progress_callback=handle_skill_progress
+                )
                 skill_client = create_openai_client(
                     timeout=config.request_timeout_seconds
                 )
