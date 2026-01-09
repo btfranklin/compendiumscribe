@@ -1,6 +1,6 @@
 [project]
 name = "compendiumscribe"
-version = "0.3.0"
+dynamic = ["version"]
 description = "A package for automating the creation of comprehensive and organized domain knowledge bases for AI applications."
 authors = [
     {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
@@ -9,13 +9,13 @@ dependencies = [
     "openai>=2.11.0",
     "python-dotenv>=1.2.1",
     "click>=8.3.1",
-    "promptdown>=1.1.4",
+    "promptdown>=1.1.5",
     "mistune>=3.2.0",
     "fpdf2>=2.8.5",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
@@ -45,13 +45,16 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.pdm.version]
+source = "scm"
+
 [tool.pdm.build]
 excludes = ["tests/**"]
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
-    "flake8>=7.3.0",
+    "ruff>=0.14.11",
 ]
 
 [project.scripts]
@@ -59,4 +62,7 @@ compendium = "compendiumscribe.cli:cli"
 
 [tool.pdm.scripts]
 test = "pytest"
-lint = "flake8 src tests"
+lint = "ruff check src tests"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
