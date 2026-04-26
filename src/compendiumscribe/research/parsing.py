@@ -45,11 +45,6 @@ def _iter_text_fragments(value: Any) -> list[str]:
     return fragments
 
 
-def parse_deep_research_response(response: Any) -> dict[str, Any]:
-    text_payload = collect_response_text(response)
-    return decode_json_payload(text_payload)
-
-
 def collect_response_text(response: Any) -> str:
     output_text = get_field(response, "output_text")
     if output_text:
@@ -77,7 +72,7 @@ def collect_response_text(response: Any) -> str:
         return "".join(text_parts).strip()
 
     raise DeepResearchError(
-        "Deep research response did not include textual output."
+        "Response did not include textual output."
     )
 
 
@@ -109,7 +104,7 @@ def decode_json_payload(text: str) -> dict[str, Any]:
         payload = json.loads(candidate)
     except json.JSONDecodeError as exc:
         raise DeepResearchError(
-            f"Deep research response was not valid JSON. "
+            f"Response was not valid JSON. "
             f"Parse error at position {exc.pos}: {exc.msg}. "
             f"Content: {_snippet(candidate)!r}"
         ) from exc
@@ -126,5 +121,4 @@ def decode_json_payload(text: str) -> dict[str, Any]:
 __all__ = [
     "collect_response_text",
     "decode_json_payload",
-    "parse_deep_research_response",
 ]

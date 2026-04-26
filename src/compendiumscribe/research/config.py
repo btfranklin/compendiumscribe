@@ -9,23 +9,33 @@ from dotenv import load_dotenv
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from .progress import ResearchProgress
 
-from .errors import MissingConfigurationError
-
 load_dotenv()
 
 
 @dataclass
 class ResearchConfig:
-    """Configuration flags for the deep research pipeline."""
+    """Configuration flags for the Agents SDK research workflow."""
 
-    deep_research_model: str = field(
-        default_factory=lambda: _default_deep_research_model()
+    planner_agent_model: str = field(
+        default_factory=lambda: _agent_model_env(
+            "PLANNER_AGENT_MODEL", "gpt-5.4"
+        )
     )
-    prompt_refiner_model: str = field(
-        default_factory=lambda: _default_prompt_refiner_model()
+    research_agent_model: str = field(
+        default_factory=lambda: _agent_model_env(
+            "RESEARCH_AGENT_MODEL", "gpt-5.4"
+        )
     )
-    use_prompt_refinement: bool = True
-    background: bool = True
+    verifier_agent_model: str = field(
+        default_factory=lambda: _agent_model_env(
+            "VERIFIER_AGENT_MODEL", "gpt-5.4"
+        )
+    )
+    synthesis_agent_model: str = field(
+        default_factory=lambda: _agent_model_env(
+            "SYNTHESIS_AGENT_MODEL", "gpt-5.4"
+        )
+    )
     polling_interval_seconds: float = field(
         default_factory=lambda: float(
             os.getenv("POLLING_INTERVAL_IN_SECONDS", "10.0")
@@ -36,30 +46,26 @@ class ResearchConfig:
             os.getenv("MAX_POLL_TIME_IN_MINUTES", "60.0")
         )
     )
-    enable_code_interpreter: bool = True
-    use_web_search: bool = True
-    max_tool_calls: int | None = None
+    max_agent_turns: int = field(
+        default_factory=lambda: int(os.getenv("MAX_AGENT_TURNS", "12"))
+    )
     request_timeout_seconds: int = 3600
     progress_callback: Callable[["ResearchProgress"], None] | None = None
 
-
-def _default_deep_research_model() -> str:
-    # Check specific env var first, then fallback to generic
-    model = os.getenv("DEEP_RESEARCH_MODEL") or os.getenv("RESEARCH_MODEL")
-    if not model:
-        raise MissingConfigurationError(
-            "DEEP_RESEARCH_MODEL must be set in environment."
-        )
-    return model
-
-
-def _default_prompt_refiner_model() -> str:
-    model = os.getenv("PROMPT_REFINER_MODEL")
-    if not model:
-        raise MissingConfigurationError(
-            "PROMPT_REFINER_MODEL must be set in environment."
-        )
-    return model
+    def model_snapshot(self) -> dict[str, str | int | float]:
+        return {
+            "planner_agent_model": self.planner_agent_model,
+            "research_agent_model": self.research_agent_model,
+            "verifier_agent_model": self.verifier_agent_model,
+            "synthesis_agent_model": self.synthesis_agent_model,
+            "max_agent_turns": self.max_agent_turns,
+            "polling_interval_seconds": self.polling_interval_seconds,
+            "max_poll_time_minutes": self.max_poll_time_minutes,
+        }
 
 
-__all__ = ["ResearchConfig", "_default_deep_research_model"]
+def _agent_model_env(name: str, default: str) -> str:
+    return os.getenv(name) or default
+
+
+__all__ = ["ResearchConfig"]

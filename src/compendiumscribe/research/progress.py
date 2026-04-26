@@ -9,8 +9,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 ProgressPhase = Literal[
     "planning",
-    "prompt_composition",
-    "deep_research",
+    "research_agenda",
+    "section_research",
+    "verification",
+    "synthesis",
     "trace",
     "completion",
 ]

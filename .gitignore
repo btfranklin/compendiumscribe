@@ -167,6 +167,7 @@ pipeline_cache/
 
 # Generated HTML site
 /site
+generated/
 
 # macOS
 .DS_Store

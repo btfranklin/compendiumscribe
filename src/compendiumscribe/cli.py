@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,16 +9,15 @@ from .create_llm_clients import (
     create_openai_client,
 )
 from .research import (
-    CancellationContext,
     DeepResearchError,
     MissingConfigurationError,
-    ResearchCancelledError,
     ResearchConfig,
     ResearchProgress,
-    ResearchTimeoutError,
     build_compendium,
     recover_compendium,
 )
+from .research.costs import CostPricing, CostTracker
+from .research.pricing import resolve_model_pricing
 from .skill_output import (
     SkillConfig,
     SkillGenerationError,
@@ -42,11 +40,6 @@ def cli() -> None:
     help="Base path/filename for the output. Extension will be ignored.",
 )
 @click.option(
-    "--no-background",
-    is_flag=True,
-    help="Run deep research synchronously instead of background mode.",
-)
-@click.option(
     "--format",
     "formats",
     type=click.Choice(
@@ -59,22 +52,22 @@ def cli() -> None:
         "Output format(s). Can be specified multiple times."
     ),
 )
-@click.option(
-    "--max-tool-calls",
-    type=int,
-    default=None,
-    help="Limit total tool calls allowed for the deep research model.",
-)
 def create(
     topic: str,
     output_path: Path | None,
-    no_background: bool,
     formats: tuple[str, ...],
-    max_tool_calls: int | None,
 ):
     """Generate a research compendium for TOPIC."""
 
-    click.echo(f"Preparing deep research assignment for '{topic}'.")
+    click.echo(f"Preparing agentic research workflow for '{topic}'.")
+    run_timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    cost_tracker: CostTracker | None = None
+    base_path = _base_path_for_run(
+        topic=topic,
+        output_path=output_path,
+        run_timestamp=run_timestamp,
+    )
+    state_path = base_path.with_suffix(".research.json")
 
     def handle_progress(update: ResearchProgress) -> None:
         timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -96,7 +89,7 @@ def create(
             **stream_kwargs,
         )
 
-        # Display blueprint section titles when available
+        # Display plan section titles when available.
         if "section_titles" in meta and meta["section_titles"]:
             for title in meta["section_titles"]:
                 click.echo(f"           - {title}")
@@ -105,51 +98,25 @@ def create(
             click.echo(meta["plan_json"])
 
     try:
-        config = ResearchConfig(
-            background=not no_background,
-            max_tool_calls=max_tool_calls,
-            progress_callback=handle_progress,
-        )
+        config = ResearchConfig(progress_callback=handle_progress)
         client = create_openai_client(timeout=config.request_timeout_seconds)
+        cost_tracker = _build_cost_tracker(
+            base_path=base_path,
+            config=config,
+        )
+        _echo_cost_pricing_context(cost_tracker)
 
-        # Set up cancellation context for graceful Ctrl+C handling
-        cancel_ctx = CancellationContext(client, config)
-        cancel_ctx.install_signal_handler()
-
-        try:
-            compendium = build_compendium(
-                topic, client=client, config=config, cancel_ctx=cancel_ctx
-            )
-        finally:
-            cancel_ctx.restore_signal_handler()
-    except ResearchCancelledError as exc:
-        click.echo(f"\nResearch cancelled (ID: {exc.research_id}).", err=True)
-        raise SystemExit(1) from exc
+        compendium = build_compendium(
+            topic,
+            client=client,
+            config=config,
+            cost_tracker=cost_tracker,
+            state_path=state_path,
+            output_formats=list(formats),
+        )
     except KeyboardInterrupt:
         click.echo("\nHard shutdown requested.", err=True)
         raise SystemExit(1)
-    except ResearchTimeoutError as exc:
-        compendium_title = getattr(exc, "compendium_title", None)
-        timeout_data = {
-            "research_id": exc.research_id,
-            "topic": topic,
-            "title": compendium_title or topic,
-            "no_background": no_background,
-            "formats": list(formats),
-            "max_tool_calls": max_tool_calls,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        timeout_payload = json.dumps(timeout_data, indent=2)
-        Path("timed_out_research.json").write_text(timeout_payload)
-        click.echo(
-            f"\n[!] Deep research timed out (ID: {exc.research_id}).",
-            err=True,
-        )
-        click.echo(
-            "Stored recovery information in timed_out_research.json",
-            err=True,
-        )
-        raise SystemExit(1) from exc
     except MissingAPIKeyError as exc:
         click.echo(f"Configuration error: {exc}", err=True)
         raise SystemExit(1) from exc
@@ -162,16 +129,6 @@ def create(
     except Exception as exc:  # pragma: no cover - defensive logging for CLI
         click.echo(f"Unexpected error: {exc}", err=True)
         raise SystemExit(1) from exc
-
-    # Determine base filename stem
-    if output_path:
-        # If output_path has a suffix, we use it as the stem to avoid out.md.md
-        base_path = output_path.parent / output_path.stem
-    else:
-        name_for_slug = compendium.topic or topic
-        slug = slugify(name_for_slug)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        base_path = Path(f"{slug}_{timestamp}")
 
     skill_config = None
     skill_client = None
@@ -186,6 +143,97 @@ def create(
         skill_client=skill_client,
         skill_config=skill_config,
     )
+    _echo_cost_summary(cost_tracker)
+
+
+def _build_cost_tracker(
+    *,
+    base_path: Path,
+    config: ResearchConfig,
+) -> CostTracker:
+    default_pricing = _resolve_cost_pricing(
+        config.research_agent_model
+    ) or CostPricing(
+        input_per_1m_usd=None,
+        output_per_1m_usd=None,
+        cached_input_per_1m_usd=None,
+        requested_model=config.research_agent_model,
+    )
+    tracker = CostTracker(
+        path=base_path.with_suffix(".costs.json"),
+        pricing=default_pricing,
+        pricing_resolver=_resolve_cost_pricing,
+    )
+    tracker.initialize_report()
+    return tracker
+
+
+def _resolve_cost_pricing(model: str) -> CostPricing | None:
+    model_pricing = resolve_model_pricing(model)
+    if model_pricing is None:
+        return None
+    return model_pricing.to_cost_pricing()
+
+
+def _base_path_for_run(
+    *,
+    topic: str,
+    output_path: Path | None,
+    run_timestamp: str,
+) -> Path:
+    if output_path is not None:
+        return output_path.parent / output_path.stem
+    return Path(f"{slugify(topic)}_{run_timestamp}")
+
+
+def _echo_cost_pricing_context(cost_tracker: CostTracker) -> None:
+    pricing = cost_tracker.pricing
+    if pricing.configured:
+        resolved_model = (
+            pricing.resolved_model
+            or pricing.requested_model
+            or "configured-model"
+        )
+        tier = pricing.tier or "unknown"
+        click.echo(
+            "Cost estimator: using local pricing catalog for "
+            f"{resolved_model} ({tier} tier)."
+        )
+        return
+    requested_model = pricing.requested_model or "unknown-model"
+    click.echo(
+        "Cost estimator: no matching catalog entry for "
+        f"'{requested_model}'. Usage will be tracked without USD estimates."
+    )
+
+
+def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
+    if cost_tracker is None:
+        return
+    if cost_tracker.step_count == 0:
+        click.echo(
+            "Cost report: no usage metrics were captured for this run."
+        )
+        return
+
+    totals = cost_tracker.totals_snapshot()
+    estimated_cost = totals.get("estimated_cost_usd")
+    estimated_cost_display = "unavailable"
+    if isinstance(estimated_cost, (int, float)):
+        estimated_cost_display = f"${float(estimated_cost):.6f}"
+
+    click.echo(f"Cost report written to {cost_tracker.path}")
+    click.echo(
+        "Usage totals: "
+        f"input={totals.get('input_tokens', 0)}, "
+        f"cached_input={totals.get('cached_input_tokens', 0)}, "
+        f"output={totals.get('output_tokens', 0)}, "
+        f"reasoning={totals.get('reasoning_tokens', 0)}, "
+        f"est={estimated_cost_display}"
+    )
+    tool_calls = totals.get("tool_calls")
+    if isinstance(tool_calls, dict) and tool_calls:
+        click.echo(f"Tool calls: {tool_calls}")
 
 
 @cli.command()
@@ -238,28 +286,8 @@ def render(
     skill_client = None
     if "skill" in {fmt.lower() for fmt in formats}:
         try:
-            def handle_skill_progress(update: SkillProgress) -> None:
-                timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-                phase_label = update.phase.replace("_", " ").title()
-                status_label = update.status.replace("_", " ").title()
-                suffix = ""
-                meta = update.metadata or {}
-                if (
-                    meta.get("attempt")
-                    and meta.get("max_attempts")
-                    and meta["attempt"] > 1
-                ):
-                    suffix = (
-                        f" (attempt {meta['attempt']}/"
-                        f"{meta['max_attempts']})"
-                    )
-                click.echo(
-                    f"[{timestamp}] {phase_label}: "
-                    f"{status_label}. {update.message}{suffix}"
-                )
-
             skill_config = SkillConfig(
-                progress_callback=handle_skill_progress
+                progress_callback=_handle_skill_progress
             )
             skill_client = create_openai_client()
         except MissingAPIKeyError as exc:
@@ -280,85 +308,70 @@ def render(
     "--input",
     "input_file",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
-    default=Path("timed_out_research.json"),
-    show_default=True,
-    help="Path to the recovery JSON file.",
+    required=True,
+    help="Path to the .research.json sidecar state file.",
 )
 def recover(input_file: Path):
-    """Recover a timed-out deep research run."""
+    """Recover an Agents SDK research run from sidecar state."""
     if not input_file.exists():
         click.echo(f"Error: Recovery file {input_file} not found.", err=True)
         raise SystemExit(1)
 
     try:
-        data = json.loads(input_file.read_text(encoding="utf-8"))
-        research_id = data["research_id"]
-        topic = data["topic"]
-        title = data.get("title") or topic
-        formats = tuple(data["formats"])
-        max_tool_calls = data.get("max_tool_calls")
-        no_background = data.get("no_background", False)
-    except (json.JSONDecodeError, KeyError) as exc:
-        click.echo(f"Error: Failed to parse recovery file: {exc}", err=True)
+        from .research.agents_workflow import load_state
+
+        state = load_state(input_file)
+    except Exception as exc:
+        click.echo(f"Error: Failed to parse recovery state: {exc}", err=True)
         raise SystemExit(1)
 
-    click.echo(
-        f"Checking status for research ID: {research_id} ('{title}')..."
-    )
+    title = state.title or state.topic
+    formats = tuple(state.output_formats or ["md"])
+    click.echo(f"Recovering research state for '{title}'...")
 
-    config = ResearchConfig(
-        background=not no_background,
-        max_tool_calls=max_tool_calls,
-    )
+    config = ResearchConfig()
+    client = None
+    cost_tracker: CostTracker | None = None
 
     try:
+        client = create_openai_client(timeout=config.request_timeout_seconds)
+        cost_path = (
+            Path(state.cost_report_path)
+            if state.cost_report_path
+            else _base_path_from_state_path(input_file).with_suffix(
+                ".costs.json"
+            )
+        )
+        cost_tracker = CostTracker(
+            path=cost_path,
+            pricing=_resolve_cost_pricing(config.research_agent_model)
+            or CostPricing(
+                input_per_1m_usd=None,
+                output_per_1m_usd=None,
+                cached_input_per_1m_usd=None,
+                requested_model=config.research_agent_model,
+            ),
+            pricing_resolver=_resolve_cost_pricing,
+        )
+        cost_tracker.initialize_report()
+
         compendium = recover_compendium(
-            research_id=research_id,
-            topic=title,
+            input_file,
             config=config,
+            cost_tracker=cost_tracker,
         )
 
         click.echo("Research completed! Writing outputs.")
 
-        slug = slugify(title)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        base_path = Path(f"{slug}_{timestamp}")
+        base_path = _base_path_from_state_path(input_file)
 
         skill_config = None
         skill_client = None
         if "skill" in {fmt.lower() for fmt in formats}:
-            try:
-                def handle_skill_progress(update: SkillProgress) -> None:
-                    timestamp = datetime.now(timezone.utc).strftime(
-                        "%H:%M:%S"
-                    )
-                    phase_label = update.phase.replace("_", " ").title()
-                    status_label = update.status.replace("_", " ").title()
-                    suffix = ""
-                    meta = update.metadata or {}
-                    if (
-                        meta.get("attempt")
-                        and meta.get("max_attempts")
-                        and meta["attempt"] > 1
-                    ):
-                        suffix = (
-                            f" (attempt {meta['attempt']}/"
-                            f"{meta['max_attempts']})"
-                        )
-                    click.echo(
-                        f"[{timestamp}] {phase_label}: "
-                        f"{status_label}. {update.message}{suffix}"
-                    )
-
-                skill_config = SkillConfig(
-                    progress_callback=handle_skill_progress
-                )
-                skill_client = create_openai_client(
-                    timeout=config.request_timeout_seconds
-                )
-            except MissingAPIKeyError as exc:
-                click.echo(f"Configuration error: {exc}", err=True)
-                raise SystemExit(1) from exc
+            skill_config = SkillConfig(
+                progress_callback=_handle_skill_progress
+            )
+            skill_client = client
 
         _write_outputs(
             compendium,
@@ -367,7 +380,11 @@ def recover(input_file: Path):
             skill_client=skill_client,
             skill_config=skill_config,
         )
+        _echo_cost_summary(cost_tracker)
 
+    except MissingAPIKeyError as exc:
+        click.echo(f"Configuration error: {exc}", err=True)
+        raise SystemExit(1) from exc
     except DeepResearchError as exc:
         click.echo(str(exc), err=True)
         return
@@ -448,6 +465,31 @@ def _write_outputs(
                 target_file.write_bytes(compendium.to_pdf_bytes())
 
             click.echo(f"Compendium written to {target_file}")
+
+
+def _base_path_from_state_path(state_path: Path) -> Path:
+    name = state_path.name
+    if name.endswith(".research.json"):
+        return state_path.parent / name.removesuffix(".research.json")
+    return state_path.with_suffix("")
+
+
+def _handle_skill_progress(update: SkillProgress) -> None:
+    timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
+    phase_label = update.phase.replace("_", " ").title()
+    status_label = update.status.replace("_", " ").title()
+    suffix = ""
+    meta = update.metadata or {}
+    if (
+        meta.get("attempt")
+        and meta.get("max_attempts")
+        and meta["attempt"] > 1
+    ):
+        suffix = f" (attempt {meta['attempt']}/{meta['max_attempts']})"
+    click.echo(
+        f"[{timestamp}] {phase_label}: "
+        f"{status_label}. {update.message}{suffix}"
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover

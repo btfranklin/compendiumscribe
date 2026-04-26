@@ -2,7 +2,21 @@ from __future__ import annotations
 
 import pytest
 
-from compendiumscribe.create_llm_clients import create_openai_client
+from compendiumscribe.create_llm_clients import (
+    MissingAPIKeyError,
+    create_openai_client,
+)
+
+
+def test_create_openai_client_requires_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "compendiumscribe.create_llm_clients.load_dotenv",
+        lambda: None,
+    )
+
+    with pytest.raises(MissingAPIKeyError, match="OPENAI_API_KEY missing"):
+        create_openai_client()
 
 
 def test_create_openai_client_requires_responses_support(monkeypatch):

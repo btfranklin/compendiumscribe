@@ -7,8 +7,10 @@ from unittest import mock
 def mock_env_vars():
     """Automatically mock environment variables for all tests."""
     with mock.patch.dict(os.environ, {
-        "PROMPT_REFINER_MODEL": "gpt-5.2",
-        "DEEP_RESEARCH_MODEL": "o3-deep-research",
+        "PLANNER_AGENT_MODEL": "gpt-5.4",
+        "RESEARCH_AGENT_MODEL": "gpt-5.4",
+        "VERIFIER_AGENT_MODEL": "gpt-5.4",
+        "SYNTHESIS_AGENT_MODEL": "gpt-5.4",
         "OPENAI_API_KEY": "sk-test",
     }):
         yield

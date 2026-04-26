@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 @dataclass
 class Citation:
-    """Represents a single cited source returned by deep research."""
+    """Represents a single cited source in the compendium."""
 
     identifier: str
     title: str

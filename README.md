@@ -4,20 +4,21 @@
 
 [![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml) [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
 
-Compendium Scribe is a Click-driven command line tool and library that uses OpenAI's **deep research** models to assemble a comprehensive research compendium for any topic. The workflow combines optional prompt refinement, a "deep research" call with web search tooling, and deterministic post-processing. It produces human-readable Markdown by default, backed by a rich XML data model that can also be exported.
+Compendium Scribe is a Click-driven command line tool and library that builds sourced research compendiums through a bounded OpenAI Agents SDK workflow. It decomposes a topic into planning, web research, verification, and synthesis stages, then renders the final `Compendium` as Markdown, XML, HTML, PDF, or an AI skill folder.
 
 ---
 
 ## Features
 
-- 🔍 **Deep research pipeline** — Orchestrates prompt planning, background execution, and tool-call capture with `o3-deep-research`.
-- 🧱 **Rich data model** — Includes sections, insights, and citations for cross-format rendering.
-- 🧾 **Structured XML output** — Produces a schema-friendly document ready for downstream conversion (HTML, Markdown, PDF pipelines, etc.).
-- 🌐 **HTML Site Export** — Generates a static, multi-page HTML site with navigation and semantic structure.
-- 🧩 **Skill Export** — Emits an AI agent skill folder with `SKILL.md` plus the compendium Markdown in `references/`.
-- 🔄 **Re-rendering** — Ingest existing XML compendiums to generate new output formats without re-running costly research.
-- ⚙️ **Configurable CLI** — Control background execution, tool call limits, and output paths via a unified command structure.
-- 🧪 **Testable architecture** — Research orchestration is decoupled from the OpenAI client, making it simple to stub in tests.
+- **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
+- **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
+- **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
+- **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
+- **Recoverable sidecars** - Writes `<base>.research.json` after accepted artifacts and `<base>.costs.json` for usage/cost telemetry.
+- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
+- **Re-rendering** - Ingest existing XML compendiums to generate new output formats without re-running research.
+- **Skill export** - Emits an AI agent skill folder with `SKILL.md` plus the compendium Markdown in `references/`.
+- **Offline tests** - The workflow uses a runner adapter so tests can stub Agents SDK runs without live API calls.
 
 ---
 
@@ -26,70 +27,69 @@ Compendium Scribe is a Click-driven command line tool and library that uses Open
 ### 1. Install
 
 ```bash
-pdm install --group dev
+pdm install --dev
 ```
 
 Ensure `PDM_HOME` points to a writable location when developing within a sandboxed environment.
 
 ### 2. Configure credentials
 
-Create a `.env` file (untracked) with your OpenAI credentials:
+Create a `.env` file (untracked) with your OpenAI credentials and optional model overrides:
 
-```
+```dotenv
 OPENAI_API_KEY=sk-...
-PROMPT_REFINER_MODEL=gpt-5.2
-DEEP_RESEARCH_MODEL=o3-deep-research
+PLANNER_AGENT_MODEL=gpt-5.4
+RESEARCH_AGENT_MODEL=gpt-5.4
+VERIFIER_AGENT_MODEL=gpt-5.4
+SYNTHESIS_AGENT_MODEL=gpt-5.4
+MAX_AGENT_TURNS=12
 SKILL_NAMER_MODEL=gpt-5.2
 SKILL_WRITER_MODEL=gpt-5.2
-POLLING_INTERVAL_IN_SECONDS=10
-MAX_POLL_TIME_IN_MINUTES=60
 ```
 
-Deep research requires an OpenAI account with the browsing tooling enabled. Document any environment keys for additional tooling in the repo as you add them.
+The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
+
+Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers standard GPT-5.4 family token pricing, GPT-5.4 long-context rates above the documented threshold, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
 
 ### 3. Generate a compendium
-
-Use the `create` subcommand to verify a topic and run the research process:
 
 ```bash
 pdm run compendium create "Lithium-ion battery recycling"
 ```
 
-**Options:**
+Options:
 
-- `--output PATH` — Base path/filename for the output (extension is ignored).
-- `--no-background` — Force synchronous execution (useful for short or restricted queries).
-- `--max-tool-calls N` — Cap the total number of tool calls for cost control.
-- `--format FORMAT` — Output format (defaults to `md`). Available: `md`, `xml`, `html`, `pdf`, `skill`. Can be repeated for multiple outputs.
+- `--output PATH` - Base path/filename for the output. The extension is ignored.
+- `--format FORMAT` - Output format, defaulting to `md`. Available: `md`, `xml`, `html`, `pdf`, `skill`. Repeat for multiple outputs.
 
-Example output file name: `lithium-ion-battery-recycling.md`.
-Skill output writes a folder named after the skill with `SKILL.md` and a
-`references/` markdown file using the standard output filename.
+If you pass `--output report.md`, Compendium Scribe writes:
 
-### 4. Render formats from existing XML
+- `report.md` or the requested render formats
+- `report.research.json`
+- `report.costs.json`
 
-If you have an existing XML compendium (e.g., `my-topic.xml`), you can re-render it into other formats:
+Without `--output`, the base name is the slugified topic plus a UTC timestamp.
+
+### 4. Recover a research run
+
+Recovery resumes from the next incomplete stage in the sidecar state file:
+
+```bash
+pdm run compendium recover --input report.research.json
+```
+
+The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
+
+### 5. Render formats from existing XML
 
 ```bash
 pdm run compendium render my-topic.xml --format html
 ```
 
-**Options:**
+Options:
 
-- `--format FORMAT` — Output format(s) to generate (`md`, `xml`, `html`, `pdf`, `skill`).
-- `--output PATH` — Base path/filename for the output.
-
-### 5. Recover from a timeout
-
-If a research task times out (exceeding `MAX_POLL_TIME_IN_MINUTES`), recovery information is saved to `timed_out_research.json`. You can resume checking for its completion without starting over:
-
-```bash
-pdm run compendium recover
-```
-
-**Options:**
-
-- `--input PATH` — Path to the recovery JSON file (defaults to `timed_out_research.json`).
+- `--format FORMAT` - Output format(s) to generate: `md`, `xml`, `html`, `pdf`, `skill`.
+- `--output PATH` - Base path/filename for the output.
 
 ---
 
@@ -102,20 +102,17 @@ try:
     compendium = build_compendium(
         "Emerging pathogen surveillance",
         config=ResearchConfig(
-            background=False, 
-            max_tool_calls=30,
-            max_poll_time_minutes=15,
+            research_agent_model="gpt-5.4",
+            verifier_agent_model="gpt-5.4",
+            synthesis_agent_model="gpt-5.4",
         ),
     )
-except DeepResearchError as exc:
-    # Handle or log deep research failures
+except DeepResearchError:
     raise
 
 xml_payload = compendium.to_xml_string()
-
-# Alternate exports
 markdown_doc = compendium.to_markdown()
-html_files = compendium.to_html_site()  # Returns dict of filename -> content
+html_files = compendium.to_html_site()
 pdf_bytes = compendium.to_pdf_bytes()
 ```
 
@@ -128,61 +125,52 @@ The returned `Compendium` object contains structured sections, insights, citatio
 Compendium Scribe produces XML shaped like:
 
 ```xml
-<compendium topic="Lithium-ion Battery Recycling" generated_at="2025-01-07T14:32:33+00:00">
+<compendium topic="Lithium-ion Battery Recycling" generated_at="2026-04-23T14:32:33+00:00">
   <overview><![CDATA[Comprehensive synthesis of the state of lithium-ion recycling...]]></overview>
   <methodology>
-    <step><![CDATA[Surveyed peer-reviewed literature from 2022–2025]]></step>
-    <step><![CDATA[Corroborated industrial capacity data with regulatory filings]]></step>
+    <step><![CDATA[Surveyed peer-reviewed literature and company disclosures.]]></step>
   </methodology>
   <sections>
     <section id="S01">
       <title><![CDATA[Technology Landscape]]></title>
       <summary><![CDATA[Dominant recycling modalities and throughput metrics...]]></summary>
-      <key_terms>
-        <term><![CDATA[hydrometallurgy]]></term>
-        <term><![CDATA[direct recycling]]></term>
-      </key_terms>
-      <guiding_questions>
-        <question><![CDATA[Which processes yield the highest cobalt recovery rates?]]></question>
-      </guiding_questions>
       <insights>
         <insight>
           <title><![CDATA[Hydrometallurgy remains the throughput leader]]></title>
-          <evidence><![CDATA[EPRI 2024 data shows >95% cobalt recovery in commercial plants.]]></evidence>
-          <implications><![CDATA[Capital efficiency favors hydrometallurgy for near-term scaling.]]></implications>
+          <evidence><![CDATA[Commercial operators report high recovery rates for core battery metals.]]></evidence>
           <citations>
-            <ref>C1</ref>
+            <ref>C01</ref>
           </citations>
         </insight>
       </insights>
     </section>
   </sections>
   <citations>
-    <citation id="C1">
-      <title><![CDATA[EPRI Lithium-ion Recycling Benchmarking 2024]]></title>
-      <url><![CDATA[https://example.com/epri-li-benchmark]]></url>
-      <publisher><![CDATA[EPRI]]></publisher>
-      <published_at><![CDATA[2024-09-01]]></published_at>
-      <summary><![CDATA[Performance metrics for recycling modalities across 12 facilities.]]></summary>
+    <citation id="C01">
+      <title><![CDATA[Example Recycling Benchmark]]></title>
+      <url><![CDATA[https://example.com/recycling-benchmark]]></url>
+      <publisher><![CDATA[Example Publisher]]></publisher>
     </citation>
   </citations>
-  <open_questions>
-    <question><![CDATA[How will policy incentives shape regional plant siting post-2025?]]></question>
-  </open_questions>
 </compendium>
 ```
-
-This format is intentionally verbose to support downstream transformation. Markdown links within text (e.g., `[Label](URL)`) are preserved in the XML to ensure they render correctly in final outputs.
 
 ---
 
 ## Testing & Quality
 
-- `pdm run test` — Executes the unit suite. Tests stub the OpenAI client, so they run offline.
-- `pdm run lint` — Linting.
-- `pdm build` — Produce distributable artifacts.
+- `pdm run test` - Executes the unit suite. Tests stub Agents SDK runs, so they run offline.
+- `pdm run lint` - Linting.
+- `pdm run ruff check src tests` - Direct lint command.
+- `pdm build` - Produce distributable artifacts.
 
-If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to a writable directory (for example, `export PDM_HOME=.pdm_home`).
+Before marking implementation work complete, run:
+
+```bash
+pdm run pytest
+pdm run ruff check src tests
+pdm build
+```
 
 ---
 
@@ -191,8 +179,5 @@ If `pdm` fails to write log files in restricted environments, set `PDM_HOME` to 
 1. Fork and clone the repository.
 2. Run `pdm install --group dev`.
 3. Make changes following the style guide and update/add tests.
-4. Run `pdm run test` and `pdm run lint`.
-5. Raise a pull request with:
-   - A concise description of the change.
-   - Verification commands executed locally.
-   - Representative XML samples if the user-facing structure changes.
+4. Run `pdm run pytest`, `pdm run ruff check src tests`, and `pdm build`.
+5. Raise a pull request with a concise description, verification commands, and representative output samples when user-facing structure changes.

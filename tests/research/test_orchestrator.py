@@ -1,238 +1,335 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
+import pytest
+
+from compendiumscribe.research.agents_workflow import (
+    AgentRunResult,
+    CompendiumPayload,
+    ResearchAgenda,
+    ResearchPlan,
+    ResearchSection,
+    SectionResearchBrief,
+    VerificationIssue,
+    VerificationReport,
+    load_state,
+)
 from compendiumscribe.research.config import ResearchConfig
+from compendiumscribe.research.costs import CostPricing, CostTracker
+from compendiumscribe.research.errors import DeepResearchError
 from compendiumscribe.research.orchestrator import build_compendium
 
 
-class FakeResponse:
+class StubAgentRunner:
     def __init__(
         self,
         *,
-        output_text=None,
-        output=None,
-        status="completed",
-        response_id="resp_1",
-    ):
-        self.output_text = output_text
-        self.output = output or []
-        self.status = status
-        self.id = response_id
+        verification_reports: list[VerificationReport] | None = None,
+        final_payload: CompendiumPayload | None = None,
+    ) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self.verification_reports = verification_reports or [
+            VerificationReport(status="accepted")
+        ]
+        self.final_payload = final_payload or sample_payload()
 
-
-class FakeResponsesAPI:
-    def __init__(self, plan_json: str, research_json: str):
-        self.plan_json = plan_json
-        self.research_json = research_json
-        self.calls: list[dict[str, str]] = []
-
-    def create(self, **kwargs):
-        model = kwargs.get("model")
-        self.calls.append(
-            {"model": model, "input": kwargs.get("input", "")}
+    async def run(
+        self,
+        agent: Any,
+        input_payload: str,
+        *,
+        max_turns: int,
+    ) -> AgentRunResult:
+        name = agent.name
+        self.calls.append((name, input_payload))
+        index = len(self.calls)
+        response = SimpleNamespace(
+            response_id=f"resp_{index}",
+            usage={
+                "input_tokens": 100,
+                "input_tokens_details": {"cached_tokens": 10},
+                "output_tokens": 40,
+                "output_tokens_details": {"reasoning_tokens": 5},
+            },
+            output=(
+                [{"type": "web_search_call"}]
+                if name
+                in {
+                    "ResearchManagerAgent",
+                    "SectionResearchAgent",
+                    "VerifierAgent",
+                }
+                else []
+            ),
+        )
+        output = self._output_for(name, input_payload)
+        return AgentRunResult(
+            final_output=output,
+            raw_result=SimpleNamespace(raw_responses=[response]),
         )
 
-        # Updated to match project defaults (e.g. gpt-5.2)
-        if model in {"gpt-5.2", "gpt-4.1", "gpt-4.1-mini"}:
-            return FakeResponse(
-                output_text=self.plan_json,
-                response_id="plan_1",
-            )
-
-        if model == "o3-deep-research":
-            output = [
-                {
-                    "type": "web_search_call",
-                    "id": "ws_1",
-                    "status": "completed",
-                    "action": {
-                        "type": "search",
-                        "query": "quantum computing breakthroughs",
-                    },
-                },
-                {
-                    "type": "message",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": self.research_json,
-                        }
-                    ],
-                },
-            ]
-            return FakeResponse(
-                output=output,
-                status="completed",
-                response_id="research_1",
-            )
-
-        raise AssertionError(f"Unexpected model request: {model}")
-
-    def retrieve(self, response_id: str):
-        raise AssertionError(
-            f"retrieve called unexpectedly for {response_id}"
-        )
+    def _output_for(self, name: str, input_payload: str) -> Any:
+        if name == "PlannerAgent":
+            return sample_plan()
+        if name == "ResearchManagerAgent":
+            return sample_agenda()
+        if name == "SectionResearchAgent":
+            payload = json.loads(input_payload)
+            return sample_brief(payload["section"]["id"])
+        if name == "VerifierAgent":
+            return self.verification_reports.pop(0)
+        if name == "SynthesisAgent":
+            return self.final_payload
+        raise AssertionError(f"Unexpected agent: {name}")
 
 
-class FakeOpenAI:
-    def __init__(self, plan_json: str, research_json: str):
-        self.responses = FakeResponsesAPI(plan_json, research_json)
-
-
-def test_build_compendium_with_stub_client():
-    plan = {
-        "title": "Quantum Computing Compendium",
-        "primary_objective": "Build a comprehensive compendium",
-        "audience": "Strategic leadership teams",
-        "key_sections": [
-            {"title": "Context", "focus": "Historical milestones"},
-            {"title": "Applications", "focus": "Practical deployments"},
+def sample_plan() -> ResearchPlan:
+    return ResearchPlan(
+        title="Quantum Computing Compendium",
+        primary_objective="Explain the field with sources.",
+        audience="Strategic teams",
+        key_sections=[
+            ResearchSection(
+                id="foundations",
+                title="Foundations",
+                focus="Core technology and milestones.",
+                guiding_questions=["What changed recently?"],
+            ),
+            ResearchSection(
+                id="applications",
+                title="Applications",
+                focus="Commercial deployments.",
+                guiding_questions=["Where is it used?"],
+            ),
         ],
-        "research_questions": [
-            "What breakthroughs unlocked current capabilities?",
-            "Who are the leading vendors?",
-        ],
-        "methodology_preferences": [
-            "Verify each statistic using at least two sources",
-            "Prioritize materials from 2022 onward",
-        ],
-    }
+        research_questions=["What evidence supports adoption?"],
+    )
 
-    research_payload = {
-        "topic_overview": (
-            "Quantum computing is transitioning from lab prototypes to early"
-            " commercial pilots."
-        ),
-        "methodology": [
-            "Surveyed public filings and analyst coverage",
-            "Aggregated investment data across multiple trackers",
-        ],
-        "sections": [
+
+def sample_agenda() -> ResearchAgenda:
+    return ResearchAgenda(
+        sections=sample_plan().key_sections,
+        source_strategy=["Use primary sources first."],
+        verification_focus=["Check source coverage."],
+    )
+
+
+def sample_brief(section_id: str) -> SectionResearchBrief:
+    return SectionResearchBrief(
+        section_id=section_id,
+        title=section_id.title(),
+        summary=f"Summary for {section_id}.",
+        findings=[
             {
-                "id": "S1",
-                "title": "Technological Foundations",
-                "summary": (
-                    "Hardware approaches and error correction challenges"
-                ),
-                "key_terms": ["superconducting qubits"],
-                "guiding_questions": [
-                    "Which modalities show the most promise?"
-                ],
+                "title": "Roadmaps are more concrete",
+                "evidence": "Vendors publish target milestones.",
+                "source_urls": ["https://example.com/source"],
+            }
+        ],
+        sources=[
+            {
+                "title": "Source",
+                "url": "https://example.com/source?utm=tracking",
+                "publisher": "Example",
+                "status": "consulted",
+            }
+        ],
+    )
+
+
+def sample_payload() -> CompendiumPayload:
+    return CompendiumPayload(
+        topic_overview="Quantum computing is moving into pilots.",
+        methodology=["Reviewed primary sources."],
+        sections=[
+            {
+                "id": "foundations",
+                "title": "Foundations",
+                "summary": "Technology summary.",
                 "insights": [
                     {
-                        "title": (
-                            "Superconducting qubits dominate near-term "
-                            "roadmaps"
-                        ),
-                        "evidence": (
-                            "IBM and Google published roadmaps targeting >1000"
-                            " qubits with heavy error mitigation by 2025."
-                        ),
-                        "implications": (
-                            "Vendor lock-in may increase as proprietary"
-                            " control stacks mature."
-                        ),
-                        "citations": ["C1", "C2"],
+                        "title": "Roadmaps are concrete",
+                        "evidence": "Vendors publish milestones.",
+                        "citations": ["C01"],
                     }
                 ],
             }
         ],
-        "citations": [
+        citations=[
             {
-                "id": "C1",
-                "title": "IBM Quantum Roadmap",
-                "url": "https://example.com/ibm-roadmap",
-                "publisher": "IBM",
-                "published_at": "2023-12-01",
-                "summary": "Targets for qubit scaling and error mitigation.",
-            },
-            {
-                "id": "C2",
-                "title": "Google Quantum AI Progress Update",
-                "url": "https://example.com/google-qa",
-                "publisher": "Google",
-                "published_at": "2024-02-10",
-                "summary": "Highlights on achieving reduced error rates.",
-            },
+                "id": "C01",
+                "title": "Source",
+                "url": "https://example.com/source",
+                "publisher": "Example",
+            }
         ],
-        "open_questions": [
-            "How will supply chains support dilution refrigerators at scale?"
-        ],
-    }
+    )
 
-    client = FakeOpenAI(json.dumps(plan), json.dumps(research_payload))
-    config = ResearchConfig(background=False)
+
+def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
+    runner = StubAgentRunner()
+    state_path = tmp_path / "report.research.json"
 
     compendium = build_compendium(
         "Quantum Computing",
-        client=client,
-        config=config,
+        config=ResearchConfig(),
+        runner=runner,
+        state_path=state_path,
+        output_formats=["md", "xml"],
     )
 
-    assert compendium.overview.startswith(
-        "Quantum computing is transitioning"
-    )
-    assert compendium.sections[0].insights[0].citation_refs == ["C1", "C2"]
-    assert (
-        compendium.citations[1].title
-        == "Google Quantum AI Progress Update"
-    )
     assert compendium.topic == "Quantum Computing Compendium"
-    assert not hasattr(compendium, "trace")
-    assert len(client.responses.calls) == 2
-    # The input is now a list of message objects
-    research_input = client.responses.calls[1]["input"]
-    assert isinstance(research_input, list)
-    # Check if we can find the topic in the content of the user message.
-    # The content structure varies (str or list of parts) depending on the
-    # source.
-    # We perform a robust check against both formats.
-    found = False
-    for msg in research_input:
-        content = msg.get("content", "")
-        if isinstance(content, list):
-            # It's a list of parts, e.g.
-            # [{"type": "input_text", "text": "..."}]
-            for part in content:
-                if "Quantum Computing" in part.get("text", ""):
-                    found = True
-                    break
-        elif isinstance(content, str):
-            if "Quantum Computing" in content:
-                found = True
-
-        if found:
-            break
-
-    assert found, "Topic not found in research call input"
+    assert compendium.sections[0].insights[0].citation_refs == ["C01"]
+    assert state_path.exists()
+    state = load_state(state_path)
+    assert state.plan is not None
+    assert state.agenda is not None
+    assert set(state.section_briefs) == {"foundations", "applications"}
+    assert state.ledger.entries[0].id == "C01"
+    assert state.final_payload is not None
+    assert [name for name, _ in runner.calls] == [
+        "PlannerAgent",
+        "ResearchManagerAgent",
+        "SectionResearchAgent",
+        "SectionResearchAgent",
+        "VerifierAgent",
+        "SynthesisAgent",
+    ]
 
 
-def test_build_compendium_emits_progress_updates():
-    plan = {"primary_objective": "Capture topic"}
-    research_payload = {
-        "topic_overview": "Overview",
-        "methodology": [],
-        "sections": [],
-        "citations": [],
-        "open_questions": [],
-    }
-
-    client = FakeOpenAI(json.dumps(plan), json.dumps(research_payload))
-    captured: list = []
-
-    def capture_progress(update):
-        captured.append(update)
-
-    config = ResearchConfig(
-        background=False,
-        progress_callback=capture_progress,
+def test_verifier_follow_up_reruns_only_targeted_section_once(
+    tmp_path: Path,
+) -> None:
+    runner = StubAgentRunner(
+        verification_reports=[
+            VerificationReport(
+                status="follow_up",
+                follow_up_section_ids=["applications"],
+                issues=[
+                    VerificationIssue(
+                        section_id="applications",
+                        message="Needs more source diversity.",
+                    )
+                ],
+            ),
+            VerificationReport(status="accepted"),
+        ]
     )
 
-    build_compendium("Test Topic", client=client, config=config)
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=runner,
+        state_path=tmp_path / "report.research.json",
+    )
 
-    assert captured, "Expected progress callback to receive updates"
-    phases = {event.phase for event in captured}
+    section_calls = [
+        json.loads(payload)["section"]["id"]
+        for name, payload in runner.calls
+        if name == "SectionResearchAgent"
+    ]
+    assert section_calls == ["foundations", "applications", "applications"]
+
+
+def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    runner = StubAgentRunner(
+        verification_reports=[
+            VerificationReport(
+                status="failed",
+                issues=[VerificationIssue(message="Source coverage failed.")],
+            )
+        ]
+    )
+
+    with pytest.raises(DeepResearchError, match="Source coverage failed"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=state_path,
+        )
+
+    state = load_state(state_path)
+    assert state.verification is not None
+    assert state.verification.status == "failed"
+    assert state.final_payload is None
+
+
+def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    first_runner = StubAgentRunner()
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=first_runner,
+        state_path=state_path,
+    )
+
+    state = load_state(state_path)
+    state.final_payload = None
+    state.completed_stages.remove("synthesis")
+    state_path.write_text(
+        state.model_dump_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    second_runner = StubAgentRunner()
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=second_runner,
+        state_path=state_path,
+    )
+
+    assert [name for name, _ in second_runner.calls] == ["SynthesisAgent"]
+
+
+def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
+    bad_payload = sample_payload()
+    bad_payload.sections[0].insights[0].citations = ["C99"]
+    runner = StubAgentRunner(final_payload=bad_payload)
+
+    with pytest.raises(ValueError, match="unknown citation IDs"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=tmp_path / "report.research.json",
+        )
+
+
+def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
+    captured = []
+    tracker = CostTracker(
+        path=tmp_path / "report.costs.json",
+        pricing=CostPricing(
+            input_per_1m_usd=None,
+            cached_input_per_1m_usd=None,
+            output_per_1m_usd=None,
+        ),
+    )
+
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(progress_callback=captured.append),
+        runner=StubAgentRunner(),
+        state_path=tmp_path / "report.research.json",
+        cost_tracker=tracker,
+    )
+
+    costs = json.loads((tmp_path / "report.costs.json").read_text())
+    assert len(costs["steps"]) == 6
+    assert costs["totals"]["input_tokens"] == 600
+    assert costs["totals"]["tool_calls"]["web_search_call"] == 4
+    phases = [event.phase for event in captured]
     assert "planning" in phases
-    assert "deep_research" in phases
-    assert any(event.status == "completed" for event in captured)
+    assert "research_agenda" in phases
+    assert "section_research" in phases
+    assert "verification" in phases
+    assert "synthesis" in phases
+    assert "completion" in phases

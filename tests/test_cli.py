@@ -25,7 +25,14 @@ def mock_build_compendium():
             "index.html": "<html>Index</html>",
         }
         compendium.to_pdf_bytes.return_value = b"PDF Content"
-        mock_build.return_value = compendium
+
+        def build_side_effect(*_args, **kwargs):
+            state_path = kwargs.get("state_path")
+            if state_path is not None:
+                state_path.write_text("{}", encoding="utf-8")
+            return compendium
+
+        mock_build.side_effect = build_side_effect
         yield mock_build
 
 
@@ -60,15 +67,17 @@ def test_cli_create_default_format_is_markdown(
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli,
-            ["create", "Test Topic", "--no-background"],
+            ["create", "Test Topic"],
         )
         assert result.exit_code == 0, result.output
 
         # Should generate a markdown file by default
         files = list(Path(".").glob("*.md"))
         assert len(files) == 1
-        assert "test-title" in files[0].name
+        assert "test-topic" in files[0].name
         assert files[0].read_text() == "# Markdown Content"
+        assert len(list(Path(".").glob("*.research.json"))) == 1
+        assert len(list(Path(".").glob("*.costs.json"))) == 1
 
 
 def test_cli_create_format_xml(
@@ -79,7 +88,7 @@ def test_cli_create_format_xml(
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli,
-            ["create", "Test Topic", "--format", "xml", "--no-background"],
+            ["create", "Test Topic", "--format", "xml"],
         )
         assert result.exit_code == 0
 
@@ -103,7 +112,6 @@ def test_cli_create_multiple_formats(
                 "md",
                 "--format",
                 "pdf",
-                "--no-background",
             ],
         )
         assert result.exit_code == 0
@@ -126,7 +134,6 @@ def test_cli_create_output_path_override(
                 "Test Topic",
                 "--output",
                 "custom_report.txt",
-                "--no-background",
             ],
         )
         assert result.exit_code == 0
@@ -144,7 +151,7 @@ def test_cli_create_html_format_creates_directory(
     with runner.isolated_filesystem():
         result = runner.invoke(
             cli,
-            ["create", "Test Topic", "--format", "html", "--no-background"],
+            ["create", "Test Topic", "--format", "html"],
         )
         assert result.exit_code == 0
 
@@ -152,7 +159,7 @@ def test_cli_create_html_format_creates_directory(
         dirs = [d for d in Path(".").iterdir() if d.is_dir()]
         assert len(dirs) == 1
         site_dir = dirs[0]
-        assert "test-title" in site_dir.name
+        assert "test-topic" in site_dir.name
 
         # Check expected files exist in the directory
         assert (site_dir / "index.html").exists()
@@ -192,7 +199,6 @@ def test_cli_create_skill_format(
                 "skill",
                 "--output",
                 "report.md",
-                "--no-background",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -228,7 +234,6 @@ def test_cli_create_skill_failure_writes_markdown(
                 "Test Topic",
                 "--format",
                 "skill",
-                "--no-background",
             ],
         )
         assert result.exit_code != 0
@@ -237,6 +242,61 @@ def test_cli_create_skill_failure_writes_markdown(
         assert len(markdown_files) == 1
         assert markdown_files[0].read_text() == "# Markdown Content"
         assert "Skill generation failed" in result.output
+
+
+def test_cli_create_rejects_removed_legacy_flags(runner):
+    result = runner.invoke(
+        cli,
+        ["create", "Test Topic", "--no-background"],
+    )
+    assert result.exit_code != 0
+    assert "No such option: --no-background" in result.output
+
+    result = runner.invoke(
+        cli,
+        ["create", "Test Topic", "--max-tool-calls", "2"],
+    )
+    assert result.exit_code != 0
+    assert "No such option: --max-tool-calls" in result.output
+
+
+def test_cli_recover_uses_research_sidecar(
+    runner,
+    mock_create_client,
+):
+    from compendiumscribe.research.agents_workflow import ResearchRunState
+
+    with mock.patch(
+        "compendiumscribe.cli.recover_compendium"
+    ) as mock_recover:
+        compendium = mock.Mock(spec=Compendium)
+        compendium.topic = "Recovered"
+        compendium.sections = []
+        compendium.to_markdown.return_value = "# Recovered"
+        mock_recover.return_value = compendium
+
+        with runner.isolated_filesystem():
+            state = ResearchRunState(
+                topic="Recovered",
+                title="Recovered",
+                output_formats=["md"],
+                cost_report_path="report.costs.json",
+            )
+            state_path = Path("report.research.json")
+            state_path.write_text(
+                state.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
+
+            result = runner.invoke(
+                cli,
+                ["recover", "--input", str(state_path)],
+            )
+
+            assert result.exit_code == 0, result.output
+            assert Path("report.md").read_text() == "# Recovered"
+            assert Path("report.costs.json").exists()
+            mock_recover.assert_called_once()
 
 
 def test_cli_render_html(tmp_path):
