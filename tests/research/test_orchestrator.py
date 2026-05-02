@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest import mock
 
 import pytest
 
@@ -20,7 +22,10 @@ from compendiumscribe.research.agents_workflow import (
 )
 from compendiumscribe.research.config import ResearchConfig
 from compendiumscribe.research.costs import CostPricing, CostTracker
-from compendiumscribe.research.errors import DeepResearchError
+from compendiumscribe.research.errors import (
+    DeepResearchError,
+    MissingConfigurationError,
+)
 from compendiumscribe.research.orchestrator import build_compendium
 
 
@@ -199,6 +204,29 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
         "VerifierAgent",
         "SynthesisAgent",
     ]
+
+
+def test_build_compendium_requires_model_config_before_workflow_setup(
+    tmp_path: Path,
+) -> None:
+    runner = StubAgentRunner()
+    state_path = tmp_path / "report.research.json"
+
+    with mock.patch.dict(os.environ, {}, clear=True):
+        with pytest.raises(MissingConfigurationError) as exc_info:
+            build_compendium(
+                "Quantum Computing",
+                runner=runner,
+                state_path=state_path,
+            )
+
+    message = str(exc_info.value)
+    assert "PLANNER_AGENT_MODEL" in message
+    assert "RESEARCH_AGENT_MODEL" in message
+    assert "VERIFIER_AGENT_MODEL" in message
+    assert "SYNTHESIS_AGENT_MODEL" in message
+    assert runner.calls == []
+    assert not state_path.exists()
 
 
 def test_verifier_follow_up_reruns_only_targeted_section_once(

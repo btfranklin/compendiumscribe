@@ -4,7 +4,7 @@ from click.testing import CliRunner
 from pathlib import Path
 from unittest import mock
 from compendiumscribe.cli import cli
-from compendiumscribe.compendium import Compendium
+from compendiumscribe.compendium import Citation, Compendium, Section
 
 
 @pytest.fixture
@@ -18,9 +18,28 @@ def mock_build_compendium():
         compendium = mock.Mock(spec=Compendium)
         compendium.topic = "Test Title"
         compendium.overview = "Overview text."
-        compendium.sections = []
+        compendium.methodology = []
+        compendium.sections = [
+            Section(
+                identifier="sec-1",
+                title="Test Section",
+                summary="Section summary.",
+                key_terms=["testing"],
+            )
+        ]
+        compendium.citations = [
+            Citation(
+                identifier="C1",
+                title="Example Source",
+                url="https://example.com/source",
+            )
+        ]
+        compendium.open_questions = []
         compendium.to_markdown.return_value = "# Markdown Content"
-        compendium.to_xml_string.return_value = "<xml>Content</xml>"
+        compendium.to_xml_string.return_value = (
+            '<compendium topic="Test Title"><overview>Overview text.'
+            "</overview></compendium>"
+        )
         compendium.to_html_site.return_value = {
             "index.html": "<html>Index</html>",
         }
@@ -44,21 +63,6 @@ def mock_create_client():
         yield mock_client
 
 
-class DummyResponses:
-    def __init__(self, payloads: list[dict[str, str]]):
-        self._payloads = list(payloads)
-
-    def create(self, **_kwargs):
-        if not self._payloads:
-            raise RuntimeError("No more responses configured.")
-        return self._payloads.pop(0)
-
-
-class DummyClient:
-    def __init__(self, payloads: list[dict[str, str]]):
-        self.responses = DummyResponses(payloads)
-
-
 def test_cli_create_default_format_is_markdown(
     runner,
     mock_build_compendium,
@@ -78,6 +82,8 @@ def test_cli_create_default_format_is_markdown(
         assert files[0].read_text() == "# Markdown Content"
         assert len(list(Path(".").glob("*.research.json"))) == 1
         assert len(list(Path(".").glob("*.costs.json"))) == 1
+        assert not Path("catalog.json").exists()
+        assert not Path("compendiums").exists()
 
 
 def test_cli_create_format_xml(
@@ -94,7 +100,10 @@ def test_cli_create_format_xml(
 
         files = list(Path(".").glob("*.xml"))
         assert len(files) == 1
-        assert files[0].read_text() == "<xml>Content</xml>"
+        assert files[0].read_text() == (
+            '<compendium topic="Test Title"><overview>Overview text.'
+            "</overview></compendium>"
+        )
 
 
 def test_cli_create_multiple_formats(
@@ -143,6 +152,50 @@ def test_cli_create_output_path_override(
         assert expected_file.exists()
 
 
+def test_cli_create_with_library_writes_outputs_and_library(
+    runner,
+    mock_build_compendium,
+    mock_create_client,
+):
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            [
+                "create",
+                "Test Topic",
+                "--output",
+                "custom_report.md",
+                "--library",
+                "library",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+
+        assert Path("custom_report.md").read_text(
+            encoding="utf-8"
+        ) == "# Markdown Content"
+        catalog_path = Path("library/catalog.json")
+        card_path = Path("library/compendiums/test-title/card.json")
+        xml_path = Path("library/compendiums/test-title/compendium.xml")
+        markdown_path = Path("library/compendiums/test-title/compendium.md")
+        assert catalog_path.exists()
+        assert card_path.exists()
+        assert xml_path.exists()
+        assert markdown_path.exists()
+
+        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+        assert catalog["entries"][0]["id"] == "test-title"
+        assert catalog["entries"][0]["path"] == (
+            "compendiums/test-title/compendium.xml"
+        )
+        assert markdown_path.read_text(encoding="utf-8") == (
+            "# Markdown Content"
+        )
+        assert "Compendium published to library entry 'test-title'" in (
+            result.output
+        )
+
+
 def test_cli_create_html_format_creates_directory(
     runner,
     mock_build_compendium,
@@ -165,83 +218,6 @@ def test_cli_create_html_format_creates_directory(
         assert (site_dir / "index.html").exists()
 
         assert (site_dir / "index.html").read_text() == "<html>Index</html>"
-
-
-def test_cli_create_skill_format(
-    runner,
-    mock_build_compendium,
-    mock_create_client,
-):
-    name_payload = {
-        "name": "test-skill",
-        "description": "Use when analyzing test topics.",
-    }
-    skill_markdown = (
-        "---\n"
-        "name: test-skill\n"
-        "description: Use when analyzing test topics.\n"
-        "---\n\n"
-        "Read `references/report.md` before responding.\n"
-    )
-    payloads = [
-        {"output_text": json.dumps(name_payload)},
-        {"output_text": json.dumps({"skill_markdown": skill_markdown})},
-    ]
-    mock_create_client.return_value = DummyClient(payloads)
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli,
-            [
-                "create",
-                "Test Topic",
-                "--format",
-                "skill",
-                "--output",
-                "report.md",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-
-        skill_dir = Path("test-skill")
-        assert skill_dir.is_dir()
-        skill_file = skill_dir / "SKILL.md"
-        assert skill_file.read_text(encoding="utf-8") == skill_markdown
-
-        references = list((skill_dir / "references").glob("*.md"))
-        assert len(references) == 1
-        assert references[0].name == "report.md"
-        assert references[0].read_text() == "# Markdown Content"
-
-
-def test_cli_create_skill_failure_writes_markdown(
-    runner,
-    mock_build_compendium,
-    mock_create_client,
-):
-    payloads = [
-        {"output_text": "not json"},
-        {"output_text": "still not json"},
-        {"output_text": "nope"},
-    ]
-    mock_create_client.return_value = DummyClient(payloads)
-
-    with runner.isolated_filesystem():
-        result = runner.invoke(
-            cli,
-            [
-                "create",
-                "Test Topic",
-                "--format",
-                "skill",
-            ],
-        )
-        assert result.exit_code != 0
-
-        markdown_files = list(Path(".").glob("*.md"))
-        assert len(markdown_files) == 1
-        assert markdown_files[0].read_text() == "# Markdown Content"
-        assert "Skill generation failed" in result.output
 
 
 def test_cli_create_rejects_removed_legacy_flags(runner):
@@ -299,6 +275,54 @@ def test_cli_recover_uses_research_sidecar(
             mock_recover.assert_called_once()
 
 
+def test_cli_library_import_writes_catalog_and_compendium_files(
+    runner,
+):
+    with runner.isolated_filesystem():
+        xml_path = Path("existing.xml")
+        xml_path.write_text(
+            """<compendium topic="Imported Topic">
+  <overview>Imported overview.</overview>
+  <sections>
+    <section id="s1">
+      <title>Imported Section</title>
+      <summary>Imported summary.</summary>
+    </section>
+  </sections>
+</compendium>""",
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            ["library", "import", "library", str(xml_path)],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "Imported 'Imported Topic' as library entry" in result.output
+        catalog = json.loads(
+            Path("library/catalog.json").read_text(encoding="utf-8")
+        )
+        assert catalog["entries"][0]["id"] == "imported-topic"
+        assert Path(
+            "library/compendiums/imported-topic/compendium.xml"
+        ).exists()
+        assert Path(
+            "library/compendiums/imported-topic/compendium.md"
+        ).exists()
+        assert Path("library/compendiums/imported-topic/card.json").exists()
+
+        second = runner.invoke(
+            cli,
+            ["library", "import", "library", str(xml_path)],
+        )
+        assert second.exit_code == 0, second.output
+        catalog = json.loads(
+            Path("library/catalog.json").read_text(encoding="utf-8")
+        )
+        assert len(catalog["entries"]) == 1
+
+
 def test_cli_render_html(tmp_path):
     """Verify render subcommand creates an HTML site from XML."""
     runner = CliRunner()
@@ -331,49 +355,6 @@ def test_cli_render_html(tmp_path):
     assert site_dir.is_dir()
     assert (site_dir / "index.html").exists()
     assert (site_dir / "sections/s1.html").exists()
-
-
-def test_cli_render_skill(tmp_path, mock_create_client):
-    """Verify render subcommand creates a skill folder from XML."""
-    runner = CliRunner()
-
-    xml_content = """<compendium topic="Skill Topic">
-  <overview>Overview content</overview>
-</compendium>"""
-    input_file = tmp_path / "skill_test.xml"
-    input_file.write_text(xml_content, encoding="utf-8")
-
-    name_payload = {
-        "name": "skill-builder",
-        "description": "Build skills from structured research.",
-    }
-    skill_markdown = (
-        "---\n"
-        "name: skill-builder\n"
-        "description: Build skills from structured research.\n"
-        "---\n\n"
-        "Read `references/skill_test.md` before responding.\n"
-    )
-    payloads = [
-        {"output_text": json.dumps(name_payload)},
-        {"output_text": json.dumps({"skill_markdown": skill_markdown})},
-    ]
-    mock_create_client.return_value = DummyClient(payloads)
-
-    result = runner.invoke(
-        cli,
-        ["render", str(input_file), "--format", "skill"],
-    )
-
-    assert result.exit_code == 0, result.output
-    skill_dir = tmp_path / "skill-builder"
-    assert skill_dir.is_dir()
-    assert (skill_dir / "SKILL.md").read_text(
-        encoding="utf-8"
-    ) == skill_markdown
-    assert (
-        skill_dir / "references" / "skill_test.md"
-    ).exists()
 
 
 def test_cli_render_markdown(tmp_path):

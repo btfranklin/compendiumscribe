@@ -8,6 +8,11 @@ from .create_llm_clients import (
     MissingAPIKeyError,
     create_openai_client,
 )
+from .library import (
+    LibraryError,
+    import_compendium_xml,
+    publish_compendium,
+)
 from .research import (
     DeepResearchError,
     MissingConfigurationError,
@@ -18,12 +23,6 @@ from .research import (
 )
 from .research.costs import CostPricing, CostTracker
 from .research.pricing import resolve_model_pricing
-from .skill_output import (
-    SkillConfig,
-    SkillGenerationError,
-    SkillProgress,
-    render_skill_folder,
-)
 
 
 @click.group()
@@ -43,7 +42,7 @@ def cli() -> None:
     "--format",
     "formats",
     type=click.Choice(
-        ["md", "xml", "html", "pdf", "skill"], case_sensitive=False
+        ["md", "xml", "html", "pdf"], case_sensitive=False
     ),
     multiple=True,
     default=["md"],
@@ -52,10 +51,17 @@ def cli() -> None:
         "Output format(s). Can be specified multiple times."
     ),
 )
+@click.option(
+    "--library",
+    "library_path",
+    type=click.Path(path_type=Path, file_okay=False, writable=True),
+    help="Also publish the finished compendium into a library directory.",
+)
 def create(
     topic: str,
     output_path: Path | None,
     formats: tuple[str, ...],
+    library_path: Path | None,
 ):
     """Generate a research compendium for TOPIC."""
 
@@ -130,19 +136,17 @@ def create(
         click.echo(f"Unexpected error: {exc}", err=True)
         raise SystemExit(1) from exc
 
-    skill_config = None
-    skill_client = None
-    if "skill" in {fmt.lower() for fmt in formats}:
-        skill_config = SkillConfig()
-        skill_client = client
-
-    _write_outputs(
-        compendium,
-        base_path,
-        formats,
-        skill_client=skill_client,
-        skill_config=skill_config,
-    )
+    _write_outputs(compendium, base_path, formats)
+    if library_path is not None:
+        try:
+            entry = publish_compendium(compendium, library_path)
+        except LibraryError as exc:
+            click.echo(f"Library publish failed: {exc}", err=True)
+            raise SystemExit(1) from exc
+        click.echo(
+            "Compendium published to library entry "
+            f"'{entry.id}' at {library_path / entry.path}"
+        )
     _echo_cost_summary(cost_tracker)
 
 
@@ -245,7 +249,7 @@ def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
     "--format",
     "formats",
     type=click.Choice(
-        ["md", "xml", "html", "pdf", "skill"], case_sensitive=False
+        ["md", "xml", "html", "pdf"], case_sensitive=False
     ),
     multiple=True,
     default=["html"],
@@ -282,24 +286,37 @@ def render(
         # directory.
         base_path = input_file.parent / input_file.stem
 
-    skill_config = None
-    skill_client = None
-    if "skill" in {fmt.lower() for fmt in formats}:
-        try:
-            skill_config = SkillConfig(
-                progress_callback=_handle_skill_progress
-            )
-            skill_client = create_openai_client()
-        except MissingAPIKeyError as exc:
-            click.echo(f"Configuration error: {exc}", err=True)
-            raise SystemExit(1) from exc
+    _write_outputs(compendium, base_path, formats)
 
-    _write_outputs(
-        compendium,
-        base_path,
-        formats,
-        skill_client=skill_client,
-        skill_config=skill_config,
+
+@cli.group(name="library")
+def library_commands() -> None:
+    """Manage filesystem-backed compendium libraries."""
+
+
+@library_commands.command(name="import")
+@click.argument(
+    "library_path",
+    type=click.Path(path_type=Path, file_okay=False, writable=True),
+)
+@click.argument(
+    "compendium_xml",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+def library_import(library_path: Path, compendium_xml: Path) -> None:
+    """Import an existing XML compendium into LIBRARY_PATH."""
+
+    try:
+        entry = import_compendium_xml(
+            library_path=library_path,
+            compendium_xml=compendium_xml,
+        )
+    except LibraryError as exc:
+        click.echo(f"Library import failed: {exc}", err=True)
+        raise SystemExit(1) from exc
+    click.echo(
+        f"Imported '{entry.title}' as library entry '{entry.id}' "
+        f"at {library_path / entry.path}"
     )
 
 
@@ -329,12 +346,11 @@ def recover(input_file: Path):
     formats = tuple(state.output_formats or ["md"])
     click.echo(f"Recovering research state for '{title}'...")
 
-    config = ResearchConfig()
-    client = None
     cost_tracker: CostTracker | None = None
 
     try:
-        client = create_openai_client(timeout=config.request_timeout_seconds)
+        config = ResearchConfig()
+        create_openai_client(timeout=config.request_timeout_seconds)
         cost_path = (
             Path(state.cost_report_path)
             if state.cost_report_path
@@ -365,24 +381,13 @@ def recover(input_file: Path):
 
         base_path = _base_path_from_state_path(input_file)
 
-        skill_config = None
-        skill_client = None
-        if "skill" in {fmt.lower() for fmt in formats}:
-            skill_config = SkillConfig(
-                progress_callback=_handle_skill_progress
-            )
-            skill_client = client
-
-        _write_outputs(
-            compendium,
-            base_path,
-            formats,
-            skill_client=skill_client,
-            skill_config=skill_config,
-        )
+        _write_outputs(compendium, base_path, formats)
         _echo_cost_summary(cost_tracker)
 
     except MissingAPIKeyError as exc:
+        click.echo(f"Configuration error: {exc}", err=True)
+        raise SystemExit(1) from exc
+    except MissingConfigurationError as exc:
         click.echo(f"Configuration error: {exc}", err=True)
         raise SystemExit(1) from exc
     except DeepResearchError as exc:
@@ -397,49 +402,12 @@ def _write_outputs(
     compendium: "Compendium",
     base_path: Path,
     formats: tuple[str, ...],
-    *,
-    skill_client: object | None = None,
-    skill_config: SkillConfig | None = None,
 ) -> None:
     """Helper to write compendium outputs to disk."""
     unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
-    if "skill" in unique_formats:
-        unique_formats.remove("skill")
-        unique_formats.append("skill")
 
     for fmt in unique_formats:
-        if fmt == "skill":
-            if skill_client is None or skill_config is None:
-                raise click.ClickException(
-                    "Skill output requires an OpenAI client and config."
-                )
-            try:
-                skill_dir = render_skill_folder(
-                    compendium,
-                    base_path,
-                    skill_client,
-                    skill_config,
-                )
-                click.echo(f"Skill written to {skill_dir}/")
-            except SkillGenerationError as exc:
-                fallback_file = base_path.with_suffix(".md")
-                fallback_file.write_text(
-                    compendium.to_markdown(),
-                    encoding="utf-8",
-                )
-                click.echo(
-                    (
-                        "[!] Skill generation failed after "
-                        f"{skill_config.max_retries} attempts: {exc}"
-                    ),
-                    err=True,
-                )
-                click.echo(
-                    f"Wrote markdown fallback to {fallback_file}",
-                    err=True,
-                )
-                raise SystemExit(1) from exc
-        elif fmt == "html":
+        if fmt == "html":
             # HTML creates a directory of files
             site_dir = base_path.parent / base_path.name
             site_files = compendium.to_html_site()
@@ -463,6 +431,8 @@ def _write_outputs(
                 )
             elif fmt == "pdf":
                 target_file.write_bytes(compendium.to_pdf_bytes())
+            else:
+                raise click.ClickException(f"Unsupported output format: {fmt}")
 
             click.echo(f"Compendium written to {target_file}")
 
@@ -472,24 +442,6 @@ def _base_path_from_state_path(state_path: Path) -> Path:
     if name.endswith(".research.json"):
         return state_path.parent / name.removesuffix(".research.json")
     return state_path.with_suffix("")
-
-
-def _handle_skill_progress(update: SkillProgress) -> None:
-    timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
-    phase_label = update.phase.replace("_", " ").title()
-    status_label = update.status.replace("_", " ").title()
-    suffix = ""
-    meta = update.metadata or {}
-    if (
-        meta.get("attempt")
-        and meta.get("max_attempts")
-        and meta["attempt"] > 1
-    ):
-        suffix = f" (attempt {meta['attempt']}/{meta['max_attempts']})"
-    click.echo(
-        f"[{timestamp}] {phase_label}: "
-        f"{status_label}. {update.message}{suffix}"
-    )
 
 
 if __name__ == "__main__":  # pragma: no cover

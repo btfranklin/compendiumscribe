@@ -4,7 +4,7 @@
 
 [![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml) [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
 
-Compendium Scribe is a Click-driven command line tool and library that builds sourced research compendiums through a bounded OpenAI Agents SDK workflow. It decomposes a topic into planning, web research, verification, and synthesis stages, then renders the final `Compendium` as Markdown, XML, HTML, PDF, or an AI skill folder.
+Compendium Scribe is a Click-driven command line tool and library that builds sourced research compendiums through a bounded OpenAI Agents SDK workflow. It decomposes a topic into planning, web research, verification, and synthesis stages, then renders the final `Compendium` as Markdown, XML, HTML, or PDF.
 
 ---
 
@@ -15,9 +15,9 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
 - **Recoverable sidecars** - Writes `<base>.research.json` after accepted artifacts and `<base>.costs.json` for usage/cost telemetry.
-- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
+- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.5 and GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
+- **Compendium Library publishing** - Optionally publishes XML, Markdown, and metadata cards into a movable filesystem library with a root `catalog.json`.
 - **Re-rendering** - Ingest existing XML compendiums to generate new output formats without re-running research.
-- **Skill export** - Emits an AI agent skill folder with `SKILL.md` plus the compendium Markdown in `references/`.
 - **Offline tests** - The workflow uses a runner adapter so tests can stub Agents SDK runs without live API calls.
 
 ---
@@ -34,22 +34,22 @@ Ensure `PDM_HOME` points to a writable location when developing within a sandbox
 
 ### 2. Configure credentials
 
-Create a `.env` file (untracked) with your OpenAI credentials and optional model overrides:
+Create a `.env` file (untracked) with your OpenAI credentials and explicit research model settings:
 
 ```dotenv
 OPENAI_API_KEY=sk-...
-PLANNER_AGENT_MODEL=gpt-5.4
-RESEARCH_AGENT_MODEL=gpt-5.4
-VERIFIER_AGENT_MODEL=gpt-5.4
-SYNTHESIS_AGENT_MODEL=gpt-5.4
+PLANNER_AGENT_MODEL=gpt-5.5
+RESEARCH_AGENT_MODEL=gpt-5.5
+VERIFIER_AGENT_MODEL=gpt-5.5
+SYNTHESIS_AGENT_MODEL=gpt-5.5
 MAX_AGENT_TURNS=12
-SKILL_NAMER_MODEL=gpt-5.2
-SKILL_WRITER_MODEL=gpt-5.2
 ```
+
+All four model variables are required. If any are missing or blank, Compendium Scribe stops before client setup, cost report initialization, or research begins and names the missing setting.
 
 The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
 
-Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers standard GPT-5.4 family token pricing, GPT-5.4 long-context rates above the documented threshold, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
+Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers GPT-5.5, GPT-5.4 family token pricing, long-context rates above the documented threshold, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
 
 ### 3. Generate a compendium
 
@@ -60,7 +60,8 @@ pdm run compendium create "Lithium-ion battery recycling"
 Options:
 
 - `--output PATH` - Base path/filename for the output. The extension is ignored.
-- `--format FORMAT` - Output format, defaulting to `md`. Available: `md`, `xml`, `html`, `pdf`, `skill`. Repeat for multiple outputs.
+- `--format FORMAT` - Output format, defaulting to `md`. Available: `md`, `xml`, `html`, `pdf`. Repeat for multiple outputs.
+- `--library PATH` - Also publish the finished compendium into a Compendium Library directory.
 
 If you pass `--output report.md`, Compendium Scribe writes:
 
@@ -70,7 +71,46 @@ If you pass `--output report.md`, Compendium Scribe writes:
 
 Without `--output`, the base name is the slugified topic plus a UTC timestamp.
 
-### 4. Recover a research run
+### 4. Publish to a Compendium Library
+
+A Compendium Library is a directory agents can scan progressively. The root
+`catalog.json` is the compact card catalog. Each entry points to canonical XML,
+readable Markdown, and a richer card for one compendium:
+
+```text
+research-library/
+├── catalog.json
+└── compendiums/
+    └── lithium-ion-battery-recycling/
+        ├── compendium.xml
+        ├── compendium.md
+        └── card.json
+```
+
+Creation works the same as usual unless `--library` is provided. When it is
+provided, requested outputs are still written normally, and the final compendium
+is also upserted into the library:
+
+```bash
+pdm run compendium create "Lithium-ion battery recycling" \
+  --output report.md \
+  --format md \
+  --format xml \
+  --library research-library
+```
+
+Import an existing XML compendium:
+
+```bash
+pdm run compendium library import research-library report.xml
+```
+
+Library entries are idempotent by slugified title. Re-publishing the same title
+updates the existing `compendium.xml`, `compendium.md`, `card.json`, and
+`catalog.json` entry. If another title would use the same slug, the new entry
+gets a numeric suffix such as `-2`.
+
+### 5. Recover a research run
 
 Recovery resumes from the next incomplete stage in the sidecar state file:
 
@@ -80,7 +120,7 @@ pdm run compendium recover --input report.research.json
 
 The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
 
-### 5. Render formats from existing XML
+### 6. Render formats from existing XML
 
 ```bash
 pdm run compendium render my-topic.xml --format html
@@ -88,12 +128,12 @@ pdm run compendium render my-topic.xml --format html
 
 Options:
 
-- `--format FORMAT` - Output format(s) to generate: `md`, `xml`, `html`, `pdf`, `skill`.
+- `--format FORMAT` - Output format(s) to generate: `md`, `xml`, `html`, `pdf`.
 - `--output PATH` - Base path/filename for the output.
 
 ---
 
-## Library Usage
+## Python API Usage
 
 ```python
 from compendiumscribe import build_compendium, ResearchConfig, DeepResearchError
@@ -102,9 +142,10 @@ try:
     compendium = build_compendium(
         "Emerging pathogen surveillance",
         config=ResearchConfig(
-            research_agent_model="gpt-5.4",
-            verifier_agent_model="gpt-5.4",
-            synthesis_agent_model="gpt-5.4",
+            planner_agent_model="gpt-5.5",
+            research_agent_model="gpt-5.5",
+            verifier_agent_model="gpt-5.5",
+            synthesis_agent_model="gpt-5.5",
         ),
     )
 except DeepResearchError:

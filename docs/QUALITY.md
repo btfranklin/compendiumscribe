@@ -17,6 +17,7 @@ pdm build
 - CLI behavior: `tests/test_cli.py`
 - OpenAI client setup: `tests/test_create_llm_clients.py`
 - Compendium model and renderers: `tests/compendium/`
+- Compendium Library persistence and import: `tests/library/`
 - Research artifacts, ledger, workflow, pricing, and costs: `tests/research/`
 - Repo legibility and stale entry-point protection: `tests/test_repo_legibility.py`
 
@@ -26,6 +27,8 @@ pdm build
 - Recovery resumes from `<base>.research.json`; it must not depend on a background response ID.
 - Removed legacy CLI flags should remain Click unknown-option failures.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
+- Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
+- Library JSON must use relative paths so a library directory can be moved.
 - Tests must not require `OPENAI_API_KEY` for normal offline validation.
 
 ## Documentation Freshness

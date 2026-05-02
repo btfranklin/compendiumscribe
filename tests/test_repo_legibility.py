@@ -45,3 +45,23 @@ def test_entrypoint_docs_do_not_reference_removed_research_runtime() -> None:
         "Update AGENTS.md, README.md, and .env.example to describe the "
         f"Agents SDK workflow instead. Offenders: {offenders}"
     )
+
+
+def test_library_docs_reference_catalog() -> None:
+    checked_paths = [
+        ROOT / "AGENTS.md",
+        ROOT / "README.md",
+        ROOT / "docs" / "ARCHITECTURE.md",
+        ROOT / "docs" / "QUALITY.md",
+        ROOT / "docs" / "README.md",
+    ]
+
+    missing_catalog = [
+        str(path.relative_to(ROOT))
+        for path in checked_paths
+        if "catalog.json" not in path.read_text(encoding="utf-8")
+    ]
+    assert not missing_catalog, (
+        "Library-facing docs should point agents to catalog.json. "
+        f"Missing from: {missing_catalog}"
+    )

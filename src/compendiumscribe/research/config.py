@@ -6,10 +6,20 @@ import os
 
 from dotenv import load_dotenv
 
+from .errors import MissingConfigurationError
+
 if TYPE_CHECKING:  # pragma: no cover - imported for type checking only
     from .progress import ResearchProgress
 
 load_dotenv()
+
+
+REQUIRED_MODEL_ENV_VARS: tuple[tuple[str, str], ...] = (
+    ("planner_agent_model", "PLANNER_AGENT_MODEL"),
+    ("research_agent_model", "RESEARCH_AGENT_MODEL"),
+    ("verifier_agent_model", "VERIFIER_AGENT_MODEL"),
+    ("synthesis_agent_model", "SYNTHESIS_AGENT_MODEL"),
+)
 
 
 @dataclass
@@ -17,24 +27,16 @@ class ResearchConfig:
     """Configuration flags for the Agents SDK research workflow."""
 
     planner_agent_model: str = field(
-        default_factory=lambda: _agent_model_env(
-            "PLANNER_AGENT_MODEL", "gpt-5.4"
-        )
+        default_factory=lambda: _agent_model_env("PLANNER_AGENT_MODEL")
     )
     research_agent_model: str = field(
-        default_factory=lambda: _agent_model_env(
-            "RESEARCH_AGENT_MODEL", "gpt-5.4"
-        )
+        default_factory=lambda: _agent_model_env("RESEARCH_AGENT_MODEL")
     )
     verifier_agent_model: str = field(
-        default_factory=lambda: _agent_model_env(
-            "VERIFIER_AGENT_MODEL", "gpt-5.4"
-        )
+        default_factory=lambda: _agent_model_env("VERIFIER_AGENT_MODEL")
     )
     synthesis_agent_model: str = field(
-        default_factory=lambda: _agent_model_env(
-            "SYNTHESIS_AGENT_MODEL", "gpt-5.4"
-        )
+        default_factory=lambda: _agent_model_env("SYNTHESIS_AGENT_MODEL")
     )
     polling_interval_seconds: float = field(
         default_factory=lambda: float(
@@ -52,6 +54,22 @@ class ResearchConfig:
     request_timeout_seconds: int = 3600
     progress_callback: Callable[["ResearchProgress"], None] | None = None
 
+    def __post_init__(self) -> None:
+        missing = []
+        for attr_name, env_name in REQUIRED_MODEL_ENV_VARS:
+            value = getattr(self, attr_name)
+            if not isinstance(value, str) or not value.strip():
+                missing.append(env_name)
+                continue
+            setattr(self, attr_name, value.strip())
+
+        if missing:
+            missing_names = ", ".join(missing)
+            raise MissingConfigurationError(
+                "Missing required research model configuration: "
+                f"{missing_names}"
+            )
+
     def model_snapshot(self) -> dict[str, str | int | float]:
         return {
             "planner_agent_model": self.planner_agent_model,
@@ -64,8 +82,8 @@ class ResearchConfig:
         }
 
 
-def _agent_model_env(name: str, default: str) -> str:
-    return os.getenv(name) or default
+def _agent_model_env(name: str) -> str:
+    return os.getenv(name, "")
 
 
-__all__ = ["ResearchConfig"]
+__all__ = ["ResearchConfig", "REQUIRED_MODEL_ENV_VARS"]
