@@ -13,12 +13,13 @@ from .config import ResearchConfig
 if TYPE_CHECKING:
     from .costs import CostTracker
     from .agents_workflow.runner import AgentRunner
+    from openai import AsyncOpenAI
 
 
 def build_compendium(
     topic: str,
     *,
-    client: object | None = None,
+    client: "AsyncOpenAI | None" = None,
     config: ResearchConfig | None = None,
     cancel_ctx: object | None = None,
     cost_tracker: "CostTracker | None" = None,
@@ -28,9 +29,10 @@ def build_compendium(
 ) -> Compendium:
     """Build a compendium through the bounded Agents SDK workflow."""
 
-    _ = client, cancel_ctx
+    _ = cancel_ctx
     return build_compendium_with_agents(
         topic,
+        client=client,
         config=config,
         runner=runner,
         state_path=state_path,
@@ -42,6 +44,7 @@ def build_compendium(
 def recover_compendium(
     state_path: Path,
     *,
+    client: "AsyncOpenAI | None" = None,
     config: ResearchConfig | None = None,
     cost_tracker: "CostTracker | None" = None,
     runner: "AgentRunner | None" = None,
@@ -50,6 +53,7 @@ def recover_compendium(
 
     return recover_compendium_from_state(
         state_path,
+        client=client,
         config=config,
         runner=runner,
         cost_tracker=cost_tracker,

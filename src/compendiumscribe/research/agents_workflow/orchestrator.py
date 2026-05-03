@@ -26,7 +26,7 @@ from .artifacts import (
     ResearchRunState,
     SectionResearchBrief,
     VerificationReport,
-    validate_compendium_citations,
+    prepare_compendium_payload,
 )
 from .costing import record_agent_result_cost
 from .runner import AgentRunResult, AgentRunner, OpenAIAgentRunner
@@ -35,6 +35,7 @@ from .state import load_state, save_state
 
 if TYPE_CHECKING:
     from ..costs import CostTracker
+    from openai import AsyncOpenAI
 
 ArtifactT = TypeVar("ArtifactT", bound=BaseModel)
 
@@ -42,6 +43,7 @@ ArtifactT = TypeVar("ArtifactT", bound=BaseModel)
 def build_compendium_with_agents(
     topic: str,
     *,
+    client: "AsyncOpenAI | None" = None,
     config: ResearchConfig | None = None,
     runner: AgentRunner | None = None,
     state_path: Path | None = None,
@@ -52,7 +54,7 @@ def build_compendium_with_agents(
         raise ValueError("Topic must be a non-empty string.")
 
     config = config or ResearchConfig()
-    runner = runner or OpenAIAgentRunner()
+    runner = runner or OpenAIAgentRunner(openai_client=client)
     resolved_state_path = state_path or _default_state_path(topic.strip())
 
     try:
@@ -81,6 +83,7 @@ def build_compendium_with_agents(
 def recover_compendium_from_state(
     state_path: Path,
     *,
+    client: "AsyncOpenAI | None" = None,
     config: ResearchConfig | None = None,
     runner: AgentRunner | None = None,
     cost_tracker: "CostTracker | None" = None,
@@ -88,6 +91,7 @@ def recover_compendium_from_state(
     state = load_state(state_path)
     return build_compendium_with_agents(
         state.topic,
+        client=client,
         config=config,
         runner=runner,
         state_path=state_path,
@@ -221,11 +225,18 @@ async def _build_compendium_async(
             cost_tracker=cost_tracker,
             state=state,
         )
-        validate_compendium_citations(state.final_payload, state.ledger)
+        state.final_payload = prepare_compendium_payload(
+            state.final_payload, state.ledger
+        )
         state.mark_completed("synthesis")
         save_state(state_path, state)
     else:
-        validate_compendium_citations(state.final_payload, state.ledger)
+        prepared_payload = prepare_compendium_payload(
+            state.final_payload, state.ledger
+        )
+        if prepared_payload != state.final_payload:
+            state.final_payload = prepared_payload
+            save_state(state_path, state)
 
     emit_progress(
         config,

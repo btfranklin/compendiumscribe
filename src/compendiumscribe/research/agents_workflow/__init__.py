@@ -14,6 +14,7 @@ from .artifacts import (
     SourceLedgerEntry,
     VerificationIssue,
     VerificationReport,
+    prepare_compendium_payload,
     validate_compendium_citations,
 )
 from .orchestrator import (
@@ -48,6 +49,7 @@ __all__ = [
     "load_state",
     "mark_cited_sources",
     "normalize_url",
+    "prepare_compendium_payload",
     "recover_compendium_from_state",
     "save_state",
     "validate_compendium_citations",

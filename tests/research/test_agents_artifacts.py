@@ -5,7 +5,10 @@ import pytest
 from compendiumscribe.research.agents_workflow import (
     CompendiumPayload,
     SectionResearchBrief,
+    SourceLedger,
+    SourceLedgerEntry,
     build_source_ledger,
+    prepare_compendium_payload,
     validate_compendium_citations,
 )
 
@@ -126,3 +129,61 @@ def test_rejected_and_consulted_only_sources_cannot_be_final_citations() -> None
     assert len(ledger.entries) == 1
     with pytest.raises(ValueError, match="unknown citation IDs"):
         validate_compendium_citations(payload, ledger)
+
+
+def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
+    ledger = SourceLedger(
+        entries=[
+            SourceLedgerEntry(
+                id="C01",
+                title="Authoritative first source",
+                url="https://example.com/first",
+                publisher="Example",
+                status="cited",
+            ),
+            SourceLedgerEntry(
+                id="C02",
+                title="Authoritative second source",
+                url="https://example.com/second",
+                publisher="Example",
+                status="cited",
+            ),
+        ]
+    )
+    payload = CompendiumPayload(
+        topic_overview="Overview",
+        sections=[
+            {
+                "id": "s1",
+                "title": "Section",
+                "summary": "Summary",
+                "insights": [
+                    {
+                        "title": "Finding one",
+                        "evidence": "Evidence",
+                        "citations": ["C02"],
+                    },
+                    {
+                        "title": "Finding two",
+                        "evidence": "Evidence",
+                        "citations": ["C01", "C02"],
+                    },
+                ],
+            }
+        ],
+        citations=[
+            {
+                "id": "C01",
+                "title": "Model-supplied title",
+                "url": "https://wrong.example.com",
+            }
+        ],
+    )
+
+    prepared = prepare_compendium_payload(payload, ledger)
+
+    assert [citation.id for citation in prepared.citations] == ["C02", "C01"]
+    assert prepared.citations[0].title == "Authoritative second source"
+    assert prepared.citations[0].url == "https://example.com/second"
+    assert prepared.citations[1].title == "Authoritative first source"
+    assert prepared.citations[1].url == "https://example.com/first"

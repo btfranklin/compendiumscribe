@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 DEFAULT_TIMEOUT_SECONDS = 3600
 
@@ -11,7 +11,7 @@ class MissingAPIKeyError(RuntimeError):
     """Raised when the OPENAI_API_KEY environment variable is absent."""
 
 
-def create_openai_client(*, timeout: int | None = None) -> OpenAI:
+def create_openai_client(*, timeout: int | None = None) -> AsyncOpenAI:
     """Initialise the OpenAI client using environment configuration."""
 
     load_dotenv()
@@ -28,13 +28,13 @@ def create_openai_client(*, timeout: int | None = None) -> OpenAI:
         else DEFAULT_TIMEOUT_SECONDS
     )
 
-    client = OpenAI(api_key=api_key, timeout=actual_timeout)
+    client = AsyncOpenAI(api_key=api_key, timeout=actual_timeout)
 
     # Quick sanity check for the required API capability
     if not hasattr(client, "responses"):
         raise RuntimeError(
             "Installed openai package does not expose the Responses API. "
-            "Upgrade to a newer openai release (e.g. `pip install -U openai`)."
+            "Upgrade to a newer openai release."
         )
     return client
 

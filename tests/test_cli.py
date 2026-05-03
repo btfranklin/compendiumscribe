@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest import mock
 from compendiumscribe.cli import cli
 from compendiumscribe.compendium import Citation, Compendium, Section
+from compendiumscribe.research.errors import DeepResearchError
 
 
 @pytest.fixture
@@ -84,6 +85,10 @@ def test_cli_create_default_format_is_markdown(
         assert len(list(Path(".").glob("*.costs.json"))) == 1
         assert not Path("catalog.json").exists()
         assert not Path("compendiums").exists()
+        assert (
+            mock_build_compendium.call_args.kwargs["client"]
+            is mock_create_client.return_value
+        )
 
 
 def test_cli_create_format_xml(
@@ -220,22 +225,6 @@ def test_cli_create_html_format_creates_directory(
         assert (site_dir / "index.html").read_text() == "<html>Index</html>"
 
 
-def test_cli_create_rejects_removed_legacy_flags(runner):
-    result = runner.invoke(
-        cli,
-        ["create", "Test Topic", "--no-background"],
-    )
-    assert result.exit_code != 0
-    assert "No such option: --no-background" in result.output
-
-    result = runner.invoke(
-        cli,
-        ["create", "Test Topic", "--max-tool-calls", "2"],
-    )
-    assert result.exit_code != 0
-    assert "No such option: --max-tool-calls" in result.output
-
-
 def test_cli_recover_uses_research_sidecar(
     runner,
     mock_create_client,
@@ -273,6 +262,42 @@ def test_cli_recover_uses_research_sidecar(
             assert Path("report.md").read_text() == "# Recovered"
             assert Path("report.costs.json").exists()
             mock_recover.assert_called_once()
+            assert (
+                mock_recover.call_args.kwargs["client"]
+                is mock_create_client.return_value
+            )
+
+
+def test_cli_recover_research_failure_exits_nonzero(
+    runner,
+    mock_create_client,
+):
+    from compendiumscribe.research.agents_workflow import ResearchRunState
+
+    with mock.patch(
+        "compendiumscribe.cli.recover_compendium",
+        side_effect=DeepResearchError("Source coverage failed."),
+    ):
+        with runner.isolated_filesystem():
+            state = ResearchRunState(
+                topic="Recovered",
+                title="Recovered",
+                output_formats=["md"],
+                cost_report_path="report.costs.json",
+            )
+            state_path = Path("report.research.json")
+            state_path.write_text(
+                state.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
+
+            result = runner.invoke(
+                cli,
+                ["recover", "--input", str(state_path)],
+            )
+
+            assert result.exit_code == 1
+            assert "Source coverage failed." in result.output
 
 
 def test_cli_library_import_writes_catalog_and_compendium_files(

@@ -20,7 +20,7 @@ def test_create_openai_client_requires_api_key(monkeypatch):
 
 
 def test_create_openai_client_requires_responses_support(monkeypatch):
-    class DummyOpenAI:
+    class DummyAsyncOpenAI:
         def __init__(self, **_kwargs):
             pass
 
@@ -30,8 +30,8 @@ def test_create_openai_client_requires_responses_support(monkeypatch):
         lambda: None,
     )
     monkeypatch.setattr(
-        "compendiumscribe.create_llm_clients.OpenAI",
-        DummyOpenAI,
+        "compendiumscribe.create_llm_clients.AsyncOpenAI",
+        DummyAsyncOpenAI,
     )
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -40,13 +40,13 @@ def test_create_openai_client_requires_responses_support(monkeypatch):
     assert "Responses API" in str(exc_info.value)
 
 
-def test_create_openai_client_returns_native_client(monkeypatch):
+def test_create_openai_client_returns_async_client(monkeypatch):
     instances: list[object] = []
 
     class DummyResponses:
         pass
 
-    class DummyOpenAI:
+    class DummyAsyncOpenAI:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
             self.responses = DummyResponses()
@@ -58,8 +58,8 @@ def test_create_openai_client_returns_native_client(monkeypatch):
         lambda: None,
     )
     monkeypatch.setattr(
-        "compendiumscribe.create_llm_clients.OpenAI",
-        DummyOpenAI,
+        "compendiumscribe.create_llm_clients.AsyncOpenAI",
+        DummyAsyncOpenAI,
     )
 
     client = create_openai_client(timeout=123)

@@ -17,7 +17,7 @@ Compendium Scribe has three main surfaces:
 4. The application builds a `SourceLedger` from section sources and finding URLs.
 5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass.
 6. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
-7. `validate_compendium_citations()` rejects any final citation that is not backed by a cited ledger entry.
+7. `prepare_compendium_payload()` rejects any final citation reference that is not backed by a cited ledger entry, then hydrates final citation metadata from the ledger.
 8. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
 
 The workflow persists `<base>.research.json` after accepted artifacts and records usage in `<base>.costs.json` when SDK usage metadata is available.
@@ -62,6 +62,6 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - `compendium/` must not import research workflow modules.
 - Prompt files under `src/compendiumscribe/prompts/` are loaded by agent definitions; keep prompt filenames aligned with their loader.
 
-## Removed Legacy Path
+## Current Research Path
 
-There is no runnable single background research response path. Do not reintroduce legacy concepts such as `--no-background`, `--max-tool-calls`, `DEEP_RESEARCH_MODEL`, `PROMPT_REFINER_MODEL`, or `timed_out_research.json` unless the product intentionally changes direction again.
+There is one runnable research path: the bounded Agents SDK workflow described above. Keep new orchestration work aligned with the runner adapter, state sidecar, source ledger, and explicit per-agent model settings.

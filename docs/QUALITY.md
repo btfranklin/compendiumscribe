@@ -19,13 +19,12 @@ pdm build
 - Compendium model and renderers: `tests/compendium/`
 - Compendium Library persistence and import: `tests/library/`
 - Research artifacts, ledger, workflow, pricing, and costs: `tests/research/`
-- Repo legibility and stale entry-point protection: `tests/test_repo_legibility.py`
+- Repo legibility and forward-facing documentation checks: `tests/test_repo_legibility.py`
 
 ## High-Value Invariants
 
-- Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`.
+- Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
 - Recovery resumes from `<base>.research.json`; it must not depend on a background response ID.
-- Removed legacy CLI flags should remain Click unknown-option failures.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
 - Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
 - Library JSON must use relative paths so a library directory can be moved.
@@ -40,4 +39,4 @@ When behavior shifts, update these in the same change:
 - `docs/ARCHITECTURE.md` for workflow or boundary changes.
 - `.env.example` for environment variable changes.
 
-The legibility test scans entry-point docs for removed legacy terms so future agents get a clear failure instead of stale guidance.
+The legibility test checks that entry-point docs route agents to the current system of record and show the required research model settings.

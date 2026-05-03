@@ -16,34 +16,28 @@ def test_agent_entrypoints_exist_and_route_to_docs() -> None:
     assert "QUALITY.md" in docs_index
 
 
-def test_entrypoint_docs_do_not_reference_removed_research_runtime() -> None:
-    stale_terms = [
-        "DEEP_RESEARCH_MODEL",
-        "PROMPT_REFINER_MODEL",
-        "o3-deep-research",
-        "--no-background",
-        "--max-tool-calls",
-        "timed_out_research.json",
-        "topic_blueprint",
-        "deep_research_assignment",
+def test_entrypoint_docs_name_required_research_model_settings() -> None:
+    required_model_vars = [
+        "PLANNER_AGENT_MODEL",
+        "RESEARCH_AGENT_MODEL",
+        "VERIFIER_AGENT_MODEL",
+        "SYNTHESIS_AGENT_MODEL",
     ]
     checked_paths = [
-        ROOT / "AGENTS.md",
         ROOT / "README.md",
         ROOT / ".env.example",
     ]
 
-    offenders: list[str] = []
+    missing: list[str] = []
     for path in checked_paths:
         content = path.read_text(encoding="utf-8")
-        for term in stale_terms:
-            if term in content:
-                offenders.append(f"{path.relative_to(ROOT)} contains {term}")
+        for var_name in required_model_vars:
+            if var_name not in content:
+                missing.append(f"{path.relative_to(ROOT)} missing {var_name}")
 
-    assert not offenders, (
-        "Entry-point docs reference removed Phase 1 research runtime terms. "
-        "Update AGENTS.md, README.md, and .env.example to describe the "
-        f"Agents SDK workflow instead. Offenders: {offenders}"
+    assert not missing, (
+        "Entry-point docs should show the required current research model "
+        f"settings. Missing from: {missing}"
     )
 
 

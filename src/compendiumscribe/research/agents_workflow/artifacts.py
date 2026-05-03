@@ -159,30 +159,54 @@ def validate_compendium_citations(
     payload: CompendiumPayload,
     ledger: SourceLedger,
 ) -> None:
-    ledger_ids = {
-        entry.id for entry in ledger.entries if entry.status == "cited"
+    prepare_compendium_payload(payload, ledger)
+
+
+def prepare_compendium_payload(
+    payload: CompendiumPayload,
+    ledger: SourceLedger,
+) -> CompendiumPayload:
+    cited_entries = {
+        entry.id: entry for entry in ledger.entries if entry.status == "cited"
     }
-    final_ids = {citation.id for citation in payload.citations}
-    invalid_final_ids = final_ids - ledger_ids
-    if invalid_final_ids:
-        refs = ", ".join(sorted(invalid_final_ids))
-        raise ValueError(f"Final payload includes unknown citation IDs: {refs}")
 
     missing: list[str] = []
+    ordered_refs: list[str] = []
+    seen_refs: set[str] = set()
     for section in payload.sections:
         for insight in section.insights:
             for ref in insight.citations:
-                if ref not in final_ids or ref not in ledger_ids:
+                if ref not in cited_entries:
                     missing.append(ref)
+                    continue
+                if ref not in seen_refs:
+                    seen_refs.add(ref)
+                    ordered_refs.append(ref)
     if missing:
         refs = ", ".join(sorted(set(missing)))
         raise ValueError(f"Final payload references unknown citation IDs: {refs}")
+
+    citations: list[CitationPayload] = []
+    for ref in ordered_refs:
+        entry = cited_entries[ref]
+        citations.append(
+            CitationPayload(
+                id=entry.id,
+                title=entry.title,
+                url=entry.url,
+                publisher=entry.publisher,
+                published_at=entry.published_at,
+                summary=entry.summary,
+            )
+        )
+    return payload.model_copy(update={"citations": citations})
 
 
 __all__ = [
     "CitationPayload",
     "CompendiumPayload",
     "InsightPayload",
+    "prepare_compendium_payload",
     "ResearchAgenda",
     "ResearchPlan",
     "ResearchRunState",

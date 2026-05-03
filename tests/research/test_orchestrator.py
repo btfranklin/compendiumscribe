@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import pytest
 from compendiumscribe.research.agents_workflow import (
     AgentRunResult,
     CompendiumPayload,
+    OpenAIAgentRunner,
     ResearchAgenda,
     ResearchPlan,
     ResearchSection,
@@ -331,6 +333,30 @@ def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
         )
 
 
+def test_synthesis_citations_are_hydrated_from_source_ledger(
+    tmp_path: Path,
+) -> None:
+    payload = sample_payload()
+    payload.citations[0].title = "Model-supplied source"
+    payload.citations[0].url = "https://wrong.example.com"
+    runner = StubAgentRunner(final_payload=payload)
+    state_path = tmp_path / "report.research.json"
+
+    compendium = build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=runner,
+        state_path=state_path,
+    )
+
+    assert compendium.citations[0].title == "Source"
+    assert compendium.citations[0].url == "https://example.com/source"
+    state = load_state(state_path)
+    assert state.final_payload is not None
+    assert state.final_payload.citations[0].title == "Source"
+    assert state.final_payload.citations[0].url == "https://example.com/source"
+
+
 def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
     captured = []
     tracker = CostTracker(
@@ -361,3 +387,40 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
     assert "verification" in phases
     assert "synthesis" in phases
     assert "completion" in phases
+
+
+def test_openai_agent_runner_passes_client_through_run_config(
+    monkeypatch,
+) -> None:
+    client = object()
+    captured: dict[str, Any] = {}
+
+    async def fake_run(
+        agent: Any,
+        input_payload: str,
+        *,
+        max_turns: int,
+        run_config: Any = None,
+        **_kwargs: Any,
+    ) -> Any:
+        captured["agent"] = agent
+        captured["input_payload"] = input_payload
+        captured["max_turns"] = max_turns
+        captured["run_config"] = run_config
+        return SimpleNamespace(final_output={"ok": True}, raw_responses=[])
+
+    monkeypatch.setattr("agents.Runner.run", fake_run)
+
+    result = asyncio.run(
+        OpenAIAgentRunner(openai_client=client).run(
+            SimpleNamespace(name="Agent"),
+            "payload",
+            max_turns=3,
+        )
+    )
+
+    assert result.final_output == {"ok": True}
+    assert captured["input_payload"] == "payload"
+    assert captured["max_turns"] == 3
+    assert captured["run_config"] is not None
+    assert getattr(captured["run_config"].model_provider, "_client") is client

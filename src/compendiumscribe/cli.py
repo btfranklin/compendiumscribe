@@ -350,7 +350,7 @@ def recover(input_file: Path):
 
     try:
         config = ResearchConfig()
-        create_openai_client(timeout=config.request_timeout_seconds)
+        client = create_openai_client(timeout=config.request_timeout_seconds)
         cost_path = (
             Path(state.cost_report_path)
             if state.cost_report_path
@@ -373,6 +373,7 @@ def recover(input_file: Path):
 
         compendium = recover_compendium(
             input_file,
+            client=client,
             config=config,
             cost_tracker=cost_tracker,
         )
@@ -392,7 +393,7 @@ def recover(input_file: Path):
         raise SystemExit(1) from exc
     except DeepResearchError as exc:
         click.echo(str(exc), err=True)
-        return
+        raise SystemExit(1) from exc
     except Exception as exc:
         click.echo(f"Error during recovery: {exc}", err=True)
         raise SystemExit(1)

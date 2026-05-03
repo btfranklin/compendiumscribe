@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from openai import AsyncOpenAI
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,9 @@ class AgentRunner(Protocol):
 
 
 class OpenAIAgentRunner:
+    def __init__(self, openai_client: "AsyncOpenAI | None" = None) -> None:
+        self.openai_client = openai_client
+
     async def run(
         self,
         agent: Any,
@@ -38,9 +44,23 @@ class OpenAIAgentRunner:
         *,
         max_turns: int,
     ) -> AgentRunResult:
-        from agents import Runner
+        from agents import RunConfig, Runner
+        from agents.models.openai_provider import OpenAIProvider
 
-        result = await Runner.run(agent, input_payload, max_turns=max_turns)
+        run_config = None
+        if self.openai_client is not None:
+            run_config = RunConfig(
+                model_provider=OpenAIProvider(
+                    openai_client=self.openai_client,
+                    use_responses=True,
+                )
+            )
+        result = await Runner.run(
+            agent,
+            input_payload,
+            max_turns=max_turns,
+            run_config=run_config,
+        )
         return AgentRunResult(final_output=result.final_output, raw_result=result)
 
 

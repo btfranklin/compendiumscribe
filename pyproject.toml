@@ -6,12 +6,12 @@ authors = [
     {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
 ]
 dependencies = [
-    "openai>=2.32.0",
+    "openai>=2.33.0",
     "python-dotenv>=1.2.2",
     "click>=8.3.3",
     "mistune>=3.2.0",
     "fpdf2>=2.8.7",
-    "openai-agents>=0.14.5",
+    "openai-agents>=0.15.1",
     "pydantic>=2.13.3",
 ]
 requires-python = ">=3.12"
@@ -43,6 +43,18 @@ Repository = "https://github.com/btfranklin/compendiumscribe.git"
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.15.12",
+]
+
+[project.scripts]
+compendium = "compendiumscribe.cli:cli"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+
 [tool.pdm]
 distribution = true
 
@@ -52,18 +64,6 @@ source = "scm"
 [tool.pdm.build]
 excludes = ["tests/**"]
 
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-    "ruff>=0.15.11",
-]
-
-[project.scripts]
-compendium = "compendiumscribe.cli:cli"
-
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check src tests"
-
-[tool.ruff.lint]
-select = ["E", "F", "W"]
