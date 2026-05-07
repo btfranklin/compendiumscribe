@@ -8,6 +8,8 @@ from compendiumscribe.research.agents_workflow import (
     SourceLedger,
     SourceLedgerEntry,
     build_source_ledger,
+    mark_cited_sources,
+    normalize_url,
     prepare_compendium_payload,
     validate_compendium_citations,
 )
@@ -79,6 +81,49 @@ def test_source_ledger_deduplicates_urls_and_keeps_section_usage() -> None:
     assert len(ledger.entries) == 1
     assert ledger.entries[0].id == "C01"
     assert ledger.entries[0].section_ids == ["s1", "s2"]
+    assert ledger.entries[0].status == "cited"
+
+
+def test_normalize_url_promotes_scheme_less_hosts_to_https() -> None:
+    assert normalize_url("example.com/source") == "https://example.com/source"
+    assert normalize_url("localhost/report/") == "https://localhost/report"
+    assert normalize_url("http://Example.com/report/") == (
+        "http://example.com/report"
+    )
+
+
+def test_source_ledger_matches_scheme_less_source_urls_to_cited_urls() -> None:
+    brief = SectionResearchBrief(
+        section_id="s1",
+        title="One",
+        summary="Summary",
+        findings=[
+            {
+                "title": "Finding",
+                "evidence": "Evidence",
+                "source_urls": ["https://example.com/source"],
+            }
+        ],
+        sources=[
+            {
+                "title": "Source",
+                "url": "example.com/source",
+                "status": "consulted",
+            }
+        ],
+    )
+    ledger = build_source_ledger([brief])
+
+    mark_cited_sources(
+        ledger,
+        [
+            source_url
+            for finding in brief.findings
+            for source_url in finding.source_urls
+        ],
+    )
+
+    assert ledger.entries[0].url == "https://example.com/source"
     assert ledger.entries[0].status == "cited"
 
 

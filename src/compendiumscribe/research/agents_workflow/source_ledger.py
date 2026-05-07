@@ -11,11 +11,19 @@ from .artifacts import (
 
 
 def normalize_url(url: str) -> str:
-    parsed = urlsplit(url.strip())
+    raw_url = url.strip()
+    parsed = urlsplit(raw_url)
+    if not parsed.scheme and not parsed.netloc and _looks_like_host_path(parsed.path):
+        parsed = urlsplit(f"https://{raw_url}")
     scheme = parsed.scheme.lower() or "https"
     netloc = parsed.netloc.lower()
     path = parsed.path.rstrip("/")
     return urlunsplit((scheme, netloc, path, "", ""))
+
+
+def _looks_like_host_path(path: str) -> bool:
+    host = path.split("/", 1)[0]
+    return bool(host) and ("." in host or host == "localhost")
 
 
 def build_source_ledger(

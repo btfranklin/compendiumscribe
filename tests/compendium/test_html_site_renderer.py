@@ -133,6 +133,52 @@ def test_citations_page_lists_all_citations():
     assert "2024-01-15" in citations
 
 
+def test_citations_page_links_only_safe_url_schemes():
+    """Verify citation URLs with unsafe schemes are rendered as text."""
+    compendium = Compendium(
+        topic="Citation URL Safety",
+        overview="Overview.",
+        citations=[
+            Citation(
+                identifier="C1",
+                title="HTTPS Source",
+                url="https://example.com/source",
+            ),
+            Citation(
+                identifier="C2",
+                title="Email Source",
+                url="mailto:research@example.com",
+            ),
+            Citation(
+                identifier="C3",
+                title="Script Source",
+                url="javascript:alert(1)",
+            ),
+            Citation(
+                identifier="C4",
+                title="Data Source",
+                url="data:text/html,hello",
+            ),
+            Citation(
+                identifier="C5",
+                title="Malformed Source",
+                url="https:example.com/source",
+            ),
+        ],
+    )
+
+    citations = compendium.to_html_site()["citations.html"]
+
+    assert 'href="https://example.com/source"' in citations
+    assert 'href="mailto:research@example.com"' in citations
+    assert "javascript:alert(1)" in citations
+    assert "data:text/html,hello" in citations
+    assert "https:example.com/source" in citations
+    assert 'href="javascript:alert(1)"' not in citations
+    assert 'href="data:text/html,hello"' not in citations
+    assert 'href="https:example.com/source"' not in citations
+
+
 def test_open_questions_page_lists_all_questions():
     """Verify open questions page contains all questions."""
     compendium = _sample_compendium()

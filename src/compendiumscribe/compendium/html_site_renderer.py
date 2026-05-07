@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from .text_utils import format_html_text, slugify
 
@@ -26,6 +27,21 @@ def _html_head(title: str, depth: int = 0) -> list[str]:
         f"  <title>{html.escape(title)}</title>",
         "</head>",
     ]
+
+
+def _safe_citation_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    stripped = url.strip()
+    if not stripped:
+        return None
+    parsed = urlsplit(stripped)
+    scheme = parsed.scheme.lower()
+    if scheme in {"http", "https"} and parsed.netloc:
+        return stripped
+    if scheme == "mailto" and parsed.path:
+        return stripped
+    return None
 
 
 def _nav_links(
@@ -241,11 +257,16 @@ def _render_citations_page(compendium: "Compendium") -> str:
                 f"        <h2>[{html.escape(citation.identifier)}] "
                 f"{format_html_text(citation.title)}</h2>"
             )
-            parts.append(
-                f'        <p><a href="{html.escape(citation.url)}" '
-                f'rel="noopener noreferrer">'
-                f"{html.escape(citation.url)}</a></p>"
-            )
+            safe_url = _safe_citation_url(citation.url)
+            escaped_url = html.escape(citation.url)
+            if safe_url:
+                parts.append(
+                    f'        <p><a href="{html.escape(safe_url)}" '
+                    f'rel="noopener noreferrer">'
+                    f"{escaped_url}</a></p>"
+                )
+            else:
+                parts.append(f"        <p>{escaped_url}</p>")
             details: list[str] = []
             if citation.publisher:
                 details.append(html.escape(citation.publisher))
