@@ -12,8 +12,10 @@ def test_agent_entrypoints_exist_and_route_to_docs() -> None:
 
     assert "docs/ARCHITECTURE.md" in agents
     assert "docs/QUALITY.md" in agents
+    assert "docs/RELEASING.md" in agents
     assert "ARCHITECTURE.md" in docs_index
     assert "QUALITY.md" in docs_index
+    assert "RELEASING.md" in docs_index
 
 
 def test_entrypoint_docs_name_required_research_model_settings() -> None:

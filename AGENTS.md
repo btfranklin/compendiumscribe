@@ -6,7 +6,8 @@ This repo is a Python package for generating sourced compendiums through a bound
 
 - Product and CLI usage: `README.md`
 - Architecture and dependency boundaries: `docs/ARCHITECTURE.md`
-- Validation and release checks: `docs/QUALITY.md`
+- Validation and quality checks: `docs/QUALITY.md`
+- Release process and tag-first release notes flow: `docs/RELEASING.md`
 - Research workflow code: `src/compendiumscribe/research/agents_workflow/`
 - Renderer-facing model: `src/compendiumscribe/compendium/`
 - Compendium Library persistence: `src/compendiumscribe/library/`
