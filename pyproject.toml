@@ -6,13 +6,13 @@ authors = [
     {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
 ]
 dependencies = [
-    "openai>=2.33.0",
+    "openai>=2.41.1",
     "python-dotenv>=1.2.2",
-    "click>=8.3.3",
-    "mistune>=3.2.0",
+    "click>=8.4.1",
+    "mistune>=3.2.1",
     "fpdf2>=2.8.7",
-    "openai-agents>=0.15.1",
-    "pydantic>=2.13.3",
+    "openai-agents>=0.17.5",
+    "pydantic>=2.13.4",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -40,13 +40,13 @@ Changelog = "https://github.com/btfranklin/compendiumscribe/releases"
 Repository = "https://github.com/btfranklin/compendiumscribe.git"
 
 [build-system]
-requires = ["pdm-backend"]
+requires = ["pdm-backend>=2.4.9"]
 build-backend = "pdm.backend"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
-    "ruff>=0.15.12",
+    "ruff>=0.15.17",
 ]
 
 [project.scripts]
