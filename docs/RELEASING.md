@@ -9,6 +9,12 @@ GitHub Release notes before the release is published.
 Run the standard validation loop before tagging:
 
 ```bash
+pdm run check
+```
+
+`pdm run check` runs:
+
+```bash
 pdm run pytest
 pdm run ruff check src tests
 pdm build

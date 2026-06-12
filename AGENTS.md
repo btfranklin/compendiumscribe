@@ -26,6 +26,12 @@ This repo is a Python package for generating sourced compendiums through a bound
 Before calling work complete:
 
 ```bash
+pdm run check
+```
+
+`pdm run check` runs the required validation loop:
+
+```bash
 pdm run pytest
 pdm run ruff check src tests
 pdm build

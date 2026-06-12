@@ -15,7 +15,6 @@ from .artifacts import (
     VerificationIssue,
     VerificationReport,
     prepare_compendium_payload,
-    validate_compendium_citations,
 )
 from .orchestrator import (
     build_compendium_with_agents,
@@ -52,5 +51,4 @@ __all__ = [
     "prepare_compendium_payload",
     "recover_compendium_from_state",
     "save_state",
-    "validate_compendium_citations",
 ]

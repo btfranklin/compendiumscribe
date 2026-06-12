@@ -28,10 +28,8 @@ def _looks_like_host_path(path: str) -> bool:
 
 def build_source_ledger(
     briefs: list[SectionResearchBrief],
-    *,
-    existing: SourceLedger | None = None,
 ) -> SourceLedger:
-    ledger = existing or SourceLedger()
+    ledger = SourceLedger()
     by_url = {normalize_url(entry.url): entry for entry in ledger.entries}
 
     for brief in briefs:

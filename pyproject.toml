@@ -1,7 +1,7 @@
 [project]
 name = "compendiumscribe"
 dynamic = ["version"]
-description = "A package for automating the creation of comprehensive and organized domain knowledge bases for AI applications."
+description = "A command line tool and library for building sourced research compendiums with a bounded OpenAI Agents SDK workflow."
 authors = [
     {name = "B.T. Franklin", email = "brandon.franklin@gmail.com"},
 ]
@@ -67,3 +67,4 @@ excludes = ["tests/**"]
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check src tests"
+check = {composite = ["test", "lint", "pdm build"]}

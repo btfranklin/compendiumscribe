@@ -122,7 +122,7 @@ async def _build_compendium_async(
         state.plan = await _run_structured_agent(
             "planning",
             create_planner_agent(config),
-            _json_prompt({"topic": topic}),
+            _planning_input(topic),
             output_type=ResearchPlan,
             config=config,
             runner=runner,
@@ -138,12 +138,7 @@ async def _build_compendium_async(
         state.agenda = await _run_structured_agent(
             "research_agenda",
             create_research_manager_agent(config),
-            _json_prompt(
-                {
-                    "topic": topic,
-                    "plan": state.plan.model_dump(mode="json"),
-                }
-            ),
+            _research_agenda_input(topic, state),
             output_type=ResearchAgenda,
             config=config,
             runner=runner,
@@ -205,19 +200,7 @@ async def _build_compendium_async(
         state.final_payload = await _run_structured_agent(
             "synthesis",
             create_synthesis_agent(config),
-            _json_prompt(
-                {
-                    "topic": state.title or topic,
-                    "plan": state.plan.model_dump(mode="json"),
-                    "agenda": state.agenda.model_dump(mode="json"),
-                    "section_briefs": [
-                        brief.model_dump(mode="json")
-                        for brief in state.section_briefs.values()
-                    ],
-                    "source_ledger": state.ledger.model_dump(mode="json"),
-                    "verification": state.verification.model_dump(mode="json"),
-                }
-            ),
+            _synthesis_input(topic, state),
             output_type=CompendiumPayload,
             config=config,
             runner=runner,
@@ -313,24 +296,7 @@ async def _run_section_agent(
     return await _run_structured_agent(
         "section_research",
         create_section_research_agent(config),
-        _json_prompt(
-            {
-                "topic": state.title or state.topic,
-                "section": section.model_dump(mode="json"),
-                "plan": state.plan.model_dump(mode="json"),
-                "agenda": state.agenda.model_dump(mode="json"),
-                "previous_brief": (
-                    state.section_briefs.get(section_id).model_dump(mode="json")
-                    if follow_up and section_id in state.section_briefs
-                    else None
-                ),
-                "verification": (
-                    state.verification.model_dump(mode="json")
-                    if follow_up and state.verification is not None
-                    else None
-                ),
-            }
-        ),
+        _section_research_input(state, section_id, section, follow_up=follow_up),
         output_type=SectionResearchBrief,
         config=config,
         runner=runner,
@@ -351,25 +317,85 @@ async def _verify(
     return await _run_structured_agent(
         "verification",
         create_verifier_agent(config),
-        _json_prompt(
-            {
-                "topic": state.title or state.topic,
-                "plan": state.plan.model_dump(mode="json"),
-                "agenda": state.agenda.model_dump(mode="json"),
-                "section_briefs": [
-                    brief.model_dump(mode="json")
-                    for brief in state.section_briefs.values()
-                ],
-                "source_ledger": state.ledger.model_dump(mode="json"),
-                "follow_up_available": not state.follow_up_done,
-            }
-        ),
+        _verification_input(state),
         output_type=VerificationReport,
         config=config,
         runner=runner,
         model=config.verifier_agent_model,
         cost_tracker=cost_tracker,
         state=state,
+    )
+
+
+def _planning_input(topic: str) -> str:
+    return _json_prompt({"topic": topic})
+
+
+def _research_agenda_input(topic: str, state: ResearchRunState) -> str:
+    return _json_prompt(
+        {
+            "topic": topic,
+            "plan": state.plan.model_dump(mode="json"),
+        }
+    )
+
+
+def _section_research_input(
+    state: ResearchRunState,
+    section_id: str,
+    section: Any,
+    *,
+    follow_up: bool,
+) -> str:
+    return _json_prompt(
+        {
+            "topic": state.title or state.topic,
+            "section": section.model_dump(mode="json"),
+            "plan": state.plan.model_dump(mode="json"),
+            "agenda": state.agenda.model_dump(mode="json"),
+            "previous_brief": (
+                state.section_briefs.get(section_id).model_dump(mode="json")
+                if follow_up and section_id in state.section_briefs
+                else None
+            ),
+            "verification": (
+                state.verification.model_dump(mode="json")
+                if follow_up and state.verification is not None
+                else None
+            ),
+        }
+    )
+
+
+def _verification_input(state: ResearchRunState) -> str:
+    return _json_prompt(
+        {
+            "topic": state.title or state.topic,
+            "plan": state.plan.model_dump(mode="json"),
+            "agenda": state.agenda.model_dump(mode="json"),
+            "section_briefs": [
+                brief.model_dump(mode="json")
+                for brief in state.section_briefs.values()
+            ],
+            "source_ledger": state.ledger.model_dump(mode="json"),
+            "follow_up_available": not state.follow_up_done,
+        }
+    )
+
+
+def _synthesis_input(topic: str, state: ResearchRunState) -> str:
+    return _json_prompt(
+        {
+            "topic": state.title or topic,
+            "plan": state.plan.model_dump(mode="json"),
+            "agenda": state.agenda.model_dump(mode="json"),
+            "section_briefs": [
+                brief.model_dump(mode="json")
+                for brief in state.section_briefs.values()
+            ],
+            "source_ledger": state.ledger.model_dump(mode="json"),
+            "verification": state.verification.model_dump(mode="json"),
+        }
     )
 
 

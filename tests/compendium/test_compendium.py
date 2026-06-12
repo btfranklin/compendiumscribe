@@ -68,7 +68,6 @@ def test_compendium_to_xml_contains_expected_structure():
         root.find("citations/citation/title").text
         == "A Survey on Quantum Error Correction"
     )
-    assert root.find("research_trace") is None
 
     lines = xml_string.splitlines()
     assert lines[0].startswith("<compendium")
@@ -89,7 +88,6 @@ def test_compendium_additional_exports():
     markdown = compendium.to_markdown()
     assert markdown.startswith("# Synthetic Biology")
     assert "## Overview" in markdown
-    assert "Research Trace" not in markdown
 
     pdf_bytes = compendium.to_pdf_bytes()
     assert pdf_bytes.startswith(b"%PDF-")
@@ -195,7 +193,6 @@ def test_compendium_from_payload_normalizes_fields():
     assert compendium.open_questions == [
         "How will regulation shape deployment?"
     ]
-    assert not hasattr(compendium, "trace")
 
 
 def test_etree_to_string_preserves_cdata_when_requested():

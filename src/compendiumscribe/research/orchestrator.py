@@ -21,7 +21,6 @@ def build_compendium(
     *,
     client: "AsyncOpenAI | None" = None,
     config: ResearchConfig | None = None,
-    cancel_ctx: object | None = None,
     cost_tracker: "CostTracker | None" = None,
     state_path: Path | None = None,
     output_formats: list[str] | tuple[str, ...] = (),
@@ -29,7 +28,6 @@ def build_compendium(
 ) -> Compendium:
     """Build a compendium through the bounded Agents SDK workflow."""
 
-    _ = cancel_ctx
     return build_compendium_with_agents(
         topic,
         client=client,

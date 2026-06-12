@@ -202,10 +202,17 @@ Compendium Scribe produces XML shaped like:
 
 - `pdm run test` - Executes the unit suite. Tests stub Agents SDK runs, so they run offline.
 - `pdm run lint` - Linting.
+- `pdm run check` - Runs tests, linting, and package build.
 - `pdm run ruff check src tests` - Direct lint command.
 - `pdm build` - Produce distributable artifacts.
 
 Before marking implementation work complete, run:
+
+```bash
+pdm run check
+```
+
+`pdm run check` runs the full required loop:
 
 ```bash
 pdm run pytest
@@ -220,5 +227,5 @@ pdm build
 1. Fork and clone the repository.
 2. Run `pdm install --group dev`.
 3. Make changes following the style guide and update/add tests.
-4. Run `pdm run pytest`, `pdm run ruff check src tests`, and `pdm build`.
+4. Run `pdm run check`.
 5. Raise a pull request with a concise description, verification commands, and representative output samples when user-facing structure changes.

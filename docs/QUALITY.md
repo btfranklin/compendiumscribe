@@ -5,6 +5,12 @@
 Run these before calling implementation work complete:
 
 ```bash
+pdm run check
+```
+
+`pdm run check` runs the full required loop:
+
+```bash
 pdm run pytest
 pdm run ruff check src tests
 pdm build

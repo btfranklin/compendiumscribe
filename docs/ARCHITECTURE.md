@@ -1,6 +1,6 @@
 # Architecture
 
-Compendium Scribe has three main surfaces:
+Compendium Scribe has four main surfaces:
 
 - CLI orchestration in `src/compendiumscribe/cli.py`
 - research workflow and telemetry in `src/compendiumscribe/research/`

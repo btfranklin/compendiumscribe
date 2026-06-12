@@ -155,13 +155,6 @@ class ResearchRunState(BaseModel):
         self.updated_at = datetime.now(timezone.utc)
 
 
-def validate_compendium_citations(
-    payload: CompendiumPayload,
-    ledger: SourceLedger,
-) -> None:
-    prepare_compendium_payload(payload, ledger)
-
-
 def prepare_compendium_payload(
     payload: CompendiumPayload,
     ledger: SourceLedger,
@@ -219,5 +212,4 @@ __all__ = [
     "SourceLedgerEntry",
     "VerificationIssue",
     "VerificationReport",
-    "validate_compendium_citations",
 ]

@@ -13,7 +13,6 @@ ProgressPhase = Literal[
     "section_research",
     "verification",
     "synthesis",
-    "trace",
     "completion",
 ]
 

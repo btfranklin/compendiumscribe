@@ -11,7 +11,6 @@ from compendiumscribe.research.agents_workflow import (
     mark_cited_sources,
     normalize_url,
     prepare_compendium_payload,
-    validate_compendium_citations,
 )
 
 
@@ -173,7 +172,7 @@ def test_rejected_and_consulted_only_sources_cannot_be_final_citations() -> None
 
     assert len(ledger.entries) == 1
     with pytest.raises(ValueError, match="unknown citation IDs"):
-        validate_compendium_citations(payload, ledger)
+        prepare_compendium_payload(payload, ledger)
 
 
 def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
