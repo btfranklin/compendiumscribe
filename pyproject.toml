@@ -13,6 +13,7 @@ dependencies = [
     "fpdf2>=2.8.7",
     "openai-agents>=0.17.6",
     "pydantic>=2.13.4",
+    "contract4agents>=0.6.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -67,4 +68,6 @@ excludes = ["tests/**"]
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check src tests"
-check = {composite = ["test", "lint", "pdm build"]}
+"contracts:check" = "contract4agents check src/compendiumscribe/agent_contracts --allow-python-imports --strict-drift"
+"contracts:compile" = "contract4agents compile src/compendiumscribe/agent_contracts --allow-python-imports --out .contract/build"
+check = {composite = ["contracts:check", "test", "lint", "pdm build"]}

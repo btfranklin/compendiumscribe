@@ -1,0 +1,62 @@
+agent PlannerAgent(request: PlanningInput) -> ResearchPlan:
+    goal = "Create the bounded research plan for a sourced compendium."
+
+    guards = [
+        require(output conforms ResearchPlan),
+    ]
+
+agent ResearchManagerAgent(request: ResearchAgendaInput) -> ResearchAgenda:
+    goal = "Turn the plan into a source-aware section agenda."
+    use hosted_tool openai.web_search context_size "medium"
+
+    guards = [
+        require(output conforms ResearchAgenda),
+    ]
+
+agent SectionResearchAgent(request: SectionResearchInput) -> SectionResearchBrief:
+    goal = "Research one agenda section with source-backed findings."
+    use hosted_tool openai.web_search context_size "high"
+
+    guards = [
+        require(output conforms SectionResearchBrief),
+    ]
+
+agent VerifierAgent(request: VerificationInput) -> VerificationReport:
+    goal = "Verify source coverage and request at most one targeted follow-up."
+    use hosted_tool openai.web_search context_size "medium"
+
+    guards = [
+        require(output conforms VerificationReport),
+    ]
+
+agent SynthesisAgent(request: SynthesisInput) -> CompendiumPayload:
+    goal = "Synthesize verified research into the final compendium payload without web search."
+
+    guards = [
+        require(output conforms CompendiumPayload),
+    ]
+
+run_spec CompendiumResearch:
+    stages = [
+        planning: PlannerAgent -> ResearchPlan,
+        research_agenda: ResearchManagerAgent -> ResearchAgenda,
+        section_research+: SectionResearchAgent -> SectionResearchBrief,
+        verification+: VerifierAgent -> VerificationReport,
+        synthesis: SynthesisAgent -> CompendiumPayload,
+    ]
+
+    derived_values = [
+        ledger_cited_ids: str[],
+        synthesis_citation_ids: str[],
+    ]
+
+    assertions = [
+        expect(trace.called_before(PlannerAgent, ResearchManagerAgent)),
+        expect(trace.called_before(ResearchManagerAgent, SectionResearchAgent)),
+        expect(trace.called_before(SectionResearchAgent, VerifierAgent)),
+        expect(trace.called_before(VerifierAgent, SynthesisAgent)),
+        expect(trace.max_calls(VerifierAgent, 2)),
+        expect(trace.not_tool_called_by(SynthesisAgent, openai.web_search)),
+        expect(value.synthesis_citation_ids subset_of value.ledger_cited_ids),
+    ]
+

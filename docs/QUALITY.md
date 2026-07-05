@@ -11,12 +11,13 @@ pdm run check
 `pdm run check` runs the full required loop:
 
 ```bash
+pdm run contracts:check
 pdm run pytest
 pdm run ruff check src tests
 pdm build
 ```
 
-`pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
+`pdm run contracts:check` runs strict Contract4Agents drift checks against the packaged contract project. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
 
 ## Test Ownership
 
@@ -25,12 +26,14 @@ pdm build
 - Compendium model and renderers: `tests/compendium/`
 - Compendium Library persistence and import: `tests/library/`
 - Research artifacts, ledger, workflow, pricing, and costs: `tests/research/`
+- Contract4Agents source, strict drift, adapter mapping, and run-spec checks: `tests/research/test_agent_contracts.py`
 - Repo legibility and forward-facing documentation checks: `tests/test_repo_legibility.py`
 
 ## High-Value Invariants
 
 - Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
-- Recovery resumes from `<base>.research.json`; it must not depend on a background response ID.
+- Synthesis must not call hosted web search; Contract4Agents trace/run-spec evaluation enforces this before rendering.
+- Recovery resumes from `<base>.research.json` and appends to `<base>.research.trace.jsonl`; it must not depend on a background response ID.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
 - Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
 - Library JSON must use relative paths so a library directory can be moved.

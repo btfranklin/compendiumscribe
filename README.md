@@ -11,10 +11,11 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 ## Features
 
 - **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
+- **Agent contracts** - Builds Agents SDK objects from packaged Contract4Agents source and checks strict drift against host Pydantic models, prompts, and hosted-tool configuration.
 - **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
-- **Recoverable sidecars** - Writes `<base>.research.json` after accepted artifacts and `<base>.costs.json` for usage/cost telemetry.
+- **Recoverable sidecars** - Writes `<base>.research.json` after accepted artifacts, `<base>.research.trace.jsonl` for Contract4Agents trace checks, and `<base>.costs.json` for usage/cost telemetry.
 - **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.5 and GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
 - **Compendium Library publishing** - Optionally publishes XML, Markdown, and metadata cards into a movable filesystem library with a root `catalog.json`.
 - **Re-rendering** - Ingest existing XML compendiums to generate new output formats without re-running research.
@@ -67,6 +68,7 @@ If you pass `--output report.md`, Compendium Scribe writes:
 
 - `report.md` or the requested render formats
 - `report.research.json`
+- `report.research.trace.jsonl`
 - `report.costs.json`
 
 Without `--output`, the base name is the slugified topic plus a UTC timestamp.
@@ -119,6 +121,7 @@ pdm run compendium recover --input report.research.json
 ```
 
 The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
+Recovery appends to the matching Contract4Agents trace sidecar so the completed run can still be checked against the compiled run spec.
 
 ### 6. Render formats from existing XML
 

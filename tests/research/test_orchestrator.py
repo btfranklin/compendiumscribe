@@ -9,6 +9,7 @@ from typing import Any
 from unittest import mock
 
 import pytest
+from contract4agents.runtime import load_trace_jsonl
 
 from compendiumscribe.research.agents_workflow import (
     AgentRunResult,
@@ -21,6 +22,11 @@ from compendiumscribe.research.agents_workflow import (
     VerificationIssue,
     VerificationReport,
     load_state,
+)
+from compendiumscribe.research.agents_workflow.agents import build_research_agent_team
+from compendiumscribe.research.agents_workflow.orchestrator import (
+    _contract_trace_path,
+    _evaluate_contract_run,
 )
 from compendiumscribe.research.config import ResearchConfig
 from compendiumscribe.research.costs import CostPricing, CostTracker
@@ -198,6 +204,13 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert set(state.section_briefs) == {"foundations", "applications"}
     assert state.ledger.entries[0].id == "C01"
     assert state.final_payload is not None
+    trace_path = _contract_trace_path(state_path)
+    assert trace_path.exists()
+    _evaluate_contract_run(
+        build_research_agent_team(ResearchConfig()),
+        load_trace_jsonl(trace_path),
+        state,
+    )
     assert [name for name, _ in runner.calls] == [
         "PlannerAgent",
         "ResearchManagerAgent",
@@ -317,6 +330,8 @@ def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
     )
 
     assert [name for name, _ in second_runner.calls] == ["SynthesisAgent"]
+    trace_lines = _contract_trace_path(state_path).read_text(encoding="utf-8")
+    assert trace_lines.count('"event_type": "agent.completed"') == 7
 
 
 def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
@@ -324,11 +339,40 @@ def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
     bad_payload.sections[0].insights[0].citations = ["C99"]
     runner = StubAgentRunner(final_payload=bad_payload)
 
-    with pytest.raises(ValueError, match="unknown citation IDs"):
+    with pytest.raises(ValueError, match="missing C99"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
             runner=runner,
+            state_path=tmp_path / "report.research.json",
+        )
+
+
+def test_synthesis_web_search_fails_contract_run_spec(tmp_path: Path) -> None:
+    class BadSynthesisRunner(StubAgentRunner):
+        async def run(
+            self,
+            agent: Any,
+            input_payload: str,
+            *,
+            max_turns: int,
+        ) -> AgentRunResult:
+            result = await super().run(
+                agent,
+                input_payload,
+                max_turns=max_turns,
+            )
+            if agent.name == "SynthesisAgent":
+                result.raw_result.raw_responses[0].output = [
+                    {"type": "web_search_call"}
+                ]
+            return result
+
+    with pytest.raises(ValueError, match="called by SynthesisAgent"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=BadSynthesisRunner(),
             state_path=tmp_path / "report.research.json",
         )
 

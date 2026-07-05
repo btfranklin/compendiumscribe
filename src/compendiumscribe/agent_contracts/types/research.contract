@@ -1,0 +1,39 @@
+type ResearchSection from python "compendiumscribe.research.agents_workflow.artifacts:ResearchSection"
+type ResearchPlan from python "compendiumscribe.research.agents_workflow.artifacts:ResearchPlan"
+type ResearchAgenda from python "compendiumscribe.research.agents_workflow.artifacts:ResearchAgenda"
+type SectionResearchBrief from python "compendiumscribe.research.agents_workflow.artifacts:SectionResearchBrief"
+type SourceLedger from python "compendiumscribe.research.agents_workflow.artifacts:SourceLedger"
+type VerificationReport from python "compendiumscribe.research.agents_workflow.artifacts:VerificationReport"
+type CompendiumPayload from python "compendiumscribe.research.agents_workflow.artifacts:CompendiumPayload"
+
+type PlanningInput:
+    topic: str
+
+type ResearchAgendaInput:
+    topic: str
+    plan: ResearchPlan
+
+type SectionResearchInput:
+    topic: str
+    section: ResearchSection
+    plan: ResearchPlan
+    agenda: ResearchAgenda
+    previous_brief: SectionResearchBrief?
+    verification: VerificationReport?
+
+type VerificationInput:
+    topic: str
+    plan: ResearchPlan
+    agenda: ResearchAgenda
+    section_briefs: list[SectionResearchBrief]
+    source_ledger: SourceLedger
+    follow_up_available: bool
+
+type SynthesisInput:
+    topic: str
+    plan: ResearchPlan
+    agenda: ResearchAgenda
+    section_briefs: list[SectionResearchBrief]
+    source_ledger: SourceLedger
+    verification: VerificationReport
+

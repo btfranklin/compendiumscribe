@@ -9,13 +9,15 @@ This repo is a Python package for generating sourced compendiums through a bound
 - Validation and quality checks: `docs/QUALITY.md`
 - Release process and tag-first release notes flow: `docs/RELEASING.md`
 - Research workflow code: `src/compendiumscribe/research/agents_workflow/`
+- Packaged agent contracts: `src/compendiumscribe/agent_contracts/`
 - Renderer-facing model: `src/compendiumscribe/compendium/`
 - Compendium Library persistence: `src/compendiumscribe/library/`
 
 ## Common Tasks
 
 - Change CLI behavior in `src/compendiumscribe/cli.py`; mirror user-visible changes in `README.md` and CLI tests.
-- Change research orchestration in `src/compendiumscribe/research/agents_workflow/`; keep tests offline by using the runner adapter.
+- Change research orchestration in `src/compendiumscribe/research/agents_workflow/`; keep tests offline by using the runner adapter, and keep the packaged Contract4Agents project aligned.
+- Change agent contracts in `src/compendiumscribe/agent_contracts/`; run strict drift and update contract tests.
 - Change final output shape in `src/compendiumscribe/compendium/`; update payload, XML, Markdown, HTML, and parser tests together.
 - Change library publishing/import in `src/compendiumscribe/library/`; keep `catalog.json`, `card.json`, and CLI tests aligned.
 - Change prompts in `src/compendiumscribe/prompts/`; keep prompt names aligned with `agents_workflow/agents.py`.
@@ -32,6 +34,7 @@ pdm run check
 `pdm run check` runs the required validation loop:
 
 ```bash
+pdm run contracts:check
 pdm run pytest
 pdm run ruff check src tests
 pdm build
