@@ -9,7 +9,7 @@ Compendium Scribe has four main surfaces:
 
 ## Runtime Flow
 
-`compendium create TOPIC` constructs a `ResearchConfig`, validates that all required agent model settings are present, initializes the local cost report, and calls `build_compendium()`. The public function delegates to `research/agents_workflow/orchestrator.py`, which owns the bounded Agents SDK workflow. Agents are built from the packaged Contract4Agents project under `src/compendiumscribe/agent_contracts/`, with existing prompt files supplied as instruction overrides:
+`compendium create TOPIC` constructs a `ResearchConfig`, validates that all required agent model settings are present, initializes the local cost report, and calls `build_compendium()`. The public function delegates to `research/agents_workflow/orchestrator.py`, which owns the bounded Agents SDK workflow. Agents and their runtime instructions are built from the packaged Contract4Agents project under `src/compendiumscribe/agent_contracts/`:
 
 1. `PlannerAgent` creates a `ResearchPlan` without web search.
 2. `ResearchManagerAgent` uses hosted web search to produce a `ResearchAgenda`.
@@ -50,7 +50,7 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 ## Key Boundaries
 
 - `research/agents_workflow/artifacts.py` is the schema boundary for agent outputs and state files.
-- `agent_contracts/` is the contract boundary for agent interfaces, output contracts, hosted-tool permissions, strict drift, and run-spec invariants.
+- `agent_contracts/` is the contract boundary for agent instructions, interfaces, output contracts, hosted-tool permissions, strict drift, and run-spec invariants.
 - `research/agents_workflow/agents.py` compiles the packaged contracts and maps them to OpenAI Agents SDK objects; it does not own workflow control flow.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
@@ -63,7 +63,7 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - CLI may import public research, compendium, and library APIs.
 - `research/agents_workflow/` may import `compendium` only at the final construction point.
 - `compendium/` must not import research workflow modules.
-- Prompt files under `src/compendiumscribe/prompts/` are loaded as Contract4Agents instruction overrides; keep prompt filenames aligned with `agent_contracts/contract4agents.registry.json`.
+- Agent instructions live in `src/compendiumscribe/agent_contracts/agents/`; keep instruction changes aligned with contract tests and strict drift.
 
 ## Current Research Path
 

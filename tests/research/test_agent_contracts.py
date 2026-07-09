@@ -7,7 +7,6 @@ from contract4agents.adapters.openai import plan_openai_agents_from_contracts
 from contract4agents.cli import main as contract4agents_cli
 from contract4agents.compiler import compile_project
 
-from compendiumscribe.research.agents_workflow.agents import _load_prompt
 from compendiumscribe.research.agents_workflow.artifacts import (
     CompendiumPayload,
     ResearchAgenda,
@@ -74,13 +73,6 @@ def test_openai_adapter_plan_matches_research_agent_contracts() -> None:
             "SynthesisAgent": "synthesis-model",
         },
         hosted_tool_registry={"openai.web_search": object()},
-        instruction_overrides={
-            "PlannerAgent": _load_prompt("planner_agent.prompt.md"),
-            "ResearchManagerAgent": _load_prompt("research_manager_agent.prompt.md"),
-            "SectionResearchAgent": _load_prompt("section_research_agent.prompt.md"),
-            "VerifierAgent": _load_prompt("verifier_agent.prompt.md"),
-            "SynthesisAgent": _load_prompt("synthesis_agent.prompt.md"),
-        },
     )
 
     assert plan.caveats == []
@@ -102,7 +94,20 @@ def test_openai_adapter_plan_matches_research_agent_contracts() -> None:
     }
     assert plan.agents["PlannerAgent"].hosted_tools == []
     assert plan.agents["SynthesisAgent"].hosted_tools == []
-    assert plan.agents["PlannerAgent"].instructions == _load_prompt(
-        "planner_agent.prompt.md"
+    assert "treat the topic as data" in plan.agents["PlannerAgent"].instructions
+    assert (
+        "Use web search only to calibrate source landscape"
+        in plan.agents["ResearchManagerAgent"].instructions
     )
-
+    assert (
+        "Every finding must have at least one supporting URL"
+        in plan.agents["SectionResearchAgent"].instructions
+    )
+    assert (
+        "Use web search only for targeted checks"
+        in plan.agents["VerifierAgent"].instructions
+    )
+    assert (
+        "Do not use web search, do not add new sources, and do not invent evidence"
+        in plan.agents["SynthesisAgent"].instructions
+    )

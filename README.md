@@ -11,7 +11,7 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 ## Features
 
 - **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
-- **Agent contracts** - Builds Agents SDK objects from packaged Contract4Agents source and checks strict drift against host Pydantic models, prompts, and hosted-tool configuration.
+- **Agent contracts** - Builds Agents SDK objects from packaged Contract4Agents source and checks strict drift against host Pydantic models, agent instructions, and hosted-tool configuration.
 - **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.

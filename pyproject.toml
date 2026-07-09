@@ -8,12 +8,12 @@ authors = [
 dependencies = [
     "openai>=2.43.0",
     "python-dotenv>=1.2.2",
-    "click>=8.4.1",
+    "click>=8.4.2",
     "mistune>=3.2.1",
     "fpdf2>=2.8.7",
     "openai-agents>=0.17.6",
     "pydantic>=2.13.4",
-    "contract4agents>=0.6.0",
+    "contract4agents>=0.7.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"

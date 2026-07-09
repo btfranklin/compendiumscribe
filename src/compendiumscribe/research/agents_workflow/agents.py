@@ -45,7 +45,6 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
             "SynthesisAgent": config.synthesis_agent_model,
         },
         hosted_tool_registry={"openai.web_search": True},
-        instruction_overrides=_instruction_overrides(),
     )
     if result.caveats:
         details = "; ".join(
@@ -71,24 +70,6 @@ def _compiled_contracts() -> CompilerArtifacts:
     contract_root = files("compendiumscribe.agent_contracts")
     with as_file(contract_root) as root:
         return compile_project(root, allow_python_imports=True)
-
-
-def _load_prompt(filename: str) -> str:
-    return (
-        files("compendiumscribe.prompts")
-        .joinpath(filename)
-        .read_text(encoding="utf-8")
-    )
-
-
-def _instruction_overrides() -> dict[str, str]:
-    return {
-        "PlannerAgent": _load_prompt("planner_agent.prompt.md"),
-        "ResearchManagerAgent": _load_prompt("research_manager_agent.prompt.md"),
-        "SectionResearchAgent": _load_prompt("section_research_agent.prompt.md"),
-        "VerifierAgent": _load_prompt("verifier_agent.prompt.md"),
-        "SynthesisAgent": _load_prompt("synthesis_agent.prompt.md"),
-    }
 
 
 __all__ = [

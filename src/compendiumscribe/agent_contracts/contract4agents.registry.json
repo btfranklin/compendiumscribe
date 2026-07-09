@@ -53,23 +53,7 @@
       "python": "compendiumscribe.research.agents_workflow.artifacts:VerificationReport"
     }
   },
-  "prompts": {
-    "PlannerAgent": {
-      "path": "../prompts/planner_agent.prompt.md"
-    },
-    "ResearchManagerAgent": {
-      "path": "../prompts/research_manager_agent.prompt.md"
-    },
-    "SectionResearchAgent": {
-      "path": "../prompts/section_research_agent.prompt.md"
-    },
-    "SynthesisAgent": {
-      "path": "../prompts/synthesis_agent.prompt.md"
-    },
-    "VerifierAgent": {
-      "path": "../prompts/verifier_agent.prompt.md"
-    }
-  },
+  "prompts": {},
   "tools": {},
   "version": 2
 }
