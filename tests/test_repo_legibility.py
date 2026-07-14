@@ -1,63 +1,83 @@
 from __future__ import annotations
 
+from io import StringIO
 from pathlib import Path
+import re
+from urllib.parse import unquote, urlsplit
+
+from dotenv import dotenv_values
+
+from compendiumscribe.research.config import REQUIRED_MODEL_ENV_VARS
 
 
 ROOT = Path(__file__).resolve().parents[1]
+ENTRYPOINT_DOCS = (
+    ROOT / "AGENTS.md",
+    ROOT / "docs" / "README.md",
+)
+MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
+DOTENV_BLOCK = re.compile(r"```dotenv\s*\n(.*?)\n```", re.DOTALL)
 
 
-def test_agent_entrypoints_exist_and_route_to_docs() -> None:
-    agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    docs_index = (ROOT / "docs" / "README.md").read_text(encoding="utf-8")
+def _resolved_local_links(path: Path) -> set[Path]:
+    destinations = MARKDOWN_LINK.findall(path.read_text(encoding="utf-8"))
+    return {
+        (path.parent / unquote(parsed.path)).resolve()
+        for destination in destinations
+        if not (parsed := urlsplit(destination)).scheme
+        and not parsed.netloc
+        and parsed.path
+    }
 
-    assert "docs/ARCHITECTURE.md" in agents
-    assert "docs/QUALITY.md" in agents
-    assert "docs/RELEASING.md" in agents
-    assert "ARCHITECTURE.md" in docs_index
-    assert "QUALITY.md" in docs_index
-    assert "RELEASING.md" in docs_index
 
+def test_agent_entrypoints_route_to_resolvable_docs() -> None:
+    resolved_by_entrypoint = {
+        path: _resolved_local_links(path) for path in ENTRYPOINT_DOCS
+    }
 
-def test_entrypoint_docs_name_required_research_model_settings() -> None:
-    required_model_vars = [
-        "PLANNER_AGENT_MODEL",
-        "RESEARCH_AGENT_MODEL",
-        "VERIFIER_AGENT_MODEL",
-        "SYNTHESIS_AGENT_MODEL",
+    unrouted = [
+        str(path.relative_to(ROOT))
+        for path, targets in resolved_by_entrypoint.items()
+        if not targets
     ]
-    checked_paths = [
-        ROOT / "README.md",
-        ROOT / ".env.example",
-    ]
+    assert not unrouted, f"Entry-point documentation has no local routes: {unrouted}"
 
-    missing: list[str] = []
-    for path in checked_paths:
-        content = path.read_text(encoding="utf-8")
-        for var_name in required_model_vars:
-            if var_name not in content:
-                missing.append(f"{path.relative_to(ROOT)} missing {var_name}")
+    missing = {
+        str(path.relative_to(ROOT)): sorted(
+            str(target.relative_to(ROOT))
+            for target in targets
+            if not target.exists()
+        )
+        for path, targets in resolved_by_entrypoint.items()
+        if any(not target.exists() for target in targets)
+    }
+    assert not missing, f"Entry-point documentation has broken links: {missing}"
+
+    agent_routes = resolved_by_entrypoint[ROOT / "AGENTS.md"]
+    assert {ROOT / "README.md", ROOT / "docs" / "README.md"} <= agent_routes
+
+
+def test_example_environment_covers_runtime_research_configuration() -> None:
+    example = dotenv_values(ROOT / ".env.example")
+    required_names = {env_name for _, env_name in REQUIRED_MODEL_ENV_VARS}
+
+    missing = sorted(name for name in required_names if not example.get(name))
 
     assert not missing, (
-        "Entry-point docs should show the required current research model "
-        f"settings. Missing from: {missing}"
+        ".env.example is missing required research model configuration: "
+        f"{missing}"
     )
 
 
-def test_library_docs_reference_catalog() -> None:
-    checked_paths = [
-        ROOT / "AGENTS.md",
-        ROOT / "README.md",
-        ROOT / "docs" / "ARCHITECTURE.md",
-        ROOT / "docs" / "QUALITY.md",
-        ROOT / "docs" / "README.md",
-    ]
+def test_readme_environment_example_matches_env_template() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    match = DOTENV_BLOCK.search(readme)
 
-    missing_catalog = [
-        str(path.relative_to(ROOT))
-        for path in checked_paths
-        if "catalog.json" not in path.read_text(encoding="utf-8")
-    ]
-    assert not missing_catalog, (
-        "Library-facing docs should point agents to catalog.json. "
-        f"Missing from: {missing_catalog}"
+    assert match is not None, "README.md should include a dotenv example."
+
+    readme_example = dotenv_values(stream=StringIO(match.group(1)))
+    env_template = dotenv_values(ROOT / ".env.example")
+
+    assert readme_example == env_template, (
+        "README.md environment example must match .env.example."
     )

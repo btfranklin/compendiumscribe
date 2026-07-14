@@ -48,4 +48,4 @@ When behavior shifts, update these in the same change:
 - `docs/ARCHITECTURE.md` for workflow or boundary changes.
 - `.env.example` for environment variable changes.
 
-The legibility test checks that entry-point docs route agents to the current system of record and show the required research model settings.
+The legibility tests resolve local links from the agent and documentation entry points, derive required research model settings from `ResearchConfig`, and verify that the parsed README environment example matches `.env.example`.
