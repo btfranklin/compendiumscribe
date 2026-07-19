@@ -16,8 +16,8 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 - **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
-- **Contract-bound traces** - Writes normalized trace evidence carrying the exact contract and materialization-plan digests, then assesses required controls before rendering.
-- **Fail-closed capability evidence** - Rejects provider tool calls that do not resolve to an enabled grant in the materialization plan.
+- **Contract-bound traces** - Writes attempt-aware normalized trace evidence carrying the exact contract and materialization-plan digests, then assesses controls and the declared run specification separately before rendering.
+- **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls that do not resolve to exactly one enabled grant in the materialization plan.
 - **Recoverable sidecars** - Atomically writes `<base>.research.json` after accepted artifacts and `<base>.research.trace.jsonl` for normalized assurance evidence, alongside `<base>.costs.json` usage/cost telemetry.
 - **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.5 and GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
 - **Compendium Library publishing** - Optionally publishes XML, Markdown, and metadata cards into a movable filesystem library with a root `catalog.json`.
@@ -121,7 +121,7 @@ pdm run compendium recover --input report.research.json
 ```
 
 The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
-Recovery appends to the matching normalized trace only when its contract and plan digests still match. Any sidecar containing accepted workflow progress requires a readable, nonempty trace; only a pristine `created` sidecar may start without one. Every completed recovery is reassessed against the same materialization plan and required controls before rendering.
+Recovery appends to the matching normalized trace only when its contract and plan digests still match. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace; only a pristine `created` sidecar may start without one. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. SDK exceptions and invalid canonical outputs receive at most five total attempts; the fifth failure is terminal and later recovery will not spend another call. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery is reassessed against the same materialization plan, required controls, and declared run specification before citation hydration or rendering.
 
 ### 6. Render formats from existing XML
 

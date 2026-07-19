@@ -39,6 +39,7 @@ def _config() -> SimpleNamespace:
 def test_agent_contracts_compile_to_canonical_ir() -> None:
     artifacts = compile_project(CONTRACT_ROOT)
 
+    assert artifacts.ir.ir_version == "3"
     assert {agent.name for agent in artifacts.ir.agents.values()} == {
         "PlannerAgent",
         "ResearchManagerAgent",
@@ -49,6 +50,9 @@ def test_agent_contracts_compile_to_canonical_ir() -> None:
     assert {run_spec.name for run_spec in artifacts.ir.run_specs.values()} == {
         "CompendiumResearch"
     }
+    run_spec = next(iter(artifacts.ir.run_specs.values()))
+    assert run_spec.assertions == ()
+    assert run_spec.derived_values == ()
     assert artifacts.ir.types[semantic_id("type", "ResearchPlan")].name == (
         ResearchPlan.__name__
     )

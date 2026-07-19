@@ -17,12 +17,13 @@ Compendium Scribe has four main surfaces:
 4. The application builds a `SourceLedger` from section sources and finding URLs.
 5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass. Only an `accepted` terminal report permits synthesis.
 6. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
-7. The host emits workflow events through Contract4Agents' atomic normalized trace sink; Contract4Agents normalizes hosted OpenAI calls, resolves their exact plan grants, and rejects nonconforming evidence before assurance.
-8. The deterministic host owns the one-follow-up limit and ledger-backed citation IDs, while Contract4Agents assurance evaluates derived output controls and the declared workflow-order control.
-9. `prepare_compendium_payload()` hydrates final citation metadata from the ledger.
-10. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
+7. One registered Contract4Agents OpenAI trace processor captures every SDK run inside an explicit attempt scope. The host separately normalizes every successful raw response and any raw responses retained on SDK exceptions; unsupported, unknown, or ambiguously granted provider-hosted calls fail closed.
+8. The deterministic host owns retries, recovery, stage order and cardinality, the one-follow-up limit, terminal business decisions, and ledger-backed citation IDs. Stable invocation IDs and ordered retry attempts remain durable in host state and trace evidence. SDK exceptions and schema-invalid outputs receive five total attempts across the initial run and recovery; the fifth failure is terminal. Contract violations remain immediately terminal.
+9. Contract4Agents assesses controls and the declared `CompendiumResearch` run specification separately. Run-spec observations come from the host's accepted stage ledger and must link to trace events carrying semantic agent identity.
+10. `prepare_compendium_payload()` hydrates final citation metadata from the ledger.
+11. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
 
-The workflow atomically persists `<base>.research.json` after accepted artifacts, atomically replaces `<base>.research.trace.jsonl` as normalized trace evidence grows, and records usage in `<base>.costs.json` when SDK usage metadata is available. Progressed state requires matching trace evidence during recovery; completed recovery reruns assurance before rendering.
+The workflow atomically persists `<base>.research.json` after accepted artifacts, atomically replaces `<base>.research.trace.jsonl` as normalized trace evidence grows, and records usage in `<base>.costs.json` when SDK usage metadata is available. A successful attempt is terminally selected only after its accepted stage record is durable; recovery reconciles the narrow state-before-selection crash window. Progressed state requires matching trace evidence during recovery, and completed recovery reruns both control and run-spec assurance before rendering.
 
 ## Compendium Library
 
@@ -54,7 +55,8 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
 - `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns complete named model/provider profiles plus OpenAI adapter and tool bindings.
 - `research/agents_workflow/agents.py` selects a complete committed Contract4Agents profile and materializes the OpenAI Agents SDK graph; environment variables select the profile but do not reconstruct model or provider configuration.
-- `research/agents_workflow/contract_trace.py` adds host workflow events to Contract4Agents' atomic normalized trace sink; provider-event normalization, grant resolution, and trace conformance stay upstream.
+- Runtime code consumes the IR and plan returned by that one materialization. The small pre-materialization cost lookup reads the selected binding directly. Observed `provider_model` values remain trace telemetry; they are not required to equal planned model strings because provider aliases, snapshots, and routing may differ.
+- `research/agents_workflow/contract_trace.py` owns the single per-run OpenAI trace processor, attempt scopes, and atomic normalized trace sink; provider-event classification, grant resolution, trace conformance, and assurance algorithms stay upstream.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.

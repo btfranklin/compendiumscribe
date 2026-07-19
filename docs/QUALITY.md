@@ -34,8 +34,11 @@ pdm build
 - Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
 - Only an `accepted` verification report may reach synthesis; follow-up is limited to one pass over explicit, known section IDs.
 - Follow-up completion is checkpointed per section. Once every target has run, the exhausted follow-up state is persisted before the second verifier starts so recovery cannot repeat paid research work.
-- Every observed provider tool call must resolve to exactly one enabled materialization-plan grant; contradictory evidence is persisted and fails the run.
-- Required Contract4Agents controls must be `passed`; `violated` and `unverified` both fail the run.
+- Every observed provider-hosted response call must be supported and resolve to exactly one enabled materialization-plan grant; unsupported, unknown, ambiguous, and contradictory evidence is persisted and fails the run. Host-dispatched calls remain outside this adapter classification.
+- Every SDK invocation runs inside an explicit trace attempt. Invocation IDs stay stable across recovery; attempt IDs are unique and ordered, retries identify their predecessor, and exception-carried raw responses remain evidence. Retryable exceptions and schema-invalid outputs receive no more than five total attempts.
+- Canonical output validation failures remain attempt evidence. Only a valid attempt may be terminally selected as successful, and selection occurs after its host stage checkpoint is durable. A fifth retryable failure is selected as terminally failed; undeclared capabilities are terminal on first observation.
+- Required Contract4Agents controls and the `CompendiumResearch` run-spec result must be `passed`; `violated` and `unverified` both fail the run.
+- Run-spec observations come from the host's authoritative stage ledger and link to semantic trace events. Missing agent identity is unverified, never a pass.
 - Persisted enum-valued contract artifacts must pass generated-model validation before recovery resumes.
 - Progressed recovery requires a readable, nonempty trace with matching contract and materialization-plan digests, and completed recovery must reassess it before rendering.
 - Recovery resumes from `<base>.research.json` and extends the normalized evidence in `<base>.research.trace.jsonl`; it must not depend on a background response ID.

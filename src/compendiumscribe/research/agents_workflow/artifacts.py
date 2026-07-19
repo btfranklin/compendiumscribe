@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from contract4agents.tracing import TraceAttempt
 from pydantic import BaseModel, Field
 
 from ...agent_contracts.generated.python import (
@@ -15,6 +16,28 @@ from ...agent_contracts.generated.python import (
     SourceLedger,
     VerificationReport,
 )
+
+
+class CompletedAgentStage(BaseModel):
+    """Durable host evidence for one accepted semantic stage output."""
+
+    stage: str
+    agent_name: str
+    output_type: str
+    output: dict[str, Any]
+    invocation_id: str
+    attempt_id: str
+    attempt_number: int
+    retry_of: str | None = None
+
+    @property
+    def attempt(self) -> TraceAttempt:
+        return TraceAttempt(
+            invocation_id=self.invocation_id,
+            attempt_id=self.attempt_id,
+            number=self.attempt_number,
+            retry_of=self.retry_of,
+        )
 
 
 class ResearchRunState(BaseModel):
@@ -29,6 +52,8 @@ class ResearchRunState(BaseModel):
     config_snapshot: dict[str, Any] = Field(default_factory=dict)
     completed_stages: list[str] = Field(default_factory=list)
     response_ids: dict[str, list[str]] = Field(default_factory=dict)
+    attempt_counts: dict[str, int] = Field(default_factory=dict)
+    agent_stages: dict[str, CompletedAgentStage] = Field(default_factory=dict)
     plan: ResearchPlan | None = None
     agenda: ResearchAgenda | None = None
     section_briefs: dict[str, SectionResearchBrief] = Field(default_factory=dict)
@@ -36,6 +61,8 @@ class ResearchRunState(BaseModel):
     ledger: SourceLedger = Field(default_factory=lambda: SourceLedger(entries=[]))
     verification: VerificationReport | None = None
     final_payload: CompendiumPayload | None = None
+    run_spec_selection: dict[str, Any] | None = None
+    run_spec_result: dict[str, Any] | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -87,6 +114,7 @@ def prepare_compendium_payload(
 
 
 __all__ = [
+    "CompletedAgentStage",
     "ResearchRunState",
     "prepare_compendium_payload",
 ]
