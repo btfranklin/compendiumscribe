@@ -3,6 +3,7 @@ from __future__ import annotations
 from io import StringIO
 from pathlib import Path
 import re
+import subprocess
 from urllib.parse import unquote, urlsplit
 
 from dotenv import dotenv_values
@@ -81,3 +82,18 @@ def test_readme_environment_example_matches_env_template() -> None:
     assert readme_example == env_template, (
         "README.md environment example must match .env.example."
     )
+
+
+def test_generated_contract_bytecode_remains_ignored() -> None:
+    bytecode_path = (
+        "src/compendiumscribe/agent_contracts/generated/python/"
+        "__pycache__/models.pyc"
+    )
+
+    result = subprocess.run(
+        ["git", "check-ignore", "--quiet", bytecode_path],
+        cwd=ROOT,
+        check=False,
+    )
+
+    assert result.returncode == 0

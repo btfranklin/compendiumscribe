@@ -168,6 +168,10 @@ pipeline_cache/
 # Generated HTML site
 /site
 generated/
+!src/compendiumscribe/agent_contracts/generated/
+!src/compendiumscribe/agent_contracts/generated/**
+src/compendiumscribe/agent_contracts/generated/**/__pycache__/
+src/compendiumscribe/agent_contracts/generated/**/*.py[cod]
 .contract/
 
 # macOS

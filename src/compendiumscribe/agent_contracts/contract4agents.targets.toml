@@ -1,0 +1,14 @@
+schema_version = "1"
+
+[targets.openai]
+adapter = "openai"
+
+[targets.openai.tools."research.web_search"]
+provider = "openai"
+tool = "web_search"
+search_context_size = "medium"
+
+[targets.openai.tools."research.deep_web_search"]
+provider = "openai"
+tool = "web_search"
+search_context_size = "high"

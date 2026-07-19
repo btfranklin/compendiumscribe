@@ -18,14 +18,8 @@ from .errors import (
 )
 from .agents_workflow import (
     AgentRunResult,
-    CompendiumPayload,
     OpenAIAgentRunner,
-    ResearchAgenda,
-    ResearchPlan,
     ResearchRunState,
-    SectionResearchBrief,
-    SourceLedger,
-    VerificationReport,
     build_compendium_with_agents,
     recover_compendium_from_state,
 )
@@ -44,7 +38,6 @@ from .utils import (
 
 __all__ = [
     "AgentRunResult",
-    "CompendiumPayload",
     "DeepResearchError",
     "MissingConfigurationError",
     "ResearchConfig",
@@ -57,12 +50,7 @@ __all__ = [
     "ProgressPhase",
     "ProgressStatus",
     "ResearchProgress",
-    "ResearchAgenda",
-    "ResearchPlan",
     "ResearchRunState",
-    "SectionResearchBrief",
-    "SourceLedger",
-    "VerificationReport",
     "emit_progress",
     "build_compendium",
     "build_compendium_with_agents",

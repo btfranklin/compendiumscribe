@@ -1,20 +1,119 @@
-type ResearchSection from python "compendiumscribe.research.agents_workflow.artifacts:ResearchSection"
-type ResearchPlan from python "compendiumscribe.research.agents_workflow.artifacts:ResearchPlan"
-type ResearchAgenda from python "compendiumscribe.research.agents_workflow.artifacts:ResearchAgenda"
-type SectionResearchBrief from python "compendiumscribe.research.agents_workflow.artifacts:SectionResearchBrief"
-type SourceLedger from python "compendiumscribe.research.agents_workflow.artifacts:SourceLedger"
-type VerificationReport from python "compendiumscribe.research.agents_workflow.artifacts:VerificationReport"
-type CompendiumPayload from python "compendiumscribe.research.agents_workflow.artifacts:CompendiumPayload"
+type ResearchSource:
+    title: string
+    url: string
+    publisher: string?
+    published_at: string?
+    summary: string?
+    credibility_notes: string?
+    status: string
+
+type ResearchSection:
+    id: string
+    title: string
+    focus: string
+    guiding_questions: list[string]
+
+type ResearchPlan:
+    title: string
+    primary_objective: string
+    audience: string
+    key_sections: list[ResearchSection]
+    research_questions: list[string]
+    methodology_preferences: list[string]
+    topic_flags: list[string]
+
+type ResearchAgenda:
+    sections: list[ResearchSection]
+    source_strategy: list[string]
+    verification_focus: list[string]
+
+type SectionFinding:
+    title: string
+    evidence: string
+    implications: string?
+    source_urls: list[string]
+
+type SectionResearchBrief:
+    section_id: string
+    title: string
+    summary: string
+    key_terms: list[string]
+    guiding_questions: list[string]
+    findings: list[SectionFinding]
+    sources: list[ResearchSource]
+    open_questions: list[string]
+
+type SourceLedgerEntry:
+    id: string
+    title: string
+    url: string
+    publisher: string?
+    published_at: string?
+    summary: string?
+    credibility_notes: string?
+    status: string
+    section_ids: list[string]
+
+type SourceLedger:
+    entries: list[SourceLedgerEntry]
+
+type VerificationIssue:
+    section_id: string?
+    message: string
+    severity: string
+    suggested_follow_up: string?
+
+type VerificationReport:
+    status: string
+    issues: list[VerificationIssue]
+    follow_up_section_ids: list[string]
+    notes: string?
+
+type InsightPayload:
+    title: string
+    evidence: string
+    implications: string?
+    citations: list[string]
+
+type SectionPayload:
+    id: string
+    title: string
+    summary: string
+    key_terms: list[string]
+    guiding_questions: list[string]
+    insights: list[InsightPayload]
+
+type CitationPayload:
+    id: string
+    title: string
+    url: string
+    publisher: string?
+    published_at: string?
+    summary: string?
+
+type CompendiumPayload:
+    topic_overview: string
+    methodology: list[string]
+    sections: list[SectionPayload]
+    citations: list[CitationPayload]
+    open_questions: list[string]
+
+type WebSearchRequest:
+    query: string
+
+type WebSearchResult:
+    summary: string
+    source_urls: list[string]
 
 type PlanningInput:
-    topic: str
+    topic: string
 
 type ResearchAgendaInput:
-    topic: str
+    topic: string
     plan: ResearchPlan
 
 type SectionResearchInput:
-    topic: str
+    topic: string
     section: ResearchSection
     plan: ResearchPlan
     agenda: ResearchAgenda
@@ -22,18 +121,17 @@ type SectionResearchInput:
     verification: VerificationReport?
 
 type VerificationInput:
-    topic: str
+    topic: string
     plan: ResearchPlan
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]
     source_ledger: SourceLedger
-    follow_up_available: bool
+    follow_up_available: boolean
 
 type SynthesisInput:
-    topic: str
+    topic: string
     plan: ResearchPlan
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]
     source_ledger: SourceLedger
     verification: VerificationReport
-

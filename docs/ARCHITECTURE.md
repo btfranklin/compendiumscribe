@@ -15,13 +15,14 @@ Compendium Scribe has four main surfaces:
 2. `ResearchManagerAgent` uses hosted web search to produce a `ResearchAgenda`.
 3. `SectionResearchAgent` runs sequentially once per agenda section.
 4. The application builds a `SourceLedger` from section sources and finding URLs.
-5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass.
+5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass. Only an `accepted` terminal report permits synthesis.
 6. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
-7. The `CompendiumResearch` run spec checks trace order, verifier call limits, synthesis tool restrictions, and the ledger-backed citation invariant.
-8. `prepare_compendium_payload()` rejects any final citation reference that is not backed by a cited ledger entry, then hydrates final citation metadata from the ledger.
-9. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
+7. The host writes normalized trace events carrying the contract and plan digests; Contract4Agents assurance evaluates derived output controls and the declared workflow-order control.
+8. The deterministic host owns the one-follow-up limit, rejects every provider tool call without a matching enabled plan grant, and enforces ledger-backed citation IDs.
+9. `prepare_compendium_payload()` hydrates final citation metadata from the ledger.
+10. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
 
-The workflow persists `<base>.research.json` after accepted artifacts, appends Contract4Agents trace events to `<base>.research.trace.jsonl`, and records usage in `<base>.costs.json` when SDK usage metadata is available.
+The workflow atomically persists `<base>.research.json` after accepted artifacts, atomically replaces `<base>.research.trace.jsonl` as normalized trace evidence grows, and records usage in `<base>.costs.json` when SDK usage metadata is available. Progressed state requires matching trace evidence during recovery; completed recovery reruns assurance before rendering.
 
 ## Compendium Library
 
@@ -49,9 +50,11 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 
 ## Key Boundaries
 
-- `research/agents_workflow/artifacts.py` is the schema boundary for agent outputs and state files.
-- `agent_contracts/` is the contract boundary for agent instructions, interfaces, output contracts, hosted-tool permissions, strict drift, and run-spec invariants.
-- `research/agents_workflow/agents.py` compiles the packaged contracts and maps them to OpenAI Agents SDK objects; it does not own workflow control flow.
+- `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic, TypeScript, and Zod bindings live under `agent_contracts/generated/` and are never hand-edited.
+- `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
+- `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns OpenAI adapter and tool bindings.
+- `research/agents_workflow/agents.py` supplies the complete environment-backed runtime model profile and asks Contract4Agents to materialize the OpenAI Agents SDK graph; it does not own provider tool configuration or workflow control flow.
+- `research/agents_workflow/contract_trace.py` binds normalized evidence to the exact materialization plan used for the run.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.
@@ -63,7 +66,7 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - CLI may import public research, compendium, and library APIs.
 - `research/agents_workflow/` may import `compendium` only at the final construction point.
 - `compendium/` must not import research workflow modules.
-- Agent instructions live in `src/compendiumscribe/agent_contracts/agents/`; keep instruction changes aligned with contract tests and strict drift.
+- Agent instructions live in `src/compendiumscribe/agent_contracts/agents/`; regenerate committed language bindings whenever canonical types change.
 
 ## Current Research Path
 

@@ -17,7 +17,7 @@ pdm run ruff check src tests
 pdm build
 ```
 
-`pdm run contracts:check` runs strict Contract4Agents drift checks against the packaged contract project. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
+`pdm run contracts:check` validates the packaged contract project and fails when generated Pydantic, TypeScript, or Zod bindings are stale. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
 
 ## Test Ownership
 
@@ -26,14 +26,19 @@ pdm build
 - Compendium model and renderers: `tests/compendium/`
 - Compendium Library persistence and import: `tests/library/`
 - Research artifacts, ledger, workflow, pricing, and costs: `tests/research/`
-- Contract4Agents source, strict drift, adapter mapping, and run-spec checks: `tests/research/test_agent_contracts.py`
+- Contract4Agents canonical IR, codegen freshness, target planning, and native materialization: `tests/research/test_agent_contracts.py`
 - Repo legibility and forward-facing documentation checks: `tests/test_repo_legibility.py`
 
 ## High-Value Invariants
 
 - Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
-- Synthesis must not call hosted web search; Contract4Agents trace/run-spec evaluation enforces this before rendering.
-- Recovery resumes from `<base>.research.json` and appends to `<base>.research.trace.jsonl`; it must not depend on a background response ID.
+- Only an `accepted` verification report may reach synthesis; follow-up is limited to one pass over explicit, known section IDs.
+- Every observed provider tool call must resolve to exactly one enabled materialization-plan grant; contradictory evidence is persisted and fails the run.
+- Required Contract4Agents controls must be `passed`; `violated` and `unverified` both fail the run.
+- Persisted string-valued contract artifacts must pass host semantic validation before recovery resumes.
+- Progressed recovery requires a readable, nonempty trace with matching contract and materialization-plan digests, and completed recovery must reassess it before rendering.
+- Recovery resumes from `<base>.research.json` and extends the normalized evidence in `<base>.research.trace.jsonl`; it must not depend on a background response ID.
+- Research state and normalized trace sidecars must be atomically replaced so failed writes preserve the previous complete file.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
 - Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
 - Library JSON must use relative paths so a library directory can be moved.

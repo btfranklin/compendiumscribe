@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit, urlunsplit
 
-from .artifacts import (
+from ...agent_contracts.generated.python import (
     ResearchSource,
     SectionResearchBrief,
     SourceLedger,
@@ -29,7 +29,7 @@ def _looks_like_host_path(path: str) -> bool:
 def build_source_ledger(
     briefs: list[SectionResearchBrief],
 ) -> SourceLedger:
-    ledger = SourceLedger()
+    ledger = SourceLedger(entries=[])
     by_url = {normalize_url(entry.url): entry for entry in ledger.entries}
 
     for brief in briefs:

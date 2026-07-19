@@ -9,19 +9,27 @@ from typing import Any
 from unittest import mock
 
 import pytest
-from contract4agents.runtime import load_trace_jsonl
+from contract4agents.tracing import (
+    NormalizedTrace,
+    load_trace_jsonl,
+    write_trace_jsonl,
+)
 
-from compendiumscribe.research.agents_workflow import (
-    AgentRunResult,
+from compendiumscribe.agent_contracts.generated.python import (
     CompendiumPayload,
-    OpenAIAgentRunner,
     ResearchAgenda,
     ResearchPlan,
     ResearchSection,
     SectionResearchBrief,
     VerificationIssue,
     VerificationReport,
+)
+from compendiumscribe.research.agents_workflow import (
+    AgentRunResult,
+    OpenAIAgentRunner,
+    ResearchRunState,
     load_state,
+    save_state,
 )
 from compendiumscribe.research.agents_workflow.agents import build_research_agent_team
 from compendiumscribe.research.agents_workflow.orchestrator import (
@@ -34,7 +42,10 @@ from compendiumscribe.research.errors import (
     DeepResearchError,
     MissingConfigurationError,
 )
-from compendiumscribe.research.orchestrator import build_compendium
+from compendiumscribe.research.orchestrator import (
+    build_compendium,
+    recover_compendium,
+)
 
 
 class StubAgentRunner:
@@ -46,7 +57,7 @@ class StubAgentRunner:
     ) -> None:
         self.calls: list[tuple[str, str]] = []
         self.verification_reports = verification_reports or [
-            VerificationReport(status="accepted")
+            accepted_report()
         ]
         self.final_payload = final_payload or sample_payload()
 
@@ -120,6 +131,8 @@ def sample_plan() -> ResearchPlan:
             ),
         ],
         research_questions=["What evidence supports adoption?"],
+        methodology_preferences=[],
+        topic_flags=[],
     )
 
 
@@ -136,10 +149,13 @@ def sample_brief(section_id: str) -> SectionResearchBrief:
         section_id=section_id,
         title=section_id.title(),
         summary=f"Summary for {section_id}.",
+        key_terms=[],
+        guiding_questions=[],
         findings=[
             {
                 "title": "Roadmaps are more concrete",
                 "evidence": "Vendors publish target milestones.",
+                "implications": None,
                 "source_urls": ["https://example.com/source"],
             }
         ],
@@ -148,9 +164,13 @@ def sample_brief(section_id: str) -> SectionResearchBrief:
                 "title": "Source",
                 "url": "https://example.com/source?utm=tracking",
                 "publisher": "Example",
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
                 "status": "consulted",
             }
         ],
+        open_questions=[],
     )
 
 
@@ -163,10 +183,13 @@ def sample_payload() -> CompendiumPayload:
                 "id": "foundations",
                 "title": "Foundations",
                 "summary": "Technology summary.",
+                "key_terms": [],
+                "guiding_questions": [],
                 "insights": [
                     {
                         "title": "Roadmaps are concrete",
                         "evidence": "Vendors publish milestones.",
+                        "implications": None,
                         "citations": ["C01"],
                     }
                 ],
@@ -178,8 +201,39 @@ def sample_payload() -> CompendiumPayload:
                 "title": "Source",
                 "url": "https://example.com/source",
                 "publisher": "Example",
+                "published_at": None,
+                "summary": None,
             }
         ],
+        open_questions=[],
+    )
+
+
+def accepted_report() -> VerificationReport:
+    return VerificationReport(
+        status="accepted",
+        issues=[],
+        follow_up_section_ids=[],
+        notes=None,
+    )
+
+
+def follow_up_report(
+    *section_ids: str,
+    message: str = "Needs follow-up.",
+) -> VerificationReport:
+    return VerificationReport(
+        status="follow_up",
+        issues=[
+            VerificationIssue(
+                section_id=section_ids[0] if section_ids else None,
+                message=message,
+                severity="warning",
+                suggested_follow_up=None,
+            )
+        ],
+        follow_up_section_ids=list(section_ids),
+        notes=None,
     )
 
 
@@ -206,11 +260,37 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert state.final_payload is not None
     trace_path = _contract_trace_path(state_path)
     assert trace_path.exists()
+    loaded_trace = load_trace_jsonl(trace_path)
     _evaluate_contract_run(
         build_research_agent_team(ResearchConfig()),
-        load_trace_jsonl(trace_path),
-        state,
+        loaded_trace,
     )
+    observed_grants = {
+        (
+            str(event.semantic.agent_id),
+            str(event.semantic.capability_id),
+            str(event.semantic.grant_id),
+        )
+        for event in loaded_trace.events
+        if event.event_type == "tool.completed"
+    }
+    assert observed_grants == {
+        (
+            "agent:ResearchManagerAgent",
+            "tool:research.web_search",
+            "grant:ResearchManagerAgent:research.web_search",
+        ),
+        (
+            "agent:SectionResearchAgent",
+            "tool:research.deep_web_search",
+            "grant:SectionResearchAgent:research.deep_web_search",
+        ),
+        (
+            "agent:VerifierAgent",
+            "tool:research.web_search",
+            "grant:VerifierAgent:research.web_search",
+        ),
+    }
     assert [name for name, _ in runner.calls] == [
         "PlannerAgent",
         "ResearchManagerAgent",
@@ -252,14 +332,17 @@ def test_verifier_follow_up_reruns_only_targeted_section_once(
             VerificationReport(
                 status="follow_up",
                 follow_up_section_ids=["applications"],
+                notes=None,
                 issues=[
                     VerificationIssue(
                         section_id="applications",
                         message="Needs more source diversity.",
+                        severity="warning",
+                        suggested_follow_up=None,
                     )
                 ],
             ),
-            VerificationReport(status="accepted"),
+            accepted_report(),
         ]
     )
 
@@ -284,7 +367,16 @@ def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
         verification_reports=[
             VerificationReport(
                 status="failed",
-                issues=[VerificationIssue(message="Source coverage failed.")],
+                issues=[
+                    VerificationIssue(
+                        section_id=None,
+                        message="Source coverage failed.",
+                        severity="error",
+                        suggested_follow_up=None,
+                    )
+                ],
+                follow_up_section_ids=[],
+                notes=None,
             )
         ]
     )
@@ -301,6 +393,68 @@ def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
     assert state.verification is not None
     assert state.verification.status == "failed"
     assert state.final_payload is None
+
+
+def test_second_follow_up_fails_without_synthesis(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    runner = StubAgentRunner(
+        verification_reports=[
+            follow_up_report("applications", message="First gap."),
+            follow_up_report("applications", message="Gap remains."),
+        ]
+    )
+
+    with pytest.raises(DeepResearchError, match="bounded follow-up cycle"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=state_path,
+        )
+
+    assert "SynthesisAgent" not in [name for name, _ in runner.calls]
+    state = load_state(state_path)
+    assert state.follow_up_done is True
+    assert state.verification.status == "follow_up"
+    assert state.final_payload is None
+
+    recovery_runner = StubAgentRunner()
+    with pytest.raises(DeepResearchError, match="bounded follow-up cycle"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=recovery_runner,
+        )
+    assert recovery_runner.calls == []
+
+
+@pytest.mark.parametrize(
+    ("section_ids", "message"),
+    [
+        ((), "without any section IDs"),
+        (("missing",), "unknown follow-up section IDs"),
+        (("applications", "applications"), "duplicate follow-up section IDs"),
+    ],
+)
+def test_invalid_follow_up_targets_fail_before_rerun(
+    tmp_path: Path,
+    section_ids: tuple[str, ...],
+    message: str,
+) -> None:
+    runner = StubAgentRunner(
+        verification_reports=[follow_up_report(*section_ids)]
+    )
+
+    with pytest.raises(DeepResearchError, match=message):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=tmp_path / "report.research.json",
+        )
+
+    assert [name for name, _ in runner.calls].count("VerifierAgent") == 1
+    assert "SynthesisAgent" not in [name for name, _ in runner.calls]
 
 
 def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
@@ -331,7 +485,151 @@ def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
 
     assert [name for name, _ in second_runner.calls] == ["SynthesisAgent"]
     trace_lines = _contract_trace_path(state_path).read_text(encoding="utf-8")
-    assert trace_lines.count('"event_type": "agent.completed"') == 7
+    assert trace_lines.count('"event_type":"agent.completed"') == 7
+
+
+def test_completed_recovery_reassesses_matching_trace_without_agent_calls(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    runner = StubAgentRunner()
+
+    with mock.patch(
+        "compendiumscribe.research.agents_workflow.orchestrator."
+        "_evaluate_contract_run",
+        wraps=_evaluate_contract_run,
+    ) as evaluate:
+        compendium = recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=runner,
+        )
+
+    assert compendium.topic == "Quantum Computing Compendium"
+    assert runner.calls == []
+    evaluate.assert_called_once()
+
+
+def test_progressed_recovery_requires_trace(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    _contract_trace_path(state_path).unlink()
+
+    with pytest.raises(DeepResearchError, match="without trace evidence"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=StubAgentRunner(),
+        )
+
+
+@pytest.mark.parametrize("contents", ["", "not-json\n"])
+def test_progressed_recovery_rejects_empty_or_malformed_trace(
+    tmp_path: Path,
+    contents: str,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    _contract_trace_path(state_path).write_text(contents, encoding="utf-8")
+
+    with pytest.raises(DeepResearchError, match="empty trace|Cannot recover"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=StubAgentRunner(),
+        )
+
+
+def test_progressed_recovery_rejects_mismatched_plan_digest(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    changed_config = ResearchConfig(
+        planner_agent_model="changed-planner",
+        research_agent_model="changed-research",
+        verifier_agent_model="changed-verifier",
+        synthesis_agent_model="changed-synthesis",
+    )
+
+    with pytest.raises(
+        DeepResearchError,
+        match="different contract or materialization plan",
+    ):
+        recover_compendium(
+            state_path,
+            config=changed_config,
+            runner=StubAgentRunner(),
+        )
+
+
+def test_completed_recovery_rejects_incomplete_trace(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    trace_path = _contract_trace_path(state_path)
+    trace = load_trace_jsonl(trace_path)
+    incomplete = NormalizedTrace(
+        tuple(
+            event
+            for event in trace.events
+            if not (
+                event.event_type == "output.accepted"
+                and str(event.semantic.agent_id) == "agent:SynthesisAgent"
+            )
+        )
+    )
+    write_trace_jsonl(trace_path, incomplete)
+
+    with pytest.raises(DeepResearchError, match="assurance failed"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=StubAgentRunner(),
+        )
+
+
+def test_pristine_state_can_start_without_trace(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    save_state(
+        state_path,
+        ResearchRunState(topic="Quantum Computing", title="Quantum Computing"),
+    )
+    assert not _contract_trace_path(state_path).exists()
+
+    result = recover_compendium(
+        state_path,
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+    )
+
+    assert result.topic == "Quantum Computing Compendium"
+    assert _contract_trace_path(state_path).exists()
 
 
 def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
@@ -339,7 +637,7 @@ def test_invalid_citation_ids_fail_before_rendering(tmp_path: Path) -> None:
     bad_payload.sections[0].insights[0].citations = ["C99"]
     runner = StubAgentRunner(final_payload=bad_payload)
 
-    with pytest.raises(ValueError, match="missing C99"):
+    with pytest.raises(ValueError, match="unknown citation IDs: C99"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
@@ -368,13 +666,58 @@ def test_synthesis_web_search_fails_contract_run_spec(tmp_path: Path) -> None:
                 ]
             return result
 
-    with pytest.raises(ValueError, match="called by SynthesisAgent"):
+    with pytest.raises(DeepResearchError, match="SynthesisAgent"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
             runner=BadSynthesisRunner(),
             state_path=tmp_path / "report.research.json",
         )
+
+
+def test_planner_web_search_records_violation_and_blocks_recovery(
+    tmp_path: Path,
+) -> None:
+    class BadPlannerRunner(StubAgentRunner):
+        async def run(
+            self,
+            agent: Any,
+            input_payload: str,
+            *,
+            max_turns: int,
+        ) -> AgentRunResult:
+            result = await super().run(
+                agent,
+                input_payload,
+                max_turns=max_turns,
+            )
+            if agent.name == "PlannerAgent":
+                result.raw_result.raw_responses[0].output = [
+                    {"type": "web_search_call"}
+                ]
+            return result
+
+    state_path = tmp_path / "report.research.json"
+    with pytest.raises(DeepResearchError, match="PlannerAgent"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=BadPlannerRunner(),
+            state_path=state_path,
+        )
+    trace = load_trace_jsonl(_contract_trace_path(state_path))
+    assert [event.event_type for event in trace.events][-1] == (
+        "capability.undeclared"
+    )
+
+    recovery_runner = StubAgentRunner()
+    with pytest.raises(DeepResearchError, match="undeclared capability evidence"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=recovery_runner,
+        )
+    assert recovery_runner.calls == []
 
 
 def test_synthesis_citations_are_hydrated_from_source_ledger(

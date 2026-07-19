@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from compendiumscribe.research.agents_workflow import (
+from compendiumscribe.agent_contracts.generated.python import (
     CompendiumPayload,
     SectionResearchBrief,
     SourceLedger,
     SourceLedgerEntry,
+)
+from compendiumscribe.research.agents_workflow import (
     build_source_ledger,
     mark_cited_sources,
     normalize_url,
@@ -25,10 +27,13 @@ def test_payload_maps_to_compendium() -> None:
                 "id": "s1",
                 "title": "Section",
                 "summary": "Summary",
+                "key_terms": [],
+                "guiding_questions": [],
                 "insights": [
                     {
                         "title": "Finding",
                         "evidence": "Evidence",
+                        "implications": None,
                         "citations": ["C01"],
                     }
                 ],
@@ -39,11 +44,17 @@ def test_payload_maps_to_compendium() -> None:
                 "id": "C01",
                 "title": "Citation",
                 "url": "https://example.com/citation",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
             }
         ],
+        open_questions=[],
     )
 
-    compendium = Compendium.from_payload("Topic", payload.to_payload())
+    compendium = Compendium.from_payload(
+        "Topic", payload.model_dump(mode="json")
+    )
 
     assert compendium.overview == "Overview"
     assert compendium.sections[0].insights[0].citation_refs == ["C01"]
@@ -54,25 +65,41 @@ def test_source_ledger_deduplicates_urls_and_keeps_section_usage() -> None:
         section_id="s1",
         title="One",
         summary="Summary",
+        key_terms=[],
+        guiding_questions=[],
+        findings=[],
         sources=[
             {
                 "title": "Shared Source",
                 "url": "https://Example.com/report?utm=x",
                 "status": "cited",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
             }
         ],
+        open_questions=[],
     )
     brief_two = SectionResearchBrief(
         section_id="s2",
         title="Two",
         summary="Summary",
+        key_terms=[],
+        guiding_questions=[],
+        findings=[],
         sources=[
             {
                 "title": "Shared Source",
                 "url": "https://example.com/report#section",
                 "status": "consulted",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
             }
         ],
+        open_questions=[],
     )
 
     ledger = build_source_ledger([brief_one, brief_two])
@@ -96,10 +123,13 @@ def test_source_ledger_matches_scheme_less_source_urls_to_cited_urls() -> None:
         section_id="s1",
         title="One",
         summary="Summary",
+        key_terms=[],
+        guiding_questions=[],
         findings=[
             {
                 "title": "Finding",
                 "evidence": "Evidence",
+                "implications": None,
                 "source_urls": ["https://example.com/source"],
             }
         ],
@@ -108,8 +138,13 @@ def test_source_ledger_matches_scheme_less_source_urls_to_cited_urls() -> None:
                 "title": "Source",
                 "url": "example.com/source",
                 "status": "consulted",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
             }
         ],
+        open_questions=[],
     )
     ledger = build_source_ledger([brief])
 
@@ -131,31 +166,47 @@ def test_rejected_and_consulted_only_sources_cannot_be_final_citations() -> None
         section_id="s1",
         title="One",
         summary="Summary",
+        key_terms=[],
+        guiding_questions=[],
+        findings=[],
         sources=[
             {
                 "title": "Consulted",
                 "url": "https://example.com/consulted",
                 "status": "consulted",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
             },
             {
                 "title": "Rejected",
                 "url": "https://example.com/rejected",
                 "status": "rejected",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
+                "credibility_notes": None,
             },
         ],
+        open_questions=[],
     )
     ledger = build_source_ledger([brief])
     payload = CompendiumPayload(
         topic_overview="Overview",
+        methodology=[],
         sections=[
             {
                 "id": "s1",
                 "title": "Section",
                 "summary": "Summary",
+                "key_terms": [],
+                "guiding_questions": [],
                 "insights": [
                     {
                         "title": "Finding",
                         "evidence": "Evidence",
+                        "implications": None,
                         "citations": ["C01"],
                     }
                 ],
@@ -166,8 +217,12 @@ def test_rejected_and_consulted_only_sources_cannot_be_final_citations() -> None
                 "id": "C01",
                 "title": "Consulted",
                 "url": "https://example.com/consulted",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
             }
         ],
+        open_questions=[],
     )
 
     assert len(ledger.entries) == 1
@@ -183,33 +238,46 @@ def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
                 title="Authoritative first source",
                 url="https://example.com/first",
                 publisher="Example",
+                published_at=None,
+                summary=None,
+                credibility_notes=None,
                 status="cited",
+                section_ids=[],
             ),
             SourceLedgerEntry(
                 id="C02",
                 title="Authoritative second source",
                 url="https://example.com/second",
                 publisher="Example",
+                published_at=None,
+                summary=None,
+                credibility_notes=None,
                 status="cited",
+                section_ids=[],
             ),
         ]
     )
     payload = CompendiumPayload(
         topic_overview="Overview",
+        methodology=[],
         sections=[
             {
                 "id": "s1",
                 "title": "Section",
                 "summary": "Summary",
+                "key_terms": [],
+                "guiding_questions": [],
                 "insights": [
                     {
                         "title": "Finding one",
                         "evidence": "Evidence",
+                        "implications": None,
                         "citations": ["C02"],
                     },
                     {
                         "title": "Finding two",
                         "evidence": "Evidence",
+                        "implications": None,
                         "citations": ["C01", "C02"],
                     },
                 ],
@@ -220,8 +288,12 @@ def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
                 "id": "C01",
                 "title": "Model-supplied title",
                 "url": "https://wrong.example.com",
+                "publisher": None,
+                "published_at": None,
+                "summary": None,
             }
         ],
+        open_questions=[],
     )
 
     prepared = prepare_compendium_payload(payload, ledger)

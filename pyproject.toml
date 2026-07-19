@@ -13,7 +13,7 @@ dependencies = [
     "fpdf2>=2.8.7",
     "openai-agents>=0.17.6",
     "pydantic>=2.13.4",
-    "contract4agents>=0.7.0",
+    "contract4agents>=0.8.0",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -56,6 +56,9 @@ compendium = "compendiumscribe.cli:cli"
 [tool.ruff.lint]
 select = ["E", "F", "W"]
 
+[tool.ruff]
+extend-exclude = ["src/compendiumscribe/agent_contracts/generated"]
+
 [tool.pdm]
 distribution = true
 
@@ -68,6 +71,9 @@ excludes = ["tests/**"]
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check src tests"
-"contracts:check" = "contract4agents check src/compendiumscribe/agent_contracts --allow-python-imports --strict-drift"
-"contracts:compile" = "contract4agents compile src/compendiumscribe/agent_contracts --allow-python-imports --out .contract/build"
+"contracts:validate" = "contract4agents check src/compendiumscribe/agent_contracts"
+"contracts:generate" = "contract4agents generate src/compendiumscribe/agent_contracts --out src/compendiumscribe/agent_contracts/generated"
+"contracts:generated-check" = "contract4agents generate src/compendiumscribe/agent_contracts --out src/compendiumscribe/agent_contracts/generated --check"
+"contracts:check" = {composite = ["contracts:validate", "contracts:generated-check"]}
+"contracts:compile" = "contract4agents compile src/compendiumscribe/agent_contracts --out .contract/build"
 check = {composite = ["contracts:check", "test", "lint", "pdm build"]}
