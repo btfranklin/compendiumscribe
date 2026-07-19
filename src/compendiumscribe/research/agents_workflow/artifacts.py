@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from ...agent_contracts.generated.python import (
     CitationPayload,
@@ -15,49 +15,6 @@ from ...agent_contracts.generated.python import (
     SourceLedger,
     VerificationReport,
 )
-
-
-SOURCE_STATUSES = frozenset({"cited", "consulted", "rejected"})
-VERIFICATION_STATUSES = frozenset({"accepted", "follow_up", "failed"})
-VERIFICATION_SEVERITIES = frozenset({"warning", "error"})
-
-
-def validate_artifact_semantics(artifact: BaseModel) -> None:
-    """Validate value sets that canonical generated types represent as strings."""
-
-    if isinstance(artifact, SectionResearchBrief):
-        _require_known_values(
-            "research source status",
-            (source.status for source in artifact.sources),
-            SOURCE_STATUSES,
-        )
-    if isinstance(artifact, SourceLedger):
-        _require_known_values(
-            "source ledger status",
-            (entry.status for entry in artifact.entries),
-            SOURCE_STATUSES,
-        )
-    if isinstance(artifact, VerificationReport):
-        _require_known_values(
-            "verification status",
-            (artifact.status,),
-            VERIFICATION_STATUSES,
-        )
-        _require_known_values(
-            "verification issue severity",
-            (issue.severity for issue in artifact.issues),
-            VERIFICATION_SEVERITIES,
-        )
-
-
-def _require_known_values(
-    label: str,
-    values: Any,
-    allowed: frozenset[str],
-) -> None:
-    invalid = sorted(set(values) - allowed)
-    if invalid:
-        raise ValueError(f"Unknown {label}: {', '.join(invalid)}")
 
 
 class ResearchRunState(BaseModel):
@@ -81,15 +38,6 @@ class ResearchRunState(BaseModel):
     final_payload: CompendiumPayload | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    @model_validator(mode="after")
-    def validate_persisted_artifact_semantics(self) -> "ResearchRunState":
-        for brief in self.section_briefs.values():
-            validate_artifact_semantics(brief)
-        validate_artifact_semantics(self.ledger)
-        if self.verification is not None:
-            validate_artifact_semantics(self.verification)
-        return self
 
     def mark_completed(self, stage: str) -> None:
         if stage not in self.completed_stages:
@@ -141,5 +89,4 @@ def prepare_compendium_payload(
 __all__ = [
     "ResearchRunState",
     "prepare_compendium_payload",
-    "validate_artifact_semantics",
 ]

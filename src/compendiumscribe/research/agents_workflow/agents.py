@@ -12,13 +12,7 @@ from contract4agents.materialization import (
     materialize,
 )
 from contract4agents.planning import MaterializationPlan
-from contract4agents.target_bindings import (
-    AgentProfile,
-    TargetBinding,
-    TargetBindings,
-    TargetProfile,
-    load_target_bindings,
-)
+from contract4agents.target_bindings import load_target_bindings
 
 
 @dataclass(frozen=True)
@@ -44,8 +38,7 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
         result = materialize(
             root_path,
             target="openai",
-            profile="runtime",
-            bindings=_runtime_bindings(root_path, config),
+            profile=config.contract4agents_profile,
             trace_sink=trace_sink,
         )
 
@@ -61,7 +54,17 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
     )
 
 
-def _runtime_bindings(root: Path, config: Any) -> TargetBindings:
+def selected_profile_agent_model(profile: str, agent_name: str) -> str:
+    contract_root = files("compendiumscribe.agent_contracts")
+    with as_file(contract_root) as root:
+        return _selected_profile_agent_model(Path(root), profile, agent_name)
+
+
+def _selected_profile_agent_model(
+    root: Path,
+    profile: str,
+    agent_name: str,
+) -> str:
     loaded = load_target_bindings(root, required=True)
     if loaded.bindings is None or not loaded.ok:
         details = "; ".join(item.message for item in loaded.diagnostics)
@@ -69,33 +72,22 @@ def _runtime_bindings(root: Path, config: Any) -> TargetBindings:
             details or f"Could not load target bindings from {loaded.path}"
         )
 
-    declared = loaded.bindings.targets["openai"]
-    runtime = TargetProfile(
-        default_model=config.research_agent_model,
-        agents={
-            "PlannerAgent": AgentProfile(model=config.planner_agent_model),
-            "ResearchManagerAgent": AgentProfile(model=config.research_agent_model),
-            "SectionResearchAgent": AgentProfile(model=config.research_agent_model),
-            "VerifierAgent": AgentProfile(model=config.verifier_agent_model),
-            "SynthesisAgent": AgentProfile(model=config.synthesis_agent_model),
-        },
-    )
-    target = TargetBinding(
-        adapter=declared.adapter,
-        tools=declared.tools,
-        datasources=declared.datasources,
-        external_context=declared.external_context,
-        environments=declared.environments,
-        profiles={**declared.profiles, "runtime": runtime},
-    )
-    return TargetBindings(
-        path=loaded.bindings.path,
-        schema_version=loaded.bindings.schema_version,
-        targets={"openai": target},
-    )
+    target = loaded.bindings.targets.get("openai")
+    selected = target.profiles.get(profile) if target is not None else None
+    if selected is None:
+        raise RuntimeError(f"Unknown Contract4Agents OpenAI profile: {profile}")
+    agent_profile = selected.agents.get(agent_name)
+    model = agent_profile.model if agent_profile is not None else None
+    model = model or selected.default_model
+    if not model:
+        raise RuntimeError(
+            f"Contract4Agents profile {profile!r} has no model for {agent_name}."
+        )
+    return model
 
 
 __all__ = [
     "ResearchAgentTeam",
     "build_research_agent_team",
+    "selected_profile_agent_model",
 ]

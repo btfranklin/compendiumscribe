@@ -10,29 +10,30 @@ from contract4agents.codegen import generate_code, stale_generated_paths
 from contract4agents.compiler import compile_project
 from contract4agents.ir import semantic_id
 from contract4agents.target_bindings import load_target_bindings
+from pydantic import ValidationError
+import pytest
 
-from compendiumscribe.agent_contracts.generated.python import ResearchPlan
+from compendiumscribe.agent_contracts.generated.python import (
+    ResearchPlan,
+    ResearchSource,
+    SourceLedgerEntry,
+    VerificationIssue,
+    VerificationReport,
+)
 from compendiumscribe.research.agents_workflow.agents import (
-    _runtime_bindings,
+    _selected_profile_agent_model,
     build_research_agent_team,
+    selected_profile_agent_model,
 )
 
 
 CONTRACT_ROOT = (
-    Path(__file__).resolve().parents[2]
-    / "src"
-    / "compendiumscribe"
-    / "agent_contracts"
+    Path(__file__).resolve().parents[2] / "src" / "compendiumscribe" / "agent_contracts"
 )
 
 
 def _config() -> SimpleNamespace:
-    return SimpleNamespace(
-        planner_agent_model="planner-model",
-        research_agent_model="research-model",
-        verifier_agent_model="verifier-model",
-        synthesis_agent_model="synthesis-model",
-    )
+    return SimpleNamespace(contract4agents_profile="production")
 
 
 def test_agent_contracts_compile_to_canonical_ir() -> None:
@@ -62,9 +63,10 @@ def test_agent_contracts_and_generated_models_are_current() -> None:
     assert result.exit_code == 0, result.output
     assert "Contract4Agents check passed" in result.output
     artifacts = compile_project(CONTRACT_ROOT)
-    assert stale_generated_paths(
-        generate_code(artifacts.ir), CONTRACT_ROOT / "generated"
-    ) == ()
+    assert (
+        stale_generated_paths(generate_code(artifacts.ir), CONTRACT_ROOT / "generated")
+        == ()
+    )
 
 
 def test_materializer_builds_the_research_team_from_target_bindings() -> None:
@@ -72,12 +74,12 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     loaded = load_target_bindings(CONTRACT_ROOT, required=True)
 
     assert loaded.bindings is not None
-    assert loaded.bindings.targets["openai"].profiles == {}
-    assert team.planner.model == "planner-model"
-    assert team.research_manager.model == "research-model"
-    assert team.section_research.model == "research-model"
-    assert team.verifier.model == "verifier-model"
-    assert team.synthesis.model == "synthesis-model"
+    assert "production" in loaded.bindings.targets["openai"].profiles
+    assert team.planner.model == "gpt-5.5"
+    assert team.research_manager.model == "gpt-5.5"
+    assert team.section_research.model == "gpt-5.5"
+    assert team.verifier.model == "gpt-5.5"
+    assert team.synthesis.model == "gpt-5.5"
     assert team.planner.output_type.__name__ == "ResearchPlan"
     assert team.research_manager.tools[0].search_context_size == "medium"
     assert team.section_research.tools[0].search_context_size == "high"
@@ -91,34 +93,90 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert "Use web search only for targeted checks" in team.verifier.instructions
     assert "Do not use web search, add new sources" in team.synthesis.instructions
     assert team.plan.contract_digest == team.artifacts.contract_digest
-    assert {
-        agent.name: agent.model for agent in team.plan.agents.values()
-    } == {
-        "PlannerAgent": "planner-model",
-        "ResearchManagerAgent": "research-model",
-        "SectionResearchAgent": "research-model",
-        "VerifierAgent": "verifier-model",
-        "SynthesisAgent": "synthesis-model",
+    assert {agent.name: agent.model for agent in team.plan.agents.values()} == {
+        "PlannerAgent": "gpt-5.5",
+        "ResearchManagerAgent": "gpt-5.5",
+        "SectionResearchAgent": "gpt-5.5",
+        "VerifierAgent": "gpt-5.5",
+        "SynthesisAgent": "gpt-5.5",
     }
     assert team.materialization_events
 
 
-def test_runtime_bindings_preserve_unrelated_declared_profiles(
+def test_selected_profile_agent_model_comes_from_committed_bindings() -> None:
+    assert (
+        selected_profile_agent_model("production", "ResearchManagerAgent") == "gpt-5.5"
+    )
+
+
+def test_selected_profile_agent_model_supports_override_only_profile(
     tmp_path: Path,
 ) -> None:
     contract_root = tmp_path / "agent_contracts"
     shutil.copytree(CONTRACT_ROOT, contract_root)
     target_path = contract_root / "contract4agents.targets.toml"
+    profile = "\n".join(
+        (
+            f"[targets.openai.profiles.override_only.agents.{agent_name}]\n"
+            f'model = "{agent_name}-model"'
+        )
+        for agent_name in (
+            "PlannerAgent",
+            "ResearchManagerAgent",
+            "SectionResearchAgent",
+            "VerifierAgent",
+            "SynthesisAgent",
+        )
+    )
     target_path.write_text(
-        target_path.read_text(encoding="utf-8")
-        + "\n[targets.openai.profiles.audit]\n"
-        + 'default_model = "audit-model"\n',
+        target_path.read_text(encoding="utf-8") + "\n" + profile + "\n",
         encoding="utf-8",
     )
 
-    target = _runtime_bindings(contract_root, _config()).targets["openai"]
-
-    assert target.profiles["audit"].default_model == "audit-model"
-    assert target.profiles["runtime"].agents["PlannerAgent"].model == (
-        "planner-model"
+    assert (
+        _selected_profile_agent_model(
+            contract_root,
+            "override_only",
+            "ResearchManagerAgent",
+        )
+        == "ResearchManagerAgent-model"
     )
+
+
+def test_generated_models_reject_invalid_enum_values_directly() -> None:
+    with pytest.raises(ValidationError):
+        VerificationReport.model_validate(
+            {
+                "status": "unknown",
+                "issues": [],
+                "follow_up_section_ids": [],
+                "notes": None,
+            }
+        )
+    with pytest.raises(ValidationError):
+        VerificationIssue.model_validate(
+            {
+                "section_id": None,
+                "message": "Check",
+                "severity": "critical",
+                "suggested_follow_up": None,
+            }
+        )
+    with pytest.raises(ValidationError):
+        ResearchSource.model_validate(
+            {
+                "title": "Source",
+                "url": "https://example.com",
+                "status": "archived",
+            }
+        )
+    with pytest.raises(ValidationError):
+        SourceLedgerEntry.model_validate(
+            {
+                "id": "C01",
+                "title": "Source",
+                "url": "https://example.com",
+                "status": "archived",
+                "section_ids": ["S01"],
+            }
+        )

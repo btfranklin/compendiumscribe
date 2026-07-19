@@ -49,19 +49,18 @@ def test_save_state_keeps_existing_sidecar_when_replace_fails(
 
 
 @pytest.mark.parametrize(
-    ("field", "value", "message"),
+    ("field", "value"),
     [
-        ("verification_status", "unknown", "Unknown verification status"),
-        ("verification_severity", "critical", "Unknown verification issue severity"),
-        ("brief_source_status", "archived", "Unknown research source status"),
-        ("ledger_status", "archived", "Unknown source ledger status"),
+        ("verification_status", "unknown"),
+        ("verification_severity", "critical"),
+        ("brief_source_status", "archived"),
+        ("ledger_status", "archived"),
     ],
 )
 def test_load_state_rejects_invalid_portable_artifact_values(
     tmp_path: Path,
     field: str,
     value: str,
-    message: str,
 ) -> None:
     state_path = tmp_path / "report.research.json"
     payload = ResearchRunState(topic="Invalid state").model_dump(mode="json")
@@ -117,5 +116,5 @@ def test_load_state_rejects_invalid_portable_artifact_values(
     }
     state_path.write_text(json.dumps(payload), encoding="utf-8")
 
-    with pytest.raises(ValidationError, match=message):
+    with pytest.raises(ValidationError):
         load_state(state_path)

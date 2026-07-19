@@ -38,18 +38,15 @@ Ensure `PDM_HOME` points to a writable location when developing within a sandbox
 
 ### 2. Configure credentials
 
-Create a `.env` file (untracked) with your OpenAI credentials and explicit research model settings:
+Create a `.env` file (untracked) with your OpenAI credentials and named Contract4Agents profile selection:
 
 ```dotenv
 OPENAI_API_KEY=sk-...
-PLANNER_AGENT_MODEL=gpt-5.5
-RESEARCH_AGENT_MODEL=gpt-5.5
-VERIFIER_AGENT_MODEL=gpt-5.5
-SYNTHESIS_AGENT_MODEL=gpt-5.5
+CONTRACT4AGENTS_PROFILE=production
 MAX_AGENT_TURNS=12
 ```
 
-All four model variables are required and supply the complete runtime model profile. If any are missing or blank, Compendium Scribe stops before client setup, cost report initialization, or research begins and names the missing setting. The packaged Contract4Agents target file owns provider and tool bindings, not model defaults.
+`CONTRACT4AGENTS_PROFILE` is required and selects a complete, committed runtime profile. If it is missing or blank, Compendium Scribe stops before client setup, cost report initialization, or research begins. The packaged Contract4Agents target file owns model IDs, provider options, and tool bindings; environment variables own credentials and profile selection.
 
 The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
 
@@ -147,12 +144,7 @@ from compendiumscribe import build_compendium, ResearchConfig, DeepResearchError
 try:
     compendium = build_compendium(
         "Emerging pathogen surveillance",
-        config=ResearchConfig(
-            planner_agent_model="gpt-5.5",
-            research_agent_model="gpt-5.5",
-            verifier_agent_model="gpt-5.5",
-            synthesis_agent_model="gpt-5.5",
-        ),
+        config=ResearchConfig(contract4agents_profile="production"),
     )
 except DeepResearchError:
     raise

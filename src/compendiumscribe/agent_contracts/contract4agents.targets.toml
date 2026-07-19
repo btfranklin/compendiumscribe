@@ -1,7 +1,10 @@
-schema_version = "1"
+schema_version = "2"
 
 [targets.openai]
 adapter = "openai"
+
+[targets.openai.profiles.production]
+default_model = "gpt-5.5"
 
 [targets.openai.tools."research.web_search"]
 provider = "openai"

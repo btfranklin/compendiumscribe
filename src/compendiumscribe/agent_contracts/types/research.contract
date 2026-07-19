@@ -1,3 +1,17 @@
+enum ResearchSourceStatus:
+    "cited"
+    "consulted"
+    "rejected"
+
+enum VerificationStatus:
+    "accepted"
+    "follow_up"
+    "failed"
+
+enum VerificationSeverity:
+    "warning"
+    "error"
+
 type ResearchSource:
     title: string
     url: string
@@ -5,7 +19,7 @@ type ResearchSource:
     published_at: string?
     summary: string?
     credibility_notes: string?
-    status: string
+    status: ResearchSourceStatus
 
 type ResearchSection:
     id: string
@@ -51,7 +65,7 @@ type SourceLedgerEntry:
     published_at: string?
     summary: string?
     credibility_notes: string?
-    status: string
+    status: ResearchSourceStatus
     section_ids: list[string]
 
 type SourceLedger:
@@ -60,11 +74,11 @@ type SourceLedger:
 type VerificationIssue:
     section_id: string?
     message: string
-    severity: string
+    severity: VerificationSeverity
     suggested_follow_up: string?
 
 type VerificationReport:
-    status: string
+    status: VerificationStatus
     issues: list[VerificationIssue]
     follow_up_section_ids: list[string]
     notes: string?

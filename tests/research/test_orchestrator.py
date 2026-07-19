@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
@@ -56,9 +57,7 @@ class StubAgentRunner:
         final_payload: CompendiumPayload | None = None,
     ) -> None:
         self.calls: list[tuple[str, str]] = []
-        self.verification_reports = verification_reports or [
-            accepted_report()
-        ]
+        self.verification_reports = verification_reports or [accepted_report()]
         self.final_payload = final_payload or sample_payload()
 
     async def run(
@@ -258,6 +257,10 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert set(state.section_briefs) == {"foundations", "applications"}
     assert state.ledger.entries[0].id == "C01"
     assert state.final_payload is not None
+    assert state.config_snapshot["contract4agents_profile"] == "production"
+    assert state.config_snapshot["contract_digest"].startswith("sha256:")
+    assert state.config_snapshot["plan_digest"].startswith("sha256:")
+    assert set(state.config_snapshot["resolved_models"].values()) == {"gpt-5.5"}
     trace_path = _contract_trace_path(state_path)
     assert trace_path.exists()
     loaded_trace = load_trace_jsonl(trace_path)
@@ -301,7 +304,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     ]
 
 
-def test_build_compendium_requires_model_config_before_workflow_setup(
+def test_build_compendium_requires_profile_selection_before_workflow_setup(
     tmp_path: Path,
 ) -> None:
     runner = StubAgentRunner()
@@ -316,10 +319,7 @@ def test_build_compendium_requires_model_config_before_workflow_setup(
             )
 
     message = str(exc_info.value)
-    assert "PLANNER_AGENT_MODEL" in message
-    assert "RESEARCH_AGENT_MODEL" in message
-    assert "VERIFIER_AGENT_MODEL" in message
-    assert "SYNTHESIS_AGENT_MODEL" in message
+    assert "CONTRACT4AGENTS_PROFILE" in message
     assert runner.calls == []
     assert not state_path.exists()
 
@@ -441,9 +441,7 @@ def test_invalid_follow_up_targets_fail_before_rerun(
     section_ids: tuple[str, ...],
     message: str,
 ) -> None:
-    runner = StubAgentRunner(
-        verification_reports=[follow_up_report(*section_ids)]
-    )
+    runner = StubAgentRunner(verification_reports=[follow_up_report(*section_ids)])
 
     with pytest.raises(DeepResearchError, match=message):
         build_compendium(
@@ -501,8 +499,7 @@ def test_completed_recovery_reassesses_matching_trace_without_agent_calls(
     runner = StubAgentRunner()
 
     with mock.patch(
-        "compendiumscribe.research.agents_workflow.orchestrator."
-        "_evaluate_contract_run",
+        "compendiumscribe.research.agents_workflow.orchestrator._evaluate_contract_run",
         wraps=_evaluate_contract_run,
     ) as evaluate:
         compendium = recover_compendium(
@@ -566,20 +563,49 @@ def test_progressed_recovery_rejects_mismatched_plan_digest(
         runner=StubAgentRunner(),
         state_path=state_path,
     )
-    changed_config = ResearchConfig(
-        planner_agent_model="changed-planner",
-        research_agent_model="changed-research",
-        verifier_agent_model="changed-verifier",
-        synthesis_agent_model="changed-synthesis",
+    production_team = build_research_agent_team(ResearchConfig())
+    comparison_team = replace(
+        production_team,
+        plan=replace(production_team.plan, profile="comparison"),
+    )
+    comparison_config = ResearchConfig(contract4agents_profile="comparison")
+
+    with mock.patch(
+        "compendiumscribe.research.agents_workflow.orchestrator."
+        "build_research_agent_team",
+        return_value=comparison_team,
+    ):
+        with pytest.raises(
+            DeepResearchError,
+            match="different Contract4Agents plan digest",
+        ):
+            recover_compendium(
+                state_path,
+                config=comparison_config,
+                runner=StubAgentRunner(),
+            )
+
+
+def test_recovery_rejects_state_without_auditable_plan_digest(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    save_state(
+        state_path,
+        ResearchRunState(
+            topic="Legacy state",
+            title="Legacy state",
+            completed_stages=["planning"],
+        ),
     )
 
     with pytest.raises(
         DeepResearchError,
-        match="different contract or materialization plan",
+        match="different Contract4Agents plan digest",
     ):
         recover_compendium(
             state_path,
-            config=changed_config,
+            config=ResearchConfig(),
             runner=StubAgentRunner(),
         )
 
@@ -666,7 +692,7 @@ def test_synthesis_web_search_fails_contract_run_spec(tmp_path: Path) -> None:
                 ]
             return result
 
-    with pytest.raises(DeepResearchError, match="SynthesisAgent"):
+    with pytest.raises(DeepResearchError, match="trace conformance"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
@@ -698,7 +724,7 @@ def test_planner_web_search_records_violation_and_blocks_recovery(
             return result
 
     state_path = tmp_path / "report.research.json"
-    with pytest.raises(DeepResearchError, match="PlannerAgent"):
+    with pytest.raises(DeepResearchError, match="trace conformance"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
@@ -706,12 +732,10 @@ def test_planner_web_search_records_violation_and_blocks_recovery(
             state_path=state_path,
         )
     trace = load_trace_jsonl(_contract_trace_path(state_path))
-    assert [event.event_type for event in trace.events][-1] == (
-        "capability.undeclared"
-    )
+    assert [event.event_type for event in trace.events][-1] == ("capability.undeclared")
 
     recovery_runner = StubAgentRunner()
-    with pytest.raises(DeepResearchError, match="undeclared capability evidence"):
+    with pytest.raises(DeepResearchError, match="trace conformance"):
         recover_compendium(
             state_path,
             config=ResearchConfig(),
@@ -765,6 +789,7 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
 
     costs = json.loads((tmp_path / "report.costs.json").read_text())
     assert len(costs["steps"]) == 6
+    assert {step["model"] for step in costs["steps"]} == {"gpt-5.5"}
     assert costs["totals"]["input_tokens"] == 600
     assert costs["totals"]["tool_calls"]["web_search_call"] == 4
     phases = [event.phase for event in captured]

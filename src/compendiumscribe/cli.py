@@ -22,6 +22,7 @@ from .research import (
     recover_compendium,
 )
 from .research.costs import CostPricing, CostTracker
+from .research.agents_workflow.agents import selected_profile_agent_model
 from .research.pricing import resolve_model_pricing
 
 
@@ -41,15 +42,11 @@ def cli() -> None:
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(
-        ["md", "xml", "html", "pdf"], case_sensitive=False
-    ),
+    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
     multiple=True,
     default=["md"],
     show_default=True,
-    help=(
-        "Output format(s). Can be specified multiple times."
-    ),
+    help=("Output format(s). Can be specified multiple times."),
 )
 @click.option(
     "--library",
@@ -155,13 +152,15 @@ def _build_cost_tracker(
     base_path: Path,
     config: ResearchConfig,
 ) -> CostTracker:
-    default_pricing = _resolve_cost_pricing(
-        config.research_agent_model
-    ) or CostPricing(
+    default_model = selected_profile_agent_model(
+        config.contract4agents_profile,
+        "ResearchManagerAgent",
+    )
+    default_pricing = _resolve_cost_pricing(default_model) or CostPricing(
         input_per_1m_usd=None,
         output_per_1m_usd=None,
         cached_input_per_1m_usd=None,
-        requested_model=config.research_agent_model,
+        requested_model=default_model,
     )
     tracker = CostTracker(
         path=base_path.with_suffix(".costs.json"),
@@ -194,9 +193,7 @@ def _echo_cost_pricing_context(cost_tracker: CostTracker) -> None:
     pricing = cost_tracker.pricing
     if pricing.configured:
         resolved_model = (
-            pricing.resolved_model
-            or pricing.requested_model
-            or "configured-model"
+            pricing.resolved_model or pricing.requested_model or "configured-model"
         )
         tier = pricing.tier or "unknown"
         click.echo(
@@ -215,9 +212,7 @@ def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
     if cost_tracker is None:
         return
     if cost_tracker.step_count == 0:
-        click.echo(
-            "Cost report: no usage metrics were captured for this run."
-        )
+        click.echo("Cost report: no usage metrics were captured for this run.")
         return
 
     totals = cost_tracker.totals_snapshot()
@@ -248,9 +243,7 @@ def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(
-        ["md", "xml", "html", "pdf"], case_sensitive=False
-    ),
+    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
     multiple=True,
     default=["html"],
     show_default=True,
@@ -354,18 +347,20 @@ def recover(input_file: Path):
         cost_path = (
             Path(state.cost_report_path)
             if state.cost_report_path
-            else _base_path_from_state_path(input_file).with_suffix(
-                ".costs.json"
-            )
+            else _base_path_from_state_path(input_file).with_suffix(".costs.json")
+        )
+        default_model = selected_profile_agent_model(
+            config.contract4agents_profile,
+            "ResearchManagerAgent",
         )
         cost_tracker = CostTracker(
             path=cost_path,
-            pricing=_resolve_cost_pricing(config.research_agent_model)
+            pricing=_resolve_cost_pricing(default_model)
             or CostPricing(
                 input_per_1m_usd=None,
                 output_per_1m_usd=None,
                 cached_input_per_1m_usd=None,
-                requested_model=config.research_agent_model,
+                requested_model=default_model,
             ),
             pricing_resolver=_resolve_cost_pricing,
         )

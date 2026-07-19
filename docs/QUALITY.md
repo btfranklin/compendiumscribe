@@ -35,7 +35,7 @@ pdm build
 - Only an `accepted` verification report may reach synthesis; follow-up is limited to one pass over explicit, known section IDs.
 - Every observed provider tool call must resolve to exactly one enabled materialization-plan grant; contradictory evidence is persisted and fails the run.
 - Required Contract4Agents controls must be `passed`; `violated` and `unverified` both fail the run.
-- Persisted string-valued contract artifacts must pass host semantic validation before recovery resumes.
+- Persisted enum-valued contract artifacts must pass generated-model validation before recovery resumes.
 - Progressed recovery requires a readable, nonempty trace with matching contract and materialization-plan digests, and completed recovery must reassess it before rendering.
 - Recovery resumes from `<base>.research.json` and extends the normalized evidence in `<base>.research.trace.jsonl`; it must not depend on a background response ID.
 - Research state and normalized trace sidecars must be atomically replaced so failed writes preserve the previous complete file.
@@ -53,4 +53,4 @@ When behavior shifts, update these in the same change:
 - `docs/ARCHITECTURE.md` for workflow or boundary changes.
 - `.env.example` for environment variable changes.
 
-The legibility tests resolve local links from the agent and documentation entry points, derive required research model settings from `ResearchConfig`, and verify that the parsed README environment example matches `.env.example`.
+The legibility tests resolve local links from the agent and documentation entry points, derive the required Contract4Agents profile selector from `ResearchConfig`, and verify that the parsed README environment example matches `.env.example`.

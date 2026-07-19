@@ -10,6 +10,7 @@ from .models import (
     ResearchPlan,
     ResearchSection,
     ResearchSource,
+    ResearchSourceStatus,
     SectionFinding,
     SectionPayload,
     SectionResearchBrief,
@@ -20,6 +21,8 @@ from .models import (
     VerificationInput,
     VerificationIssue,
     VerificationReport,
+    VerificationSeverity,
+    VerificationStatus,
     WebSearchRequest,
     WebSearchResult,
 )
@@ -34,6 +37,7 @@ __all__ = [
     "ResearchPlan",
     "ResearchSection",
     "ResearchSource",
+    "ResearchSourceStatus",
     "SectionFinding",
     "SectionPayload",
     "SectionResearchBrief",
@@ -44,6 +48,8 @@ __all__ = [
     "VerificationInput",
     "VerificationIssue",
     "VerificationReport",
+    "VerificationSeverity",
+    "VerificationStatus",
     "WebSearchRequest",
     "WebSearchResult",
 ]

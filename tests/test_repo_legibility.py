@@ -8,7 +8,7 @@ from urllib.parse import unquote, urlsplit
 
 from dotenv import dotenv_values
 
-from compendiumscribe.research.config import REQUIRED_MODEL_ENV_VARS
+from compendiumscribe.research.config import REQUIRED_PROFILE_ENV_VAR
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,9 +45,7 @@ def test_agent_entrypoints_route_to_resolvable_docs() -> None:
 
     missing = {
         str(path.relative_to(ROOT)): sorted(
-            str(target.relative_to(ROOT))
-            for target in targets
-            if not target.exists()
+            str(target.relative_to(ROOT)) for target in targets if not target.exists()
         )
         for path, targets in resolved_by_entrypoint.items()
         if any(not target.exists() for target in targets)
@@ -60,13 +58,12 @@ def test_agent_entrypoints_route_to_resolvable_docs() -> None:
 
 def test_example_environment_covers_runtime_research_configuration() -> None:
     example = dotenv_values(ROOT / ".env.example")
-    required_names = {env_name for _, env_name in REQUIRED_MODEL_ENV_VARS}
-
-    missing = sorted(name for name in required_names if not example.get(name))
+    missing = (
+        [] if example.get(REQUIRED_PROFILE_ENV_VAR) else [REQUIRED_PROFILE_ENV_VAR]
+    )
 
     assert not missing, (
-        ".env.example is missing required research model configuration: "
-        f"{missing}"
+        f".env.example is missing required research model configuration: {missing}"
     )
 
 
@@ -86,8 +83,7 @@ def test_readme_environment_example_matches_env_template() -> None:
 
 def test_generated_contract_bytecode_remains_ignored() -> None:
     bytecode_path = (
-        "src/compendiumscribe/agent_contracts/generated/python/"
-        "__pycache__/models.pyc"
+        "src/compendiumscribe/agent_contracts/generated/python/__pycache__/models.pyc"
     )
 
     result = subprocess.run(

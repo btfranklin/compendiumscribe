@@ -25,7 +25,7 @@ def test_trace_write_failure_preserves_file_and_recorder_state(
     original_payload = trace_path.read_text(encoding="utf-8")
 
     with mock.patch(
-        "compendiumscribe.research.agents_workflow.persistence.os.replace",
+        "contract4agents.tracing._io.os.replace",
         side_effect=OSError("replace failed"),
     ):
         with pytest.raises(OSError, match="replace failed"):

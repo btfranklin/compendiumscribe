@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:b5a2126a2dda3329b64fb7c52aa8882de45aeaa771f160833951c52b87fc8158"
+content_hash = "sha256:e358697a634839c447508cba8c9bb138ebe4b3f298370d06d031ad613536d87e"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -225,7 +225,7 @@ files = [
 
 [[package]]
 name = "contract4agents"
-version = "0.8.0"
+version = "0.9.0"
 requires_python = ">=3.11"
 summary = "Typed declarative contracts for AI agent systems."
 groups = ["default"]
@@ -236,8 +236,8 @@ dependencies = [
     "pydantic>=2.13.4",
 ]
 files = [
-    {file = "contract4agents-0.8.0-py3-none-any.whl", hash = "sha256:ed38890ee1b58493933d0463b1fb172eaf5757eda104d298550a88d36c776356"},
-    {file = "contract4agents-0.8.0.tar.gz", hash = "sha256:57ddd857795ea973f6f6ca2a894daed421e8a931d9ab639e4899e08144a0c8d4"},
+    {file = "contract4agents-0.9.0-py3-none-any.whl", hash = "sha256:622505ac43ca5846835834c54bf76b8140d8c42f49278b173398e35838d7ee71"},
+    {file = "contract4agents-0.9.0.tar.gz", hash = "sha256:736b16754e0f16cb6ce9c51f49912748042ee8eb0f020b54206f6654e8648168"},
 ]
 
 [[package]]

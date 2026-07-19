@@ -9,7 +9,7 @@ Compendium Scribe has four main surfaces:
 
 ## Runtime Flow
 
-`compendium create TOPIC` constructs a `ResearchConfig`, validates that all required agent model settings are present, initializes the local cost report, and calls `build_compendium()`. The public function delegates to `research/agents_workflow/orchestrator.py`, which owns the bounded Agents SDK workflow. Agents and their runtime instructions are built from the packaged Contract4Agents project under `src/compendiumscribe/agent_contracts/`:
+`compendium create TOPIC` constructs a `ResearchConfig`, validates the required named-profile selection, initializes the local cost report from that profile's committed model, and calls `build_compendium()`. The public function delegates to `research/agents_workflow/orchestrator.py`, which owns the bounded Agents SDK workflow. Agents and their runtime instructions are built from the packaged Contract4Agents project under `src/compendiumscribe/agent_contracts/`:
 
 1. `PlannerAgent` creates a `ResearchPlan` without web search.
 2. `ResearchManagerAgent` uses hosted web search to produce a `ResearchAgenda`.
@@ -17,8 +17,8 @@ Compendium Scribe has four main surfaces:
 4. The application builds a `SourceLedger` from section sources and finding URLs.
 5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass. Only an `accepted` terminal report permits synthesis.
 6. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
-7. The host writes normalized trace events carrying the contract and plan digests; Contract4Agents assurance evaluates derived output controls and the declared workflow-order control.
-8. The deterministic host owns the one-follow-up limit, rejects every provider tool call without a matching enabled plan grant, and enforces ledger-backed citation IDs.
+7. The host emits workflow events through Contract4Agents' atomic normalized trace sink; Contract4Agents normalizes hosted OpenAI calls, resolves their exact plan grants, and rejects nonconforming evidence before assurance.
+8. The deterministic host owns the one-follow-up limit and ledger-backed citation IDs, while Contract4Agents assurance evaluates derived output controls and the declared workflow-order control.
 9. `prepare_compendium_payload()` hydrates final citation metadata from the ledger.
 10. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
 
@@ -53,8 +53,8 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic, TypeScript, and Zod bindings live under `agent_contracts/generated/` and are never hand-edited.
 - `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
 - `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns OpenAI adapter and tool bindings.
-- `research/agents_workflow/agents.py` supplies the complete environment-backed runtime model profile and asks Contract4Agents to materialize the OpenAI Agents SDK graph; it does not own provider tool configuration or workflow control flow.
-- `research/agents_workflow/contract_trace.py` binds normalized evidence to the exact materialization plan used for the run.
+- `research/agents_workflow/agents.py` selects a complete committed Contract4Agents profile and materializes the OpenAI Agents SDK graph; environment variables select the profile but do not reconstruct model or provider configuration.
+- `research/agents_workflow/contract_trace.py` adds host workflow events to Contract4Agents' atomic normalized trace sink; provider-event normalization, grant resolution, and trace conformance stay upstream.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.
@@ -70,4 +70,4 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 
 ## Current Research Path
 
-There is one runnable research path: the bounded Agents SDK workflow described above. Keep new orchestration work aligned with the runner adapter, state sidecar, source ledger, and explicit per-agent model settings.
+There is one runnable research path: the bounded Agents SDK workflow described above. Keep new orchestration work aligned with the runner adapter, state sidecar, source ledger, and committed named profiles.

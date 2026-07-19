@@ -7,14 +7,18 @@ from pathlib import Path
 from typing import Any, TYPE_CHECKING, TypeVar
 
 from contract4agents.assurance import assess_controls
-from contract4agents.ir import semantic_id
+from contract4agents.ir import CanonicalIR, semantic_id
 from contract4agents.planning import MaterializationPlan
-from contract4agents.tracing import NormalizedTrace
+from contract4agents.tracing import (
+    NormalizedTrace,
+    TraceConformanceError,
+    normalize_openai_response_events,
+    validate_trace_conformance,
+)
 from pydantic import BaseModel
 
 from ...compendium import Compendium, slugify
 from ..config import ResearchConfig
-from ..costs import extract_tool_calls_from_response
 from ..errors import DeepResearchError
 from ..progress import emit_progress
 from .agents import ResearchAgentTeam, build_research_agent_team
@@ -25,11 +29,7 @@ from ...agent_contracts.generated.python import (
     SectionResearchBrief,
     VerificationReport,
 )
-from .artifacts import (
-    ResearchRunState,
-    prepare_compendium_payload,
-    validate_artifact_semantics,
-)
+from .artifacts import ResearchRunState, prepare_compendium_payload
 from .contract_trace import ContractTraceRecorder
 from .costing import record_agent_result_cost
 from .runner import AgentRunResult, AgentRunner, OpenAIAgentRunner
@@ -113,12 +113,14 @@ async def _build_compendium_async(
     output_formats: list[str],
 ) -> Compendium:
     state_path_existed = state_path.exists()
+    team = build_research_agent_team(config)
     state = _load_or_create_state(
         topic=topic,
         state_path=state_path,
         output_formats=output_formats,
         cost_tracker=cost_tracker,
         config=config,
+        plan=team.plan,
     )
     trace_path = _contract_trace_path(state_path)
     trace_required = _state_requires_trace(state)
@@ -128,7 +130,6 @@ async def _build_compendium_async(
             f"{trace_path}"
         )
     save_state(state_path, state)
-    team = build_research_agent_team(config)
     trace = _contract_trace_recorder(
         trace_path,
         run_id=state.run_id,
@@ -141,7 +142,7 @@ async def _build_compendium_async(
             f"{trace_path}"
         )
     if trace.events:
-        _require_no_undeclared_capabilities(trace.trace)
+        _validate_contract_trace(team.artifacts.ir, team.plan, trace.trace)
 
     if state.plan is None:
         state.plan = await _run_structured_agent(
@@ -151,11 +152,11 @@ async def _build_compendium_async(
             output_type=ResearchPlan,
             config=config,
             runner=runner,
-            model=config.planner_agent_model,
             cost_tracker=cost_tracker,
             state=state,
             trace=trace,
             plan=team.plan,
+            ir=team.artifacts.ir,
         )
         state.title = state.plan.title
         state.mark_completed("planning")
@@ -169,11 +170,11 @@ async def _build_compendium_async(
             output_type=ResearchAgenda,
             config=config,
             runner=runner,
-            model=config.research_agent_model,
             cost_tracker=cost_tracker,
             state=state,
             trace=trace,
             plan=team.plan,
+            ir=team.artifacts.ir,
         )
         state.mark_completed("research_agenda")
         save_state(state_path, state)
@@ -239,18 +240,16 @@ async def _build_compendium_async(
             output_type=CompendiumPayload,
             config=config,
             runner=runner,
-            model=config.synthesis_agent_model,
             cost_tracker=cost_tracker,
             state=state,
             trace=trace,
             plan=team.plan,
+            ir=team.artifacts.ir,
         )
         synthesized = True
 
     _evaluate_contract_run(team, trace.trace)
-    prepared_payload = prepare_compendium_payload(
-        state.final_payload, state.ledger
-    )
+    prepared_payload = prepare_compendium_payload(state.final_payload, state.ledger)
     if synthesized:
         state.final_payload = prepared_payload
         state.mark_completed("synthesis")
@@ -346,11 +345,11 @@ async def _run_section_agent(
         output_type=SectionResearchBrief,
         config=config,
         runner=runner,
-        model=config.research_agent_model,
         cost_tracker=cost_tracker,
         state=state,
         trace=trace,
         plan=team.plan,
+        ir=team.artifacts.ir,
         metadata={"section_id": section_id, "follow_up": follow_up},
     )
 
@@ -371,11 +370,11 @@ async def _verify(
         output_type=VerificationReport,
         config=config,
         runner=runner,
-        model=config.verifier_agent_model,
         cost_tracker=cost_tracker,
         state=state,
         trace=trace,
         plan=team.plan,
+        ir=team.artifacts.ir,
     )
 
 
@@ -426,8 +425,7 @@ def _verification_input(state: ResearchRunState) -> str:
             "plan": state.plan.model_dump(mode="json"),
             "agenda": state.agenda.model_dump(mode="json"),
             "section_briefs": [
-                brief.model_dump(mode="json")
-                for brief in state.section_briefs.values()
+                brief.model_dump(mode="json") for brief in state.section_briefs.values()
             ],
             "source_ledger": state.ledger.model_dump(mode="json"),
             "follow_up_available": not state.follow_up_done,
@@ -442,8 +440,7 @@ def _synthesis_input(topic: str, state: ResearchRunState) -> str:
             "plan": state.plan.model_dump(mode="json"),
             "agenda": state.agenda.model_dump(mode="json"),
             "section_briefs": [
-                brief.model_dump(mode="json")
-                for brief in state.section_briefs.values()
+                brief.model_dump(mode="json") for brief in state.section_briefs.values()
             ],
             "source_ledger": state.ledger.model_dump(mode="json"),
             "verification": state.verification.model_dump(mode="json"),
@@ -459,11 +456,11 @@ async def _run_structured_agent(
     output_type: type[ArtifactT],
     config: ResearchConfig,
     runner: AgentRunner,
-    model: str,
     cost_tracker: "CostTracker | None",
     state: ResearchRunState,
     trace: ContractTraceRecorder,
     plan: MaterializationPlan,
+    ir: CanonicalIR,
     metadata: dict[str, Any] | None = None,
 ) -> ArtifactT:
     agent_name = str(getattr(agent, "name", phase))
@@ -484,7 +481,7 @@ async def _run_structured_agent(
         input_payload,
         max_turns=config.max_agent_turns,
     )
-    _record_hosted_tool_events(trace, plan, agent_name, result)
+    _record_hosted_tool_events(trace, ir, plan, agent_name, result)
     trace.record(
         "agent.completed",
         agent_name=agent_name,
@@ -494,7 +491,7 @@ async def _run_structured_agent(
     record_agent_result_cost(
         cost_tracker,
         phase=phase,
-        model=model,
+        model=_resolved_agent_model(plan, agent_name),
         result=result,
     )
     state.response_ids[phase] = list(
@@ -504,9 +501,7 @@ async def _run_structured_agent(
     trace.record(
         "output.accepted",
         agent_name=agent_name,
-        control_ids=(
-            semantic_id("control", agent_name, "output_conformance"),
-        ),
+        control_ids=(semantic_id("control", agent_name, "output_conformance"),),
         data={"agent_name": agent_name, "output_type": output_type.__name__},
         response_ids=result.response_ids,
     )
@@ -544,83 +539,32 @@ def _coerce_artifact(
         artifact = output_type.model_validate_json(output)
     else:
         artifact = output_type.model_validate(output)
-    validate_artifact_semantics(artifact)
     return artifact
 
 
 def _record_hosted_tool_events(
     trace: ContractTraceRecorder,
+    ir: CanonicalIR,
     plan: MaterializationPlan,
     agent_name: str,
     result: AgentRunResult,
 ) -> None:
     raw_result = getattr(result, "raw_result", result)
-    for response in list(getattr(raw_result, "raw_responses", []) or []):
-        web_search_count = extract_tool_calls_from_response(response).get(
-            "web_search_call",
-            0,
-        )
-        for _ in range(web_search_count):
-            capability = _declared_provider_capability(
-                plan,
-                agent_name=agent_name,
-                provider="openai",
-                provider_tool="web_search",
-            )
-            if capability is None:
-                trace.record(
-                    "capability.undeclared",
-                    agent_name=agent_name,
-                    data={
-                        "agent_name": agent_name,
-                        "provider": "openai",
-                        "provider_tool": "web_search",
-                    },
-                    response_ids=result.response_ids,
-                )
-                raise DeepResearchError(
-                    f"Undeclared provider tool `openai.web_search` observed for "
-                    f"{agent_name}."
-                )
-            trace.record(
-                "tool.completed",
-                agent_name=agent_name,
-                capability_name=capability,
-                data={"provider_tool": "openai.web_search"},
-                response_ids=result.response_ids,
-            )
-
-
-def _declared_provider_capability(
-    plan: MaterializationPlan,
-    *,
-    agent_name: str,
-    provider: str,
-    provider_tool: str,
-) -> str | None:
-    agent_id = semantic_id("agent", agent_name)
-    matches = []
-    for grant in plan.grants.values():
-        if grant.agent_id != agent_id or grant.availability != "enabled":
-            continue
-        binding = plan.bindings.get(grant.capability_id)
-        if binding is None:
-            continue
-        if (
-            binding.locator.get("provider") == provider
-            and binding.locator.get("tool") == provider_tool
-        ):
-            matches.append(grant.capability_id)
-    if len(matches) != 1:
-        return None
-    return matches[0].parts[0]
+    normalize_openai_response_events(
+        plan,
+        list(getattr(raw_result, "raw_responses", []) or []),
+        agent=agent_name,
+        context=trace.context,
+        sink=trace,
+    )
+    _validate_contract_trace(ir, plan, trace.trace)
 
 
 def _evaluate_contract_run(
     team: ResearchAgentTeam,
     trace: NormalizedTrace,
 ) -> None:
-    _require_no_undeclared_capabilities(trace)
+    _validate_contract_trace(team.artifacts.ir, team.plan, trace)
     results = assess_controls(
         team.artifacts.ir,
         team.plan,
@@ -635,22 +579,17 @@ def _evaluate_contract_run(
         raise DeepResearchError(f"Contract4Agents assurance failed: {details}")
 
 
-def _require_no_undeclared_capabilities(trace: NormalizedTrace) -> None:
-    undeclared = [
-        event for event in trace.events
-        if event.event_type == "capability.undeclared"
-    ]
-    if undeclared:
-        agents = sorted(
-            {
-                str(event.data.get("agent_name") or event.semantic.agent_id)
-                for event in undeclared
-            }
-        )
+def _validate_contract_trace(
+    ir: CanonicalIR,
+    plan: MaterializationPlan,
+    trace: NormalizedTrace,
+) -> None:
+    try:
+        validate_trace_conformance(ir, plan, trace)
+    except TraceConformanceError as exc:
         raise DeepResearchError(
-            "Contract4Agents assurance found undeclared capability evidence: "
-            + ", ".join(agents)
-        )
+            f"Contract4Agents trace conformance failed: {exc}"
+        ) from exc
 
 
 def _rebuild_ledger(state: ResearchRunState) -> None:
@@ -672,16 +611,52 @@ def _load_or_create_state(
     output_formats: list[str],
     cost_tracker: "CostTracker | None",
     config: ResearchConfig,
+    plan: MaterializationPlan,
 ) -> ResearchRunState:
     if state_path.exists():
-        return load_state(state_path)
+        state = load_state(state_path)
+        recorded_digest = state.config_snapshot.get("plan_digest")
+        if recorded_digest is None and not _state_requires_trace(state):
+            state.config_snapshot = _plan_snapshot(config, plan)
+            return state
+        if recorded_digest != plan.plan_digest:
+            raise DeepResearchError(
+                "Cannot recover research state with a different "
+                "Contract4Agents plan digest."
+            )
+        return state
     return ResearchRunState(
         topic=topic,
         title=topic,
         output_formats=list(output_formats),
         cost_report_path=str(cost_tracker.path) if cost_tracker else None,
-        config_snapshot=config.model_snapshot(),
+        config_snapshot=_plan_snapshot(config, plan),
     )
+
+
+def _plan_snapshot(
+    config: ResearchConfig,
+    plan: MaterializationPlan,
+) -> dict[str, Any]:
+    return {
+        **config.runtime_snapshot(),
+        "contract_digest": plan.contract_digest,
+        "plan_digest": plan.plan_digest,
+        "resolved_models": {
+            agent.name: agent.model for agent in plan.agents.values()
+        },
+    }
+
+
+def _resolved_agent_model(plan: MaterializationPlan, agent_name: str) -> str:
+    matches = [
+        agent.model for agent in plan.agents.values() if agent.name == agent_name
+    ]
+    if len(matches) != 1:
+        raise DeepResearchError(
+            f"Expected one resolved model for {agent_name}, found {len(matches)}."
+        )
+    return matches[0]
 
 
 def _json_prompt(payload: dict[str, Any]) -> str:
