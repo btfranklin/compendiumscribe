@@ -46,7 +46,7 @@ CONTRACT4AGENTS_PROFILE=production
 MAX_AGENT_TURNS=12
 ```
 
-`CONTRACT4AGENTS_PROFILE` is required and selects a complete, committed runtime profile. If it is missing or blank, Compendium Scribe stops before client setup, cost report initialization, or research begins. The packaged Contract4Agents target file owns model IDs, provider options, and tool bindings; environment variables own credentials and profile selection.
+`CONTRACT4AGENTS_PROFILE` is required and selects a complete, committed runtime profile. If it is missing, blank, or unknown, Compendium Scribe reports a configuration error before cost report initialization or research begins. The packaged Contract4Agents target file owns model IDs, provider options, and tool bindings; environment variables own credentials and profile selection.
 
 The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
 

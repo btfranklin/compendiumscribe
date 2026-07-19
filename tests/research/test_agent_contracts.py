@@ -8,7 +8,7 @@ from click.testing import CliRunner
 from contract4agents.cli import main as contract4agents_cli
 from contract4agents.codegen import generate_code, stale_generated_paths
 from contract4agents.compiler import compile_project
-from contract4agents.ir import semantic_id
+from contract4agents.ir import contract_digest, semantic_id
 from contract4agents.target_bindings import load_target_bindings
 from pydantic import ValidationError
 import pytest
@@ -92,7 +92,7 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     )
     assert "Use web search only for targeted checks" in team.verifier.instructions
     assert "Do not use web search, add new sources" in team.synthesis.instructions
-    assert team.plan.contract_digest == team.artifacts.contract_digest
+    assert team.plan.contract_digest == contract_digest(team.ir)
     assert {agent.name: agent.model for agent in team.plan.agents.values()} == {
         "PlannerAgent": "gpt-5.5",
         "ResearchManagerAgent": "gpt-5.5",

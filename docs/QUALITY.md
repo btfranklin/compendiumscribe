@@ -33,6 +33,7 @@ pdm build
 
 - Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
 - Only an `accepted` verification report may reach synthesis; follow-up is limited to one pass over explicit, known section IDs.
+- Follow-up completion is checkpointed per section. Once every target has run, the exhausted follow-up state is persisted before the second verifier starts so recovery cannot repeat paid research work.
 - Every observed provider tool call must resolve to exactly one enabled materialization-plan grant; contradictory evidence is persisted and fails the run.
 - Required Contract4Agents controls must be `passed`; `violated` and `unverified` both fail the run.
 - Persisted enum-valued contract artifacts must pass generated-model validation before recovery resumes.

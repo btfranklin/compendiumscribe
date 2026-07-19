@@ -52,7 +52,7 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 
 - `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic, TypeScript, and Zod bindings live under `agent_contracts/generated/` and are never hand-edited.
 - `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
-- `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns OpenAI adapter and tool bindings.
+- `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns complete named model/provider profiles plus OpenAI adapter and tool bindings.
 - `research/agents_workflow/agents.py` selects a complete committed Contract4Agents profile and materializes the OpenAI Agents SDK graph; environment variables select the profile but do not reconstruct model or provider configuration.
 - `research/agents_workflow/contract_trace.py` adds host workflow events to Contract4Agents' atomic normalized trace sink; provider-event normalization, grant resolution, and trace conformance stay upstream.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.

@@ -324,6 +324,27 @@ def test_build_compendium_requires_profile_selection_before_workflow_setup(
     assert not state_path.exists()
 
 
+def test_build_compendium_rejects_unknown_profile_as_configuration(
+    tmp_path: Path,
+) -> None:
+    runner = StubAgentRunner()
+    state_path = tmp_path / "report.research.json"
+
+    with pytest.raises(
+        MissingConfigurationError,
+        match="Unknown Contract4Agents OpenAI profile: missing",
+    ):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(contract4agents_profile="missing"),
+            runner=runner,
+            state_path=state_path,
+        )
+
+    assert runner.calls == []
+    assert not state_path.exists()
+
+
 def test_verifier_follow_up_reruns_only_targeted_section_once(
     tmp_path: Path,
 ) -> None:
@@ -426,6 +447,137 @@ def test_second_follow_up_fails_without_synthesis(tmp_path: Path) -> None:
             runner=recovery_runner,
         )
     assert recovery_runner.calls == []
+
+
+def test_second_verifier_failure_does_not_repeat_follow_up_on_recovery(
+    tmp_path: Path,
+) -> None:
+    class FlakyVerifierRunner(StubAgentRunner):
+        def __init__(self) -> None:
+            super().__init__(
+                verification_reports=[
+                    follow_up_report("applications"),
+                    accepted_report(),
+                ]
+            )
+            self.verifier_attempts = 0
+
+        async def run(
+            self,
+            agent: Any,
+            input_payload: str,
+            *,
+            max_turns: int,
+        ) -> AgentRunResult:
+            if agent.name == "VerifierAgent":
+                self.verifier_attempts += 1
+                if self.verifier_attempts == 2:
+                    self.calls.append((agent.name, input_payload))
+                    raise RuntimeError("second verifier outage")
+            return await super().run(
+                agent,
+                input_payload,
+                max_turns=max_turns,
+            )
+
+    state_path = tmp_path / "report.research.json"
+    runner = FlakyVerifierRunner()
+
+    with pytest.raises(RuntimeError, match="second verifier outage"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=state_path,
+        )
+
+    interrupted = load_state(state_path)
+    assert interrupted.follow_up_done is True
+    assert interrupted.verification is None
+    assert "section_follow_up:applications" in interrupted.completed_stages
+
+    compendium = recover_compendium(
+        state_path,
+        config=ResearchConfig(),
+        runner=runner,
+    )
+
+    assert compendium.topic == "Quantum Computing Compendium"
+    section_calls = [
+        json.loads(payload)["section"]["id"]
+        for name, payload in runner.calls
+        if name == "SectionResearchAgent"
+    ]
+    assert section_calls == ["foundations", "applications", "applications"]
+    assert [name for name, _ in runner.calls].count("VerifierAgent") == 3
+    assert [name for name, _ in runner.calls].count("SynthesisAgent") == 1
+
+
+def test_interrupted_multi_section_follow_up_skips_completed_targets(
+    tmp_path: Path,
+) -> None:
+    class FlakyFollowUpRunner(StubAgentRunner):
+        def __init__(self) -> None:
+            super().__init__(
+                verification_reports=[
+                    follow_up_report("foundations", "applications"),
+                    accepted_report(),
+                ]
+            )
+            self.failed_application_follow_up = False
+
+        async def run(
+            self,
+            agent: Any,
+            input_payload: str,
+            *,
+            max_turns: int,
+        ) -> AgentRunResult:
+            if agent.name == "SectionResearchAgent":
+                payload = json.loads(input_payload)
+                if (
+                    payload["section"]["id"] == "applications"
+                    and payload["previous_brief"] is not None
+                    and not self.failed_application_follow_up
+                ):
+                    self.failed_application_follow_up = True
+                    self.calls.append((agent.name, input_payload))
+                    raise RuntimeError("application follow-up outage")
+            return await super().run(
+                agent,
+                input_payload,
+                max_turns=max_turns,
+            )
+
+    state_path = tmp_path / "report.research.json"
+    runner = FlakyFollowUpRunner()
+
+    with pytest.raises(RuntimeError, match="application follow-up outage"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=state_path,
+        )
+
+    interrupted = load_state(state_path)
+    assert interrupted.follow_up_done is False
+    assert "section_follow_up:foundations" in interrupted.completed_stages
+    assert "section_follow_up:applications" not in interrupted.completed_stages
+
+    recover_compendium(
+        state_path,
+        config=ResearchConfig(),
+        runner=runner,
+    )
+
+    follow_up_calls = [
+        json.loads(payload)["section"]["id"]
+        for name, payload in runner.calls
+        if name == "SectionResearchAgent"
+        and json.loads(payload)["previous_brief"] is not None
+    ]
+    assert follow_up_calls == ["foundations", "applications", "applications"]
 
 
 @pytest.mark.parametrize(

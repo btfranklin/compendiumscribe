@@ -142,7 +142,7 @@ async def _build_compendium_async(
             f"{trace_path}"
         )
     if trace.events:
-        _validate_contract_trace(team.artifacts.ir, team.plan, trace.trace)
+        _validate_contract_trace(team.ir, team.plan, trace.trace)
 
     if state.plan is None:
         state.plan = await _run_structured_agent(
@@ -156,7 +156,7 @@ async def _build_compendium_async(
             state=state,
             trace=trace,
             plan=team.plan,
-            ir=team.artifacts.ir,
+            ir=team.ir,
         )
         state.title = state.plan.title
         state.mark_completed("planning")
@@ -174,7 +174,7 @@ async def _build_compendium_async(
             state=state,
             trace=trace,
             plan=team.plan,
-            ir=team.artifacts.ir,
+            ir=team.ir,
         )
         state.mark_completed("research_agenda")
         save_state(state_path, state)
@@ -201,7 +201,9 @@ async def _build_compendium_async(
             cost_tracker=cost_tracker,
             trace=trace,
         )
-        state.mark_completed("verification")
+        state.mark_completed(
+            "verification_follow_up" if state.follow_up_done else "verification"
+        )
         save_state(state_path, state)
 
     if state.verification.status == "follow_up" and not state.follow_up_done:
@@ -216,6 +218,8 @@ async def _build_compendium_async(
         )
         _rebuild_ledger(state)
         state.follow_up_done = True
+        state.verification = None
+        save_state(state_path, state)
         state.verification = await _verify(
             state,
             team=team,
@@ -244,7 +248,7 @@ async def _build_compendium_async(
             state=state,
             trace=trace,
             plan=team.plan,
-            ir=team.artifacts.ir,
+            ir=team.ir,
         )
         synthesized = True
 
@@ -310,6 +314,9 @@ async def _run_follow_up_sections(
 ) -> None:
     section_ids = _validated_follow_up_section_ids(state)
     for section_id in section_ids:
+        stage = f"section_follow_up:{section_id}"
+        if stage in state.completed_stages:
+            continue
         state.section_briefs[section_id] = await _run_section_agent(
             section_id,
             state,
@@ -320,7 +327,7 @@ async def _run_follow_up_sections(
             trace=trace,
             follow_up=True,
         )
-        state.mark_completed(f"section_follow_up:{section_id}")
+        state.mark_completed(stage)
         save_state(state_path, state)
 
 
@@ -349,7 +356,7 @@ async def _run_section_agent(
         state=state,
         trace=trace,
         plan=team.plan,
-        ir=team.artifacts.ir,
+        ir=team.ir,
         metadata={"section_id": section_id, "follow_up": follow_up},
     )
 
@@ -374,7 +381,7 @@ async def _verify(
         state=state,
         trace=trace,
         plan=team.plan,
-        ir=team.artifacts.ir,
+        ir=team.ir,
     )
 
 
@@ -564,9 +571,9 @@ def _evaluate_contract_run(
     team: ResearchAgentTeam,
     trace: NormalizedTrace,
 ) -> None:
-    _validate_contract_trace(team.artifacts.ir, team.plan, trace)
+    _validate_contract_trace(team.ir, team.plan, trace)
     results = assess_controls(
-        team.artifacts.ir,
+        team.ir,
         team.plan,
         trace,
     )

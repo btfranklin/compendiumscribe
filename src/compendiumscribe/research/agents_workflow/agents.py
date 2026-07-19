@@ -5,14 +5,16 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
-from contract4agents.compiler import CompilerArtifacts, compile_project
+from contract4agents.ir import CanonicalIR
 from contract4agents.materialization import (
     MaterializationTraceEvent,
     RecordingTraceSink,
     materialize,
 )
-from contract4agents.planning import MaterializationPlan
+from contract4agents.planning import MaterializationPlan, PlanningError
 from contract4agents.target_bindings import load_target_bindings
+
+from ..errors import MissingConfigurationError
 
 
 @dataclass(frozen=True)
@@ -22,7 +24,7 @@ class ResearchAgentTeam:
     section_research: Any
     verifier: Any
     synthesis: Any
-    artifacts: CompilerArtifacts
+    ir: CanonicalIR
     plan: MaterializationPlan
     materialization_events: tuple[MaterializationTraceEvent, ...]
 
@@ -33,14 +35,18 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
     contract_root = files("compendiumscribe.agent_contracts")
     with as_file(contract_root) as root:
         root_path = Path(root)
-        artifacts = compile_project(root_path)
         trace_sink = RecordingTraceSink()
-        result = materialize(
-            root_path,
-            target="openai",
-            profile=config.contract4agents_profile,
-            trace_sink=trace_sink,
-        )
+        try:
+            result = materialize(
+                root_path,
+                target="openai",
+                profile=config.contract4agents_profile,
+                trace_sink=trace_sink,
+            )
+        except PlanningError as exc:
+            if any(issue.code == "PLN002" for issue in exc.issues):
+                raise _unknown_profile_error(config.contract4agents_profile) from exc
+            raise
 
     return ResearchAgentTeam(
         planner=result.agents["PlannerAgent"],
@@ -48,7 +54,7 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
         section_research=result.agents["SectionResearchAgent"],
         verifier=result.agents["VerifierAgent"],
         synthesis=result.agents["SynthesisAgent"],
-        artifacts=artifacts,
+        ir=result.context.ir,
         plan=result.plan,
         materialization_events=tuple(trace_sink.events),
     )
@@ -75,7 +81,7 @@ def _selected_profile_agent_model(
     target = loaded.bindings.targets.get("openai")
     selected = target.profiles.get(profile) if target is not None else None
     if selected is None:
-        raise RuntimeError(f"Unknown Contract4Agents OpenAI profile: {profile}")
+        raise _unknown_profile_error(profile)
     agent_profile = selected.agents.get(agent_name)
     model = agent_profile.model if agent_profile is not None else None
     model = model or selected.default_model
@@ -84,6 +90,12 @@ def _selected_profile_agent_model(
             f"Contract4Agents profile {profile!r} has no model for {agent_name}."
         )
     return model
+
+
+def _unknown_profile_error(profile: str) -> MissingConfigurationError:
+    return MissingConfigurationError(
+        f"Unknown Contract4Agents OpenAI profile: {profile}"
+    )
 
 
 __all__ = [

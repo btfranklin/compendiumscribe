@@ -1,4 +1,5 @@
 import json
+import os
 import pytest
 from click.testing import CliRunner
 from pathlib import Path
@@ -89,6 +90,24 @@ def test_cli_create_default_format_is_markdown(
             mock_build_compendium.call_args.kwargs["client"]
             is mock_create_client.return_value
         )
+
+
+def test_cli_create_reports_unknown_profile_as_configuration_error(
+    runner,
+    mock_create_client,
+) -> None:
+    with mock.patch.dict(
+        os.environ,
+        {"CONTRACT4AGENTS_PROFILE": "missing"},
+    ):
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ["create", "Test Topic"])
+
+            assert result.exit_code == 1
+            assert "Configuration error:" in result.output
+            assert "Unknown Contract4Agents OpenAI profile: missing" in result.output
+            assert "Unexpected error:" not in result.output
+            assert not list(Path(".").glob("*.costs.json"))
 
 
 def test_cli_create_format_xml(
