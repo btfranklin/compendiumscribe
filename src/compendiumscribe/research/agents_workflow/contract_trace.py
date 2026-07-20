@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from contextlib import contextmanager
 from pathlib import Path
 import time
 
@@ -54,7 +53,7 @@ class ContractTraceRecorder:
             plan_digest=plan.plan_digest,
         )
         self._context = context
-        self._capture_write_failed = False
+        self._closure_write_failed = False
         self.sink = AtomicTraceFileSink(path, context, append=append)
         self._closure = self._load_closure(context) if append else None
         if self._closure is not None:
@@ -78,7 +77,7 @@ class ContractTraceRecorder:
         return self._closure
 
     def checkpoint(self) -> TraceCaptureSnapshot:
-        self._ensure_capture_writable()
+        self._ensure_closure_writable()
         snapshot = self.session.snapshot()
         self._persist_snapshot(snapshot)
         return snapshot
@@ -86,22 +85,19 @@ class ContractTraceRecorder:
     def close(self) -> TraceCaptureSnapshot:
         if self._session_is_closed():
             return self.session.closed_snapshot
-        try:
-            self.session.__exit__(None, None, None)
-        except OSError:
-            self._capture_write_failed = True
-            raise
+        self.session.__exit__(None, None, None)
         snapshot = self.session.closed_snapshot
-        if self._capture_write_failed:
+        if self._closure_write_failed:
             return snapshot
         self._persist_snapshot(snapshot)
         return snapshot
 
     def emit(self, event: TraceEvent) -> None:
-        with self._capture_write():
-            self.session.emit(event)
+        self._ensure_closure_writable()
+        self.session.emit(event)
 
     def bind_attempt(self, attempt: TraceAttempt, *, agent_name: str):
+        self._ensure_closure_writable()
         return self.session.bind_attempt(attempt, agent=agent_name)
 
     def normalize_response_events(
@@ -111,12 +107,12 @@ class ContractTraceRecorder:
         agent_name: str,
         attempt: TraceAttempt,
     ) -> tuple[TraceEvent, ...]:
-        with self._capture_write():
-            return self.session.normalize_response_events(
-                responses,
-                agent=agent_name,
-                attempt=attempt,
-            )
+        self._ensure_closure_writable()
+        return self.session.normalize_response_events(
+            responses,
+            agent=agent_name,
+            attempt=attempt,
+        )
 
     def normalize_exception_responses(
         self,
@@ -125,12 +121,12 @@ class ContractTraceRecorder:
         agent_name: str,
         attempt: TraceAttempt,
     ) -> tuple[TraceEvent, ...]:
-        with self._capture_write():
-            return self.session.normalize_exception_responses(
-                exception,
-                agent=agent_name,
-                attempt=attempt,
-            )
+        self._ensure_closure_writable()
+        return self.session.normalize_exception_responses(
+            exception,
+            agent=agent_name,
+            attempt=attempt,
+        )
 
     def record_output_schema_failure(
         self,
@@ -139,12 +135,12 @@ class ContractTraceRecorder:
         attempt: TraceAttempt,
         evidence_refs: Sequence[str] = (),
     ) -> TraceEvent:
-        with self._capture_write():
-            return self.session.record_output_schema_failure(
-                agent=agent_name,
-                attempt=attempt,
-                evidence_refs=tuple(evidence_refs),
-            )
+        self._ensure_closure_writable()
+        return self.session.record_output_schema_failure(
+            agent=agent_name,
+            attempt=attempt,
+            evidence_refs=tuple(evidence_refs),
+        )
 
     def record_terminal_attempt(
         self,
@@ -156,13 +152,13 @@ class ContractTraceRecorder:
     ) -> TraceEvent:
         if outcome not in {"succeeded", "failed"}:
             raise ValueError(f"Unsupported terminal attempt outcome: {outcome}")
-        with self._capture_write():
-            return self.session.record_terminal_attempt(
-                agent=agent_name,
-                attempt=attempt,
-                outcome=outcome,
-                evidence_refs=tuple(evidence_refs),
-            )
+        self._ensure_closure_writable()
+        return self.session.record_terminal_attempt(
+            agent=agent_name,
+            attempt=attempt,
+            outcome=outcome,
+            evidence_refs=tuple(evidence_refs),
+        )
 
     def record(
         self,
@@ -197,8 +193,8 @@ class ContractTraceRecorder:
             evidence_refs=tuple(response_ids),
             provenance={"recorder": "compendiumscribe"},
         )
-        with self._capture_write():
-            self.session.emit(event)
+        self._ensure_closure_writable()
+        self.session.emit(event)
         return event
 
     def _open_session(self) -> OpenAINormalizedTraceSession:
@@ -240,7 +236,7 @@ class ContractTraceRecorder:
         try:
             atomic_write_text(self.closure_path, payload)
         except OSError:
-            self._capture_write_failed = True
+            self._closure_write_failed = True
             raise
         self._closure = closure
 
@@ -259,20 +255,12 @@ class ContractTraceRecorder:
             return False
         return True
 
-    def _ensure_capture_writable(self) -> None:
-        if self._capture_write_failed:
+    def _ensure_closure_writable(self) -> None:
+        if self._closure_write_failed:
             raise RuntimeError(
-                "Contract4Agents capture cannot continue after a persistence failure."
+                "Contract4Agents capture cannot continue after closure persistence "
+                "failed."
             )
-
-    @contextmanager
-    def _capture_write(self):
-        self._ensure_capture_writable()
-        try:
-            yield
-        except OSError:
-            self._capture_write_failed = True
-            raise
 
 
 __all__ = ["ContractTraceRecorder"]

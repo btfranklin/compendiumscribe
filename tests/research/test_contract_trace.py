@@ -15,14 +15,15 @@ from compendiumscribe.research.agents_workflow.agents import build_research_agen
 from compendiumscribe.research.config import ResearchConfig
 
 
-def test_trace_write_failure_preserves_file_and_recorder_state(
+def test_trace_write_failure_preserves_the_accepted_capture_frontier(
     tmp_path: Path,
 ) -> None:
     trace_path = tmp_path / "report.research.trace.jsonl"
+    closure_path = tmp_path / "report.research.trace-closure.json"
     team = build_research_agent_team(ResearchConfig())
     recorder = ContractTraceRecorder(
         trace_path,
-        tmp_path / "report.research.trace-closure.json",
+        closure_path,
         run_id="run-1",
         ir=team.ir,
         plan=team.plan,
@@ -38,8 +39,13 @@ def test_trace_write_failure_preserves_file_and_recorder_state(
         with pytest.raises(OSError, match="replace failed"):
             recorder.record("agent.completed", agent_name="PlannerAgent")
 
+    snapshot = recorder.checkpoint()
+
     assert trace_path.read_text(encoding="utf-8") == original_payload
     assert [event.event_type for event in recorder.events] == ["agent.started"]
+    assert snapshot.trace == recorder.trace
+    assert snapshot.closure.frontier.event_count == 1
+    assert TraceClosureManifest.load(closure_path).closures == (snapshot.closure,)
     assert not list(tmp_path.glob(".report.research.trace.jsonl.*.tmp"))
     recorder.close()
 
