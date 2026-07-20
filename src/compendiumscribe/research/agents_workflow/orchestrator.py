@@ -164,6 +164,7 @@ async def _build_compendium_async(
         _reconcile_terminal_attempts(state, trace)
         if trace.events:
             _validate_contract_trace(team.ir, team.plan, trace.trace)
+            trace.checkpoint()
         return await _continue_research_workflow(
             topic,
             config=config,
@@ -305,13 +306,9 @@ async def _continue_research_workflow(
         state.mark_completed("synthesis")
         _checkpoint_state(state_path, state, trace)
 
-    closure = trace.close()
-    if closure is None:
-        raise DeepResearchError(
-            "Contract4Agents trace closure is missing for a progressed run."
-        )
+    snapshot = trace.close()
     try:
-        _evaluate_contract_run(team, trace.trace, closure, state)
+        _evaluate_contract_run(team, snapshot.trace, snapshot.closure, state)
     except DeepResearchError:
         save_state(state_path, state)
         raise
@@ -556,8 +553,13 @@ async def _run_structured_agent(
                     agent_name=agent_name,
                     attempt=exhausted,
                 )
-            save_state(state_path, state)
-            _validate_contract_trace(ir, plan, trace.trace)
+            _checkpoint_attempt_evidence(
+                state_path,
+                state,
+                trace,
+                ir=ir,
+                plan=plan,
+            )
             raise DeepResearchError(
                 f"{agent_name} failed after {MAX_AGENT_ATTEMPTS} attempts."
             )
@@ -574,6 +576,7 @@ async def _run_structured_agent(
         )
         state.attempt_counts[invocation_id] = attempt.number
         save_state(state_path, state)
+        _validate_contract_trace(ir, plan, trace.trace)
         progress_metadata = {
             **(metadata or {}),
             "attempt_number": attempt.number,
@@ -591,6 +594,7 @@ async def _run_structured_agent(
         )
         try:
             with trace.bind_attempt(attempt, agent_name=agent_name):
+                trace.checkpoint()
                 result = await runner.run(
                     agent,
                     input_payload,
@@ -618,8 +622,13 @@ async def _run_structured_agent(
                     agent_name=agent_name,
                     attempt=attempt,
                 )
-            save_state(state_path, state)
-            _validate_contract_trace(ir, plan, trace.trace)
+            _checkpoint_attempt_evidence(
+                state_path,
+                state,
+                trace,
+                ir=ir,
+                plan=plan,
+            )
             if terminal:
                 raise
             _emit_retry_progress(
@@ -653,8 +662,13 @@ async def _run_structured_agent(
                 agent_name=agent_name,
                 attempt=attempt,
             )
-            save_state(state_path, state)
-            _validate_contract_trace(ir, plan, trace.trace)
+            _checkpoint_attempt_evidence(
+                state_path,
+                state,
+                trace,
+                ir=ir,
+                plan=plan,
+            )
             raise DeepResearchError(
                 f"{agent_name} emitted undeclared capability evidence."
             )
@@ -697,8 +711,13 @@ async def _run_structured_agent(
                     agent_name=agent_name,
                     attempt=attempt,
                 )
-            save_state(state_path, state)
-            _validate_contract_trace(ir, plan, trace.trace)
+            _checkpoint_attempt_evidence(
+                state_path,
+                state,
+                trace,
+                ir=ir,
+                plan=plan,
+            )
             if terminal:
                 raise
             _emit_retry_progress(
@@ -917,6 +936,20 @@ def _checkpoint_state(
     save_state(state_path, state)
     _reconcile_terminal_attempts(state, trace)
     _validate_contract_trace(trace.ir, trace.plan, trace.trace)
+    trace.checkpoint()
+
+
+def _checkpoint_attempt_evidence(
+    state_path: Path,
+    state: ResearchRunState,
+    trace: ContractTraceRecorder,
+    *,
+    ir: CanonicalIR,
+    plan: MaterializationPlan,
+) -> None:
+    save_state(state_path, state)
+    _validate_contract_trace(ir, plan, trace.trace)
+    trace.checkpoint()
 
 
 def _reconcile_terminal_attempts(

@@ -103,7 +103,7 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert "Use web search only for targeted checks" in team.verifier.instructions
     assert "Do not use web search, add new sources" in team.synthesis.instructions
     assert team.plan.contract_digest == contract_digest(team.ir)
-    assert PLAN_VERSION == "2"
+    assert PLAN_VERSION == "3"
     assert team.plan.plan_version == PLAN_VERSION
     assert materialization_plan_data(team.plan)["plan_version"] == PLAN_VERSION
     assert {agent.name: agent.model for agent in team.plan.agents.values()} == {

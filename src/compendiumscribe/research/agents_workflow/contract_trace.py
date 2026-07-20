@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import contextmanager
 from pathlib import Path
 import time
 
@@ -14,7 +15,7 @@ from contract4agents.tracing import (
     OpenAINormalizedTraceSession,
     ProviderCorrelation,
     TraceAttempt,
-    TraceAttemptClosure,
+    TraceCaptureSnapshot,
     TraceClosureEvidence,
     TraceClosureManifest,
     TraceEvent,
@@ -53,6 +54,7 @@ class ContractTraceRecorder:
             plan_digest=plan.plan_digest,
         )
         self._context = context
+        self._capture_write_failed = False
         self.sink = AtomicTraceFileSink(path, context, append=append)
         self._closure = self._load_closure(context) if append else None
         if self._closure is not None:
@@ -75,27 +77,29 @@ class ContractTraceRecorder:
     def closure(self) -> TraceClosureEvidence | None:
         return self._closure
 
-    def close(self) -> TraceClosureEvidence | None:
+    def checkpoint(self) -> TraceCaptureSnapshot:
+        self._ensure_capture_writable()
+        snapshot = self.session.snapshot()
+        self._persist_snapshot(snapshot)
+        return snapshot
+
+    def close(self) -> TraceCaptureSnapshot:
         if self._session_is_closed():
-            return self._closure
-        self.session.__exit__(None, None, None)
-        candidate = self.session.closure_evidence
-        prior_attempt_ids = {
-            item.attempt.attempt_id
-            for item in self._closure.attempts
-        } if self._closure is not None else set()
-        if any(
-            item.attempt.attempt_id not in prior_attempt_ids
-            for item in candidate.attempts
-        ):
-            closure = _merge_closure(self._closure, candidate)
-            validate_trace_closure(self.trace, closure)
-            self._persist_closure(closure)
-            self._closure = closure
-        return self._closure
+            return self.session.closed_snapshot
+        try:
+            self.session.__exit__(None, None, None)
+        except OSError:
+            self._capture_write_failed = True
+            raise
+        snapshot = self.session.closed_snapshot
+        if self._capture_write_failed:
+            return snapshot
+        self._persist_snapshot(snapshot)
+        return snapshot
 
     def emit(self, event: TraceEvent) -> None:
-        self.session.emit(event)
+        with self._capture_write():
+            self.session.emit(event)
 
     def bind_attempt(self, attempt: TraceAttempt, *, agent_name: str):
         return self.session.bind_attempt(attempt, agent=agent_name)
@@ -107,11 +111,12 @@ class ContractTraceRecorder:
         agent_name: str,
         attempt: TraceAttempt,
     ) -> tuple[TraceEvent, ...]:
-        return self.session.normalize_response_events(
-            responses,
-            agent=agent_name,
-            attempt=attempt,
-        )
+        with self._capture_write():
+            return self.session.normalize_response_events(
+                responses,
+                agent=agent_name,
+                attempt=attempt,
+            )
 
     def normalize_exception_responses(
         self,
@@ -120,11 +125,12 @@ class ContractTraceRecorder:
         agent_name: str,
         attempt: TraceAttempt,
     ) -> tuple[TraceEvent, ...]:
-        return self.session.normalize_exception_responses(
-            exception,
-            agent=agent_name,
-            attempt=attempt,
-        )
+        with self._capture_write():
+            return self.session.normalize_exception_responses(
+                exception,
+                agent=agent_name,
+                attempt=attempt,
+            )
 
     def record_output_schema_failure(
         self,
@@ -133,11 +139,12 @@ class ContractTraceRecorder:
         attempt: TraceAttempt,
         evidence_refs: Sequence[str] = (),
     ) -> TraceEvent:
-        return self.session.record_output_schema_failure(
-            agent=agent_name,
-            attempt=attempt,
-            evidence_refs=tuple(evidence_refs),
-        )
+        with self._capture_write():
+            return self.session.record_output_schema_failure(
+                agent=agent_name,
+                attempt=attempt,
+                evidence_refs=tuple(evidence_refs),
+            )
 
     def record_terminal_attempt(
         self,
@@ -149,12 +156,13 @@ class ContractTraceRecorder:
     ) -> TraceEvent:
         if outcome not in {"succeeded", "failed"}:
             raise ValueError(f"Unsupported terminal attempt outcome: {outcome}")
-        return self.session.record_terminal_attempt(
-            agent=agent_name,
-            attempt=attempt,
-            outcome=outcome,
-            evidence_refs=tuple(evidence_refs),
-        )
+        with self._capture_write():
+            return self.session.record_terminal_attempt(
+                agent=agent_name,
+                attempt=attempt,
+                outcome=outcome,
+                evidence_refs=tuple(evidence_refs),
+            )
 
     def record(
         self,
@@ -189,7 +197,8 @@ class ContractTraceRecorder:
             evidence_refs=tuple(response_ids),
             provenance={"recorder": "compendiumscribe"},
         )
-        self.session.emit(event)
+        with self._capture_write():
+            self.session.emit(event)
         return event
 
     def _open_session(self) -> OpenAINormalizedTraceSession:
@@ -199,19 +208,10 @@ class ContractTraceRecorder:
             run_id=self._context.run_id,
             thread_id=self._context.thread_id,
             sink=self.sink,
+            prior_trace=self.trace if self._closure is not None else None,
+            prior_closure=self._closure,
         )
         session.__enter__()
-        try:
-            if self._closure is not None:
-                # v0.11 validates retry parents inside one session. Register
-                # prior identities so a recovered retry can retain its durable
-                # retry_of link; _merge_closure keeps the prior evidence.
-                for item in self._closure.attempts:
-                    with session.bind_attempt(item.attempt, agent=item.agent_id):
-                        pass
-        except BaseException as exc:
-            session.__exit__(type(exc), exc, exc.__traceback__)
-            raise
         return session
 
     def _load_closure(
@@ -237,66 +237,42 @@ class ContractTraceRecorder:
 
     def _persist_closure(self, closure: TraceClosureEvidence) -> None:
         payload = TraceClosureManifest((closure,)).to_json() + "\n"
-        atomic_write_text(self.closure_path, payload)
+        try:
+            atomic_write_text(self.closure_path, payload)
+        except OSError:
+            self._capture_write_failed = True
+            raise
+        self._closure = closure
+
+    def _persist_snapshot(self, snapshot: TraceCaptureSnapshot) -> None:
+        if snapshot.trace != self.trace:
+            raise ValueError(
+                "Contract4Agents capture snapshot does not match the persisted trace."
+            )
+        if snapshot.closure != self._closure:
+            self._persist_closure(snapshot.closure)
 
     def _session_is_closed(self) -> bool:
         try:
-            self.session.closure_evidence
+            self.session.closed_snapshot
         except RuntimeError:
             return False
         return True
 
-
-def _merge_closure(
-    existing: TraceClosureEvidence | None,
-    candidate: TraceClosureEvidence,
-) -> TraceClosureEvidence:
-    if existing is None:
-        return candidate
-    if existing.context != candidate.context:
-        raise ValueError("Cannot merge trace closure from a different run context.")
-
-    attempts: dict[str, TraceAttemptClosure] = {
-        item.attempt.attempt_id: item for item in existing.attempts
-    }
-    for item in candidate.attempts:
-        prior = attempts.get(item.attempt.attempt_id)
-        if prior is None:
-            attempts[item.attempt.attempt_id] = item
-        elif prior.attempt != item.attempt or prior.agent_id != item.agent_id:
-            raise ValueError(
-                f"Trace closure attempt {item.attempt.attempt_id} changed identity."
+    def _ensure_capture_writable(self) -> None:
+        if self._capture_write_failed:
+            raise RuntimeError(
+                "Contract4Agents capture cannot continue after a persistence failure."
             )
 
-    ordered = tuple(sorted(attempts.values(), key=lambda item: item.attempt))
-    if any(
-        item.lifecycle_status == "incomplete"
-        or item.response_status == "incomplete"
-        for item in ordered
-    ):
-        status = "incomplete"
-    elif any(not item.complete for item in ordered):
-        status = "unverified"
-    else:
-        # The upstream session API cannot yet consume an earlier session's
-        # closure as authoritative evidence. Cross-session recovery therefore
-        # preserves every attempt identity without overstating aggregate
-        # completeness.
-        status = "unverified"
-    channels = tuple(sorted(set(existing.channels) & set(candidate.channels)))
-    return TraceClosureEvidence(
-        context=existing.context,
-        status=status,
-        reason=(
-            "Persisted closure combines all observed Contract4Agents trace "
-            "sessions for this host-owned research run."
-        ),
-        channels=channels,
-        attempts=ordered,
-        evidence_refs=tuple(
-            sorted(set(existing.evidence_refs) | set(candidate.evidence_refs))
-        ),
-    )
+    @contextmanager
+    def _capture_write(self):
+        self._ensure_capture_writable()
+        try:
+            yield
+        except OSError:
+            self._capture_write_failed = True
+            raise
 
 
 __all__ = ["ContractTraceRecorder"]

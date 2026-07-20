@@ -8,7 +8,7 @@ from typing import Any
 from contract4agents.ir import CanonicalIR
 from contract4agents.materialization import (
     MaterializationTraceEvent,
-    RecordingTraceSink,
+    RecordingMaterializationTraceSink,
     materialize,
 )
 from contract4agents.planning import MaterializationPlan, PlanningError
@@ -35,13 +35,13 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
     contract_root = files("compendiumscribe.agent_contracts")
     with as_file(contract_root) as root:
         root_path = Path(root)
-        trace_sink = RecordingTraceSink()
+        trace_sink = RecordingMaterializationTraceSink()
         try:
             result = materialize(
                 root_path,
                 target="openai",
                 profile=config.contract4agents_profile,
-                trace_sink=trace_sink,
+                materialization_trace_sink=trace_sink,
             )
         except PlanningError as exc:
             if any(issue.code == "PLN002" for issue in exc.issues):

@@ -13,6 +13,7 @@ import pytest
 from contract4agents.tracing import (
     NormalizedTrace,
     TraceClosureManifest,
+    TraceFrontier,
     load_trace_jsonl,
     write_trace_jsonl,
 )
@@ -656,19 +657,18 @@ def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
     )
     trace_path = _contract_trace_path(state_path)
     original_trace = load_trace_jsonl(trace_path)
-    write_trace_jsonl(
-        trace_path,
-        NormalizedTrace(
-            tuple(
-                event
-                for event in original_trace.events
-                if str(event.semantic.agent_id) != "agent:SynthesisAgent"
-            )
-        ),
+    reduced_trace = NormalizedTrace(
+        tuple(
+            event
+            for event in original_trace.events
+            if str(event.semantic.agent_id) != "agent:SynthesisAgent"
+        )
     )
+    write_trace_jsonl(trace_path, reduced_trace)
     closure = _load_trace_closure(state_path)
     reduced_closure = replace(
         closure,
+        frontier=TraceFrontier.from_trace(reduced_trace),
         attempts=tuple(
             item
             for item in closure.attempts
@@ -787,6 +787,35 @@ def test_progressed_recovery_rejects_malformed_trace_closure(
     assert runner.calls == []
 
 
+def test_progressed_recovery_rejects_legacy_trace_closure_manifest(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    closure_path = _contract_trace_closure_path(state_path)
+    payload = json.loads(closure_path.read_text(encoding="utf-8"))
+    payload["version"] = "1"
+    closure_path.write_text(json.dumps(payload), encoding="utf-8")
+    runner = StubAgentRunner()
+
+    with pytest.raises(
+        DeepResearchError,
+        match="Unsupported trace-closure manifest version `1`",
+    ):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=runner,
+        )
+
+    assert runner.calls == []
+
+
 def test_progressed_recovery_rejects_mismatched_trace_closure(
     tmp_path: Path,
 ) -> None:
@@ -892,7 +921,9 @@ def test_recovery_rejects_state_without_auditable_plan_digest(
         )
 
 
-def test_completed_recovery_rejects_incomplete_trace(tmp_path: Path) -> None:
+def test_completed_recovery_rejects_trace_past_closure_frontier(
+    tmp_path: Path,
+) -> None:
     state_path = tmp_path / "report.research.json"
     build_compendium(
         "Quantum Computing",
@@ -914,7 +945,7 @@ def test_completed_recovery_rejects_incomplete_trace(tmp_path: Path) -> None:
     )
     write_trace_jsonl(trace_path, incomplete)
 
-    with pytest.raises(DeepResearchError, match="assurance failed"):
+    with pytest.raises(DeepResearchError, match="closure frontier does not match"):
         recover_compendium(
             state_path,
             config=ResearchConfig(),
@@ -1325,7 +1356,16 @@ def test_run_spec_rejects_stage_evidence_without_agent_identity(
                 semantic=replace(event.semantic, agent_id=None),
             )
         events.append(event)
-    write_trace_jsonl(trace_path, NormalizedTrace(tuple(events)))
+    altered_trace = NormalizedTrace(tuple(events))
+    write_trace_jsonl(trace_path, altered_trace)
+    closure = _load_trace_closure(state_path)
+    _contract_trace_closure_path(state_path).write_text(
+        TraceClosureManifest(
+            (replace(closure, frontier=TraceFrontier.from_trace(altered_trace)),)
+        ).to_json()
+        + "\n",
+        encoding="utf-8",
+    )
 
     with pytest.raises(
         DeepResearchError,
