@@ -85,14 +85,6 @@ agent SynthesisAgent(request: SynthesisInput) -> CompendiumPayload:
         "Put weak, unresolved, or disputed claims into open questions.",
     ]
 
-control workflow_order for SynthesisAgent:
-    severity = high
-    required = true
-    audience = [host, evaluator, reviewer]
-    assessment = post_run
-    require = trace.called_before(PlannerAgent, ResearchManagerAgent) and trace.called_before(ResearchManagerAgent, SectionResearchAgent) and trace.called_before(SectionResearchAgent, VerifierAgent) and trace.called_before(VerifierAgent, SynthesisAgent)
-    expected_evidence = [agent.started, agent.completed, output.accepted]
-
 quality bounded_research_plan for PlannerAgent:
     rubric = "The plan is bounded, researchable, organized around 3-5 stable section IDs, and preserves uncertainty."
     audience = [evaluator, reviewer]
@@ -120,4 +112,10 @@ run_spec CompendiumResearch:
         section_research+: SectionResearchAgent -> SectionResearchBrief,
         verification+: VerifierAgent -> VerificationReport,
         synthesis: SynthesisAgent -> CompendiumPayload,
+    ]
+    assertions = [
+        expect(trace.called_before(PlannerAgent, ResearchManagerAgent)),
+        expect(trace.called_before(ResearchManagerAgent, SectionResearchAgent)),
+        expect(trace.called_before(SectionResearchAgent, VerifierAgent)),
+        expect(trace.called_before(VerifierAgent, SynthesisAgent)),
     ]

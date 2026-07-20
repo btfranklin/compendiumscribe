@@ -35,14 +35,18 @@ pdm build
 - Only an `accepted` verification report may reach synthesis; follow-up is limited to one pass over explicit, known section IDs.
 - Follow-up completion is checkpointed per section. Once every target has run, the exhausted follow-up state is persisted before the second verifier starts so recovery cannot repeat paid research work.
 - Every observed provider-hosted response call must be supported and resolve to exactly one enabled materialization-plan grant; unsupported, unknown, ambiguous, and contradictory evidence is persisted and fails the run. Host-dispatched calls remain outside this adapter classification.
-- Every SDK invocation runs inside an explicit trace attempt. Invocation IDs stay stable across recovery; attempt IDs are unique and ordered, retries identify their predecessor, and exception-carried raw responses remain evidence. Retryable exceptions and schema-invalid outputs receive no more than five total attempts.
+- One OpenAI trace router is registered per process, while every logical research run uses a disposable session. Every SDK invocation runs inside an explicit trace attempt. Invocation IDs stay stable across recovery; attempt IDs are unique and ordered, retries identify their predecessor, and exception-carried raw responses remain evidence. Retryable exceptions and schema-invalid outputs receive no more than five total attempts.
+- Successful response normalization, exception-response normalization, and zero-response paths must leave response or batch receipts. Closing a logical-run session must persist identity-bound attempt, provider-response, and coverage-channel closure evidence.
 - Canonical output validation failures remain attempt evidence. Only a valid attempt may be terminally selected as successful, and selection occurs after its host stage checkpoint is durable. A fifth retryable failure is selected as terminally failed; undeclared capabilities are terminal on first observation.
-- Required Contract4Agents controls and the `CompendiumResearch` run-spec result must be `passed`; `violated` and `unverified` both fail the run.
+- Conditional controls evaluate `when` before `require`; applicability is `applicable`, `not_applicable`, or `unverified`. Required Contract4Agents controls and the `CompendiumResearch` run-spec result must be `passed`; `violated` and `unverified` both fail the run.
+- Positive observed trace claims may pass from direct evidence. Negative, absence, upper-bound, and missing-target claims require matching closure for the relevant coverage channel and remain unverified without it.
 - Run-spec observations come from the host's authoritative stage ledger and link to semantic trace events. Missing agent identity is unverified, never a pass.
 - Persisted enum-valued contract artifacts must pass generated-model validation before recovery resumes.
-- Progressed recovery requires a readable, nonempty trace with matching contract and materialization-plan digests, and completed recovery must reassess it before rendering.
-- Recovery resumes from `<base>.research.json` and extends the normalized evidence in `<base>.research.trace.jsonl`; it must not depend on a background response ID.
-- Research state and normalized trace sidecars must be atomically replaced so failed writes preserve the previous complete file.
+- Progressed recovery requires a readable, nonempty trace and identity-bound closure manifest with matching contract and materialization-plan digests, and completed recovery must reassess them before rendering.
+- Recovery resumes from `<base>.research.json`, extends normalized events in `<base>.research.trace.jsonl`, and updates closure evidence in `<base>.research.trace-closure.json`; it must not depend on a background response ID.
+- Progressed `v0.6.x` sidecars must be restarted because event occurrence cannot be upgraded into identity-bound closure after the original run.
+- Research state, normalized trace, and trace-closure sidecars must be atomically replaced so failed writes preserve the previous complete file.
+- Assurance bundles are not emitted without a concrete downstream consumer; this does not weaken the mandatory in-process control and run-spec assessments.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
 - Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
 - Library JSON must use relative paths so a library directory can be moved.

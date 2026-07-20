@@ -19,6 +19,7 @@ from contract4agents.planning import MaterializationPlan
 from contract4agents.tracing import (
     NormalizedTrace,
     TraceAttempt,
+    TraceClosureEvidence,
     TraceConformanceError,
     TraceEvent,
     validate_trace_conformance,
@@ -132,30 +133,62 @@ async def _build_compendium_async(
         plan=team.plan,
     )
     trace_path = _contract_trace_path(state_path)
+    closure_path = _contract_trace_closure_path(state_path)
     trace_required = _state_requires_trace(state)
     if trace_required and not trace_path.exists():
         raise DeepResearchError(
             f"Cannot recover progressed research state without trace evidence: "
             f"{trace_path}"
         )
+    if trace_required and not closure_path.exists():
+        raise DeepResearchError(
+            "Cannot recover progressed research state without trace-closure "
+            f"evidence: {closure_path}"
+        )
     save_state(state_path, state)
     trace = _contract_trace_recorder(
         trace_path,
+        closure_path,
         run_id=state.run_id,
         append=state_path_existed and trace_path.exists(),
         team=team,
     )
-    if trace_required and not trace.events:
-        raise DeepResearchError(
-            "Cannot recover progressed research state from an empty trace: "
-            f"{trace_path}"
+    try:
+        if trace_required and not trace.events:
+            raise DeepResearchError(
+                "Cannot recover progressed research state from an empty trace: "
+                f"{trace_path}"
+            )
+        if trace.events:
+            _validate_contract_trace(team.ir, team.plan, trace.trace)
+        _reconcile_terminal_attempts(state, trace)
+        if trace.events:
+            _validate_contract_trace(team.ir, team.plan, trace.trace)
+        return await _continue_research_workflow(
+            topic,
+            config=config,
+            runner=runner,
+            state_path=state_path,
+            cost_tracker=cost_tracker,
+            team=team,
+            state=state,
+            trace=trace,
         )
-    if trace.events:
-        _validate_contract_trace(team.ir, team.plan, trace.trace)
-    _reconcile_terminal_attempts(state, trace)
-    if trace.events:
-        _validate_contract_trace(team.ir, team.plan, trace.trace)
+    finally:
+        trace.close()
 
+
+async def _continue_research_workflow(
+    topic: str,
+    *,
+    config: ResearchConfig,
+    runner: AgentRunner,
+    state_path: Path,
+    cost_tracker: "CostTracker | None",
+    team: ResearchAgentTeam,
+    state: ResearchRunState,
+    trace: ContractTraceRecorder,
+) -> Compendium:
     if state.plan is None:
         state.plan = await _run_structured_agent(
             "planning",
@@ -272,8 +305,13 @@ async def _build_compendium_async(
         state.mark_completed("synthesis")
         _checkpoint_state(state_path, state, trace)
 
+    closure = trace.close()
+    if closure is None:
+        raise DeepResearchError(
+            "Contract4Agents trace closure is missing for a progressed run."
+        )
     try:
-        _evaluate_contract_run(team, trace.trace, state)
+        _evaluate_contract_run(team, trace.trace, closure, state)
     except DeepResearchError:
         save_state(state_path, state)
         raise
@@ -552,7 +590,7 @@ async def _run_structured_agent(
             metadata=progress_metadata,
         )
         try:
-            with trace.bind_attempt(attempt):
+            with trace.bind_attempt(attempt, agent_name=agent_name):
                 result = await runner.run(
                     agent,
                     input_payload,
@@ -757,6 +795,7 @@ def _coerce_artifact(
 def _evaluate_contract_run(
     team: ResearchAgentTeam,
     trace: NormalizedTrace,
+    closure: TraceClosureEvidence,
     state: ResearchRunState,
 ) -> None:
     _validate_contract_trace(team.ir, team.plan, trace)
@@ -764,6 +803,8 @@ def _evaluate_contract_run(
         team.ir,
         team.plan,
         trace,
+        closure=closure,
+        run_id=state.run_id,
     )
     run_spec_id = next(
         (
@@ -784,6 +825,7 @@ def _evaluate_contract_run(
         trace,
         run_spec_id,
         run_spec_evidence,
+        closure=closure,
         run_id=state.run_id,
     )
     selection_ref = f"research-state:{state.run_id}:agent-stages"
@@ -874,7 +916,7 @@ def _checkpoint_state(
 ) -> None:
     save_state(state_path, state)
     _reconcile_terminal_attempts(state, trace)
-    _validate_contract_trace(trace.processor.ir, trace.processor.plan, trace.trace)
+    _validate_contract_trace(trace.ir, trace.plan, trace.trace)
 
 
 def _reconcile_terminal_attempts(
@@ -1156,8 +1198,13 @@ def _contract_trace_path(state_path: Path) -> Path:
     return state_path.with_suffix(".trace.jsonl")
 
 
+def _contract_trace_closure_path(state_path: Path) -> Path:
+    return state_path.with_suffix(".trace-closure.json")
+
+
 def _contract_trace_recorder(
     path: Path,
+    closure_path: Path,
     *,
     run_id: str,
     append: bool,
@@ -1166,6 +1213,7 @@ def _contract_trace_recorder(
     try:
         return ContractTraceRecorder(
             path,
+            closure_path,
             run_id=run_id,
             ir=team.ir,
             plan=team.plan,

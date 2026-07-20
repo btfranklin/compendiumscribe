@@ -12,6 +12,7 @@ from unittest import mock
 import pytest
 from contract4agents.tracing import (
     NormalizedTrace,
+    TraceClosureManifest,
     load_trace_jsonl,
     write_trace_jsonl,
 )
@@ -34,6 +35,7 @@ from compendiumscribe.research.agents_workflow import (
 )
 from compendiumscribe.research.agents_workflow.agents import build_research_agent_team
 from compendiumscribe.research.agents_workflow.orchestrator import (
+    _contract_trace_closure_path,
     _contract_trace_path,
     _evaluate_contract_run,
 )
@@ -113,6 +115,12 @@ class StubAgentRunner:
 
 class WorkflowInterrupted(BaseException):
     """Simulate process interruption outside the retryable exception policy."""
+
+
+def _load_trace_closure(state_path: Path):
+    manifest = TraceClosureManifest.load(_contract_trace_closure_path(state_path))
+    assert len(manifest.closures) == 1
+    return manifest.closures[0]
 
 
 def sample_plan() -> ResearchPlan:
@@ -280,6 +288,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     _evaluate_contract_run(
         build_research_agent_team(ResearchConfig()),
         loaded_trace,
+        _load_trace_closure(state_path),
         state,
     )
     observed_grants = {
@@ -657,6 +666,19 @@ def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
             )
         ),
     )
+    closure = _load_trace_closure(state_path)
+    reduced_closure = replace(
+        closure,
+        attempts=tuple(
+            item
+            for item in closure.attempts
+            if item.attempt.invocation_id != synthesis_invocation
+        ),
+    )
+    _contract_trace_closure_path(state_path).write_text(
+        TraceClosureManifest((reduced_closure,)).to_json() + "\n",
+        encoding="utf-8",
+    )
 
     second_runner = StubAgentRunner()
     build_compendium(
@@ -714,6 +736,81 @@ def test_progressed_recovery_requires_trace(tmp_path: Path) -> None:
             config=ResearchConfig(),
             runner=StubAgentRunner(),
         )
+
+
+def test_progressed_recovery_requires_trace_closure_before_agent_calls(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    _contract_trace_closure_path(state_path).unlink()
+    runner = StubAgentRunner()
+
+    with pytest.raises(DeepResearchError, match="without trace-closure evidence"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=runner,
+        )
+
+    assert runner.calls == []
+
+
+def test_progressed_recovery_rejects_malformed_trace_closure(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    _contract_trace_closure_path(state_path).write_text(
+        "not-json\n",
+        encoding="utf-8",
+    )
+    runner = StubAgentRunner()
+
+    with pytest.raises(DeepResearchError, match="Cannot recover"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=runner,
+        )
+
+    assert runner.calls == []
+
+
+def test_progressed_recovery_rejects_mismatched_trace_closure(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=StubAgentRunner(),
+        state_path=state_path,
+    )
+    closure_path = _contract_trace_closure_path(state_path)
+    payload = json.loads(closure_path.read_text(encoding="utf-8"))
+    payload["closures"][0]["run_id"] = "different-run"
+    closure_path.write_text(json.dumps(payload), encoding="utf-8")
+    runner = StubAgentRunner()
+
+    with pytest.raises(DeepResearchError, match="exactly one matching run"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=runner,
+        )
+
+    assert runner.calls == []
 
 
 @pytest.mark.parametrize("contents", ["", "not-json\n"])

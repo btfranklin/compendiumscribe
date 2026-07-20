@@ -9,6 +9,7 @@ from contract4agents.cli import main as contract4agents_cli
 from contract4agents.codegen import generate_code, stale_generated_paths
 from contract4agents.compiler import compile_project
 from contract4agents.ir import contract_digest, semantic_id
+from contract4agents.planning import PLAN_VERSION, materialization_plan_data
 from contract4agents.target_bindings import load_target_bindings
 from pydantic import ValidationError
 import pytest
@@ -51,8 +52,13 @@ def test_agent_contracts_compile_to_canonical_ir() -> None:
         "CompendiumResearch"
     }
     run_spec = next(iter(artifacts.ir.run_specs.values()))
-    assert run_spec.assertions == ()
     assert run_spec.derived_values == ()
+    assert run_spec.assertions == (
+        "expect(trace.called_before(PlannerAgent, ResearchManagerAgent))",
+        "expect(trace.called_before(ResearchManagerAgent, SectionResearchAgent))",
+        "expect(trace.called_before(SectionResearchAgent, VerifierAgent))",
+        "expect(trace.called_before(VerifierAgent, SynthesisAgent))",
+    )
     assert artifacts.ir.types[semantic_id("type", "ResearchPlan")].name == (
         ResearchPlan.__name__
     )
@@ -97,6 +103,9 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert "Use web search only for targeted checks" in team.verifier.instructions
     assert "Do not use web search, add new sources" in team.synthesis.instructions
     assert team.plan.contract_digest == contract_digest(team.ir)
+    assert PLAN_VERSION == "2"
+    assert team.plan.plan_version == PLAN_VERSION
+    assert materialization_plan_data(team.plan)["plan_version"] == PLAN_VERSION
     assert {agent.name: agent.model for agent in team.plan.agents.values()} == {
         "PlannerAgent": "gpt-5.5",
         "ResearchManagerAgent": "gpt-5.5",

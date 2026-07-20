@@ -15,6 +15,7 @@ pdm run check
 `pdm run check` runs:
 
 ```bash
+pdm run contracts:check
 pdm run pytest
 pdm run ruff check src tests
 pdm build
