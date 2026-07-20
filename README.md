@@ -11,13 +11,13 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 ## Features
 
 - **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
-- **Contracts as code** - Materializes the complete Agents SDK graph from packaged Contract4Agents source, target bindings, and the selected runtime model profile.
+- **Packaged agent definitions** - Materializes the complete Agents SDK graph from versioned agent instructions, capability grants, output types, and runtime configuration.
 - **Generated portable models** - Generates the Pydantic models used by the application, plus TypeScript and Zod bindings, from the canonical contract types.
 - **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
-- **Contract-bound traces** - Writes attempt-aware normalized trace evidence and exact-frontier capture checkpoints carrying the contract and materialization-plan digests, then assesses controls and the declared run specification separately before rendering.
-- **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls that do not resolve to exactly one enabled grant in the materialization plan.
+- **Auditable research traces** - Writes attempt-aware normalized trace evidence and exact-frontier capture checkpoints, then verifies required controls and workflow stages before rendering.
+- **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls outside an agent's declared grants.
 - **Recoverable sidecars** - Atomically writes `<base>.research.json` after accepted artifacts, `<base>.research.trace.jsonl` for normalized events, and `<base>.research.trace-closure.json` for instrumentation-closure evidence, alongside `<base>.costs.json` usage/cost telemetry.
 - **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.5 and GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
 - **Compendium Library publishing** - Optionally publishes XML, Markdown, and metadata cards into a movable filesystem library with a root `catalog.json`.
@@ -38,15 +38,13 @@ Ensure `PDM_HOME` points to a writable location when developing within a sandbox
 
 ### 2. Configure credentials
 
-Create a `.env` file (untracked) with your OpenAI credentials and named Contract4Agents profile selection:
+Copy the example environment file, then add your OpenAI credentials:
 
-```dotenv
-OPENAI_API_KEY=sk-...
-CONTRACT4AGENTS_PROFILE=production
-MAX_AGENT_TURNS=12
+```bash
+cp .env.example .env
 ```
 
-`CONTRACT4AGENTS_PROFILE` is required and selects a complete, committed runtime profile. If it is missing, blank, or unknown, Compendium Scribe reports a configuration error before cost report initialization or research begins. The packaged Contract4Agents target file owns model IDs, provider options, and tool bindings; environment variables own credentials and profile selection.
+Set `OPENAI_API_KEY` in `.env`. The example selects the bundled production runtime profile and sets the maximum agent turns; both values may be adjusted for a deployment. Missing or unknown profile configuration is rejected before cost initialization or research begins.
 
 The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
 
@@ -122,9 +120,9 @@ pdm run compendium recover --input report.research.json
 ```
 
 The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
-Recovery appends to the matching normalized trace only when its contract and plan digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. SDK exceptions and invalid canonical outputs receive at most five total attempts; the fifth failure is terminal and later recovery will not spend another call. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery is reassessed against the same materialization plan, required controls, and declared run specification before citation hydration or rendering.
+Recovery appends to the matching normalized trace only when its workflow and runtime-configuration digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. SDK exceptions and invalid canonical outputs receive at most five total attempts; the fifth failure is terminal and later recovery will not spend another call. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery rechecks its required controls and workflow stages before citation hydration or rendering.
 
-Progressed sidecars created by Compendium Scribe `v0.6.x` predate identity-bound trace-closure manifests and cannot be resumed safely. Progressed `v0.7.0` sidecars use the pre-freeze Contract4Agents `0.12.1` formats and are likewise incompatible with the `0.12.2` runtime. Restart those research runs from the original topic instead of copying, rewriting, or fabricating closure evidence.
+Progressed sidecars created by Compendium Scribe `v0.7.0` or earlier use incompatible evidence formats and cannot be resumed safely by newer builds. Restart those research runs from the original topic instead of copying, rewriting, or fabricating closure evidence.
 
 ### 6. Render formats from existing XML
 
@@ -147,7 +145,7 @@ from compendiumscribe import build_compendium, ResearchConfig, DeepResearchError
 try:
     compendium = build_compendium(
         "Emerging pathogen surveillance",
-        config=ResearchConfig(contract4agents_profile="production"),
+        config=ResearchConfig(),
     )
 except DeepResearchError:
     raise

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from io import StringIO
 from pathlib import Path
 import re
 import subprocess
@@ -17,7 +16,6 @@ ENTRYPOINT_DOCS = (
     ROOT / "docs" / "README.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
-DOTENV_BLOCK = re.compile(r"```dotenv\s*\n(.*?)\n```", re.DOTALL)
 
 
 def _resolved_local_links(path: Path) -> set[Path]:
@@ -67,18 +65,11 @@ def test_example_environment_covers_runtime_research_configuration() -> None:
     )
 
 
-def test_readme_environment_example_matches_env_template() -> None:
+def test_readme_routes_environment_setup_to_the_template() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    match = DOTENV_BLOCK.search(readme)
 
-    assert match is not None, "README.md should include a dotenv example."
-
-    readme_example = dotenv_values(stream=StringIO(match.group(1)))
-    env_template = dotenv_values(ROOT / ".env.example")
-
-    assert readme_example == env_template, (
-        "README.md environment example must match .env.example."
-    )
+    assert "cp .env.example .env" in readme
+    assert "Set `OPENAI_API_KEY` in `.env`." in readme
 
 
 def test_generated_contract_bytecode_remains_ignored() -> None:
