@@ -40,7 +40,7 @@ def _config() -> SimpleNamespace:
 def test_agent_contracts_compile_to_canonical_ir() -> None:
     artifacts = compile_project(CONTRACT_ROOT)
 
-    assert artifacts.ir.ir_version == "3"
+    assert artifacts.ir.ir_version == "1"
     assert {agent.name for agent in artifacts.ir.agents.values()} == {
         "PlannerAgent",
         "ResearchManagerAgent",
@@ -74,7 +74,10 @@ def test_agent_contracts_and_generated_models_are_current() -> None:
     assert "Contract4Agents check passed" in result.output
     artifacts = compile_project(CONTRACT_ROOT)
     assert (
-        stale_generated_paths(generate_code(artifacts.ir), CONTRACT_ROOT / "generated")
+        stale_generated_paths(
+            generate_code(artifacts.ir, targets=("python", "typescript")),
+            CONTRACT_ROOT / "generated",
+        )
         == ()
     )
 
@@ -103,7 +106,7 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert "Use web search only for targeted checks" in team.verifier.instructions
     assert "Do not use web search, add new sources" in team.synthesis.instructions
     assert team.plan.contract_digest == contract_digest(team.ir)
-    assert PLAN_VERSION == "3"
+    assert PLAN_VERSION == "1"
     assert team.plan.plan_version == PLAN_VERSION
     assert materialization_plan_data(team.plan)["plan_version"] == PLAN_VERSION
     assert {agent.name: agent.model for agent in team.plan.agents.values()} == {

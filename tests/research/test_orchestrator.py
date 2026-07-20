@@ -799,13 +799,13 @@ def test_progressed_recovery_rejects_legacy_trace_closure_manifest(
     )
     closure_path = _contract_trace_closure_path(state_path)
     payload = json.loads(closure_path.read_text(encoding="utf-8"))
-    payload["version"] = "1"
+    payload["version"] = "2"
     closure_path.write_text(json.dumps(payload), encoding="utf-8")
     runner = StubAgentRunner()
 
     with pytest.raises(
         DeepResearchError,
-        match="Unsupported trace-closure manifest version `1`",
+        match="Unsupported trace-closure manifest version `2`",
     ):
         recover_compendium(
             state_path,

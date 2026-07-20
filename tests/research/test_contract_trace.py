@@ -258,10 +258,10 @@ def test_zero_response_batch_emits_receipt_and_persists_closure_manifest(
     assert closure.attempts[0].attempt == attempt
     assert closure.attempts[0].response_status == "complete"
     manifest = TraceClosureManifest.load(closure_path)
-    assert manifest.version == "2"
+    assert manifest.version == "1"
     assert manifest.closures == (closure,)
     persisted_event = json.loads(trace_path.read_text(encoding="utf-8"))
-    assert persisted_event["schema_version"] == "2"
+    assert persisted_event["schema_version"] == "1"
 
 
 def test_closure_write_failure_preserves_prior_file_and_cleans_temporary_file(

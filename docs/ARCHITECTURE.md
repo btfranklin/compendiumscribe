@@ -54,6 +54,7 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 ## Key Boundaries
 
 - `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic, TypeScript, and Zod bindings live under `agent_contracts/generated/` and are never hand-edited.
+- Contract generation explicitly selects the `python` and `typescript` targets. Contract4Agents 0.12.2 freezes its owned serialized format fields at `"1"` throughout the 0.x product line, so the package minimum—not the format integer—is the compatibility signal.
 - `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
 - `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns complete named model/provider profiles plus OpenAI adapter and tool bindings.
 - `research/agents_workflow/agents.py` selects a complete committed Contract4Agents profile and materializes the OpenAI Agents SDK graph; environment variables select the profile but do not reconstruct model or provider configuration.
@@ -77,6 +78,4 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 
 There is one runnable research path: the bounded Agents SDK workflow described above. Keep new orchestration work aligned with the runner adapter, state sidecar, source ledger, and committed named profiles.
 
-Progressed `v0.6.x` research sidecars have no identity-bound closure manifest and must be restarted. Recovery must not infer or synthesize closure from older trace-event occurrence.
-
-Unreleased local sidecars created with the Contract4Agents 0.11 integration use closure-manifest schema v1 and materialization-plan schema v2. Contract4Agents 0.12 intentionally rejects those artifacts; restart the run rather than rewriting its evidence.
+Progressed `v0.6.x` research sidecars have no identity-bound closure manifest and must be restarted. Progressed `v0.7.0` sidecars use the pre-freeze Contract4Agents 0.12.1 formats, while unreleased 0.11 sidecars use an earlier incompatible evidence shape. Contract4Agents 0.12.2 intentionally rejects both; restart the run rather than inferring, migrating, or rewriting its evidence.
