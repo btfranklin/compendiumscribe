@@ -17,7 +17,7 @@ pdm run ruff check src tests
 pdm build
 ```
 
-`pdm run contracts:check` validates the packaged contract project and fails when generated Pydantic, TypeScript, or Zod bindings are stale. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
+`pdm run contracts:check` validates the packaged contract project and fails when generated Pydantic models are stale. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
 
 ## Test Ownership
 

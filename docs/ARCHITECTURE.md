@@ -54,8 +54,8 @@ numeric suffix such as `-2`.
 
 ## Key Boundaries
 
-- `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic, TypeScript, and Zod bindings live under `agent_contracts/generated/` and are never hand-edited.
-- Contract generation explicitly selects the `python` and `typescript` targets. Contract4Agents 0.12.2 freezes its owned serialized format fields at `"1"` throughout the 0.x product line, so the package minimum—not the format integer—is the compatibility signal.
+- `agent_contracts/types/` is the canonical schema boundary. Generated Pydantic models live under `agent_contracts/generated/python/` and are never hand-edited.
+- Contract generation explicitly selects only the `python` target consumed by this package. Contract4Agents 0.12.2 freezes its owned serialized format fields at `"1"` throughout the 0.x product line, so the package minimum—not the format integer—is the compatibility signal.
 - `research/agents_workflow/artifacts.py` owns only host workflow state and application-specific citation preparation.
 - `agent_contracts/` owns portable instructions, capability grants, quality rubrics, controls, and run-stage declarations; `contract4agents.targets.toml` owns complete named model/provider profiles plus OpenAI adapter and tool bindings.
 - `research/agents_workflow/agents.py` selects a complete committed Contract4Agents profile and materializes the OpenAI Agents SDK graph; environment variables select the profile but do not reconstruct model or provider configuration.

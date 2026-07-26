@@ -75,7 +75,7 @@ def test_agent_contracts_and_generated_models_are_current() -> None:
     artifacts = compile_project(CONTRACT_ROOT)
     assert (
         stale_generated_paths(
-            generate_code(artifacts.ir, targets=("python", "typescript")),
+            generate_code(artifacts.ir, targets=("python",)),
             CONTRACT_ROOT / "generated",
         )
         == ()
