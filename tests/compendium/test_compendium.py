@@ -75,7 +75,7 @@ def test_compendium_to_xml_contains_expected_structure():
     assert lines[-1] == "</compendium>"
 
 
-def test_compendium_additional_exports():
+def test_compendium_pdf_export():
     compendium = Compendium(
         topic="Synthetic Biology",
         overview="Interdisciplinary insights",
@@ -84,10 +84,6 @@ def test_compendium_additional_exports():
         citations=[],
         open_questions=[],
     )
-
-    markdown = compendium.to_markdown()
-    assert markdown.startswith("# Synthetic Biology")
-    assert "## Overview" in markdown
 
     pdf_bytes = compendium.to_pdf_bytes()
     assert pdf_bytes.startswith(b"%PDF-")
@@ -132,8 +128,8 @@ def test_inline_links_render_per_format():
         open_questions=["Next [steps](https://steps.example.com)?"],
     )
 
-    markdown = compendium.to_markdown()
-    assert "[Example](https://example.com)" in markdown
+    okf_bundle = compendium.to_okf_bundle()
+    assert "[Example](https://example.com)" in okf_bundle["compendium.md"]
 
     xml_root = ET.fromstring(compendium.to_xml_string())
     assert (

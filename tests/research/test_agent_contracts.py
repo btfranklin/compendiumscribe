@@ -88,11 +88,11 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
 
     assert loaded.bindings is not None
     assert "production" in loaded.bindings.targets["openai"].profiles
-    assert team.planner.model == "gpt-5.5"
-    assert team.research_manager.model == "gpt-5.5"
-    assert team.section_research.model == "gpt-5.5"
-    assert team.verifier.model == "gpt-5.5"
-    assert team.synthesis.model == "gpt-5.5"
+    assert team.planner.model == "gpt-5.6-sol"
+    assert team.research_manager.model == "gpt-5.6-sol"
+    assert team.section_research.model == "gpt-5.6-sol"
+    assert team.verifier.model == "gpt-5.6-sol"
+    assert team.synthesis.model == "gpt-5.6-sol"
     assert team.planner.output_type.__name__ == "ResearchPlan"
     assert team.research_manager.tools[0].search_context_size == "medium"
     assert team.section_research.tools[0].search_context_size == "high"
@@ -110,18 +110,19 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert team.plan.plan_version == PLAN_VERSION
     assert materialization_plan_data(team.plan)["plan_version"] == PLAN_VERSION
     assert {agent.name: agent.model for agent in team.plan.agents.values()} == {
-        "PlannerAgent": "gpt-5.5",
-        "ResearchManagerAgent": "gpt-5.5",
-        "SectionResearchAgent": "gpt-5.5",
-        "VerifierAgent": "gpt-5.5",
-        "SynthesisAgent": "gpt-5.5",
+        "PlannerAgent": "gpt-5.6-sol",
+        "ResearchManagerAgent": "gpt-5.6-sol",
+        "SectionResearchAgent": "gpt-5.6-sol",
+        "VerifierAgent": "gpt-5.6-sol",
+        "SynthesisAgent": "gpt-5.6-sol",
     }
     assert team.materialization_events
 
 
 def test_selected_profile_agent_model_comes_from_committed_bindings() -> None:
     assert (
-        selected_profile_agent_model("production", "ResearchManagerAgent") == "gpt-5.5"
+        selected_profile_agent_model("production", "ResearchManagerAgent")
+        == "gpt-5.6-sol"
     )
 
 

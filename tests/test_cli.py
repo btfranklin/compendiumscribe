@@ -1,7 +1,7 @@
-import json
 import os
 import pytest
 from click.testing import CliRunner
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 from compendiumscribe.cli import cli
@@ -37,7 +37,16 @@ def mock_build_compendium():
             )
         ]
         compendium.open_questions = []
-        compendium.to_markdown.return_value = "# Markdown Content"
+        compendium.generated_at = datetime(
+            2026, 7, 22, 12, 0, tzinfo=timezone.utc
+        )
+        compendium.to_okf_bundle.return_value = Compendium(
+            topic="Test Title",
+            overview="Overview text.",
+            sections=compendium.sections,
+            citations=compendium.citations,
+            generated_at=compendium.generated_at,
+        ).to_okf_bundle()
         compendium.to_xml_string.return_value = (
             '<compendium topic="Test Title"><overview>Overview text.'
             "</overview></compendium>"
@@ -65,7 +74,7 @@ def mock_create_client():
         yield mock_client
 
 
-def test_cli_create_default_format_is_markdown(
+def test_cli_create_default_format_is_okf(
     runner,
     mock_build_compendium,
     mock_create_client,
@@ -77,14 +86,12 @@ def test_cli_create_default_format_is_markdown(
         )
         assert result.exit_code == 0, result.output
 
-        # Should generate a markdown file by default
-        files = list(Path(".").glob("*.md"))
-        assert len(files) == 1
-        assert "test-topic" in files[0].name
-        assert files[0].read_text() == "# Markdown Content"
+        bundles = list(Path(".").glob("*.okf"))
+        assert len(bundles) == 1
+        assert "test-topic" in bundles[0].name
+        assert (bundles[0] / "compendium.md").exists()
         assert len(list(Path(".").glob("*.research.json"))) == 1
         assert len(list(Path(".").glob("*.costs.json"))) == 1
-        assert not Path("catalog.json").exists()
         assert not Path("compendiums").exists()
         assert (
             mock_build_compendium.call_args.kwargs["client"]
@@ -142,14 +149,17 @@ def test_cli_create_multiple_formats(
                 "create",
                 "Test Topic",
                 "--format",
-                "md",
+                "okf",
+                "--format",
+                "html",
                 "--format",
                 "pdf",
             ],
         )
         assert result.exit_code == 0
 
-        assert len(list(Path(".").glob("*.md"))) == 1
+        assert len(list(Path(".").glob("*.okf"))) == 1
+        assert len(list(Path(".").glob("*/index.html"))) == 1
         assert len(list(Path(".").glob("*.pdf"))) == 1
 
 
@@ -171,9 +181,8 @@ def test_cli_create_output_path_override(
         )
         assert result.exit_code == 0
 
-        # Should rely on default format (md) but use the custom stem
-        expected_file = Path("custom_report.md")
-        assert expected_file.exists()
+        expected_bundle = Path("custom_report.okf")
+        assert expected_bundle.is_dir()
 
 
 def test_cli_create_with_library_writes_outputs_and_library(
@@ -188,33 +197,19 @@ def test_cli_create_with_library_writes_outputs_and_library(
                 "create",
                 "Test Topic",
                 "--output",
-                "custom_report.md",
+                "custom_report",
                 "--library",
                 "library",
             ],
         )
         assert result.exit_code == 0, result.output
 
-        assert Path("custom_report.md").read_text(
-            encoding="utf-8"
-        ) == "# Markdown Content"
-        catalog_path = Path("library/catalog.json")
-        card_path = Path("library/compendiums/test-title/card.json")
-        xml_path = Path("library/compendiums/test-title/compendium.xml")
-        markdown_path = Path("library/compendiums/test-title/compendium.md")
-        assert catalog_path.exists()
-        assert card_path.exists()
-        assert xml_path.exists()
-        assert markdown_path.exists()
-
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        assert catalog["entries"][0]["id"] == "test-title"
-        assert catalog["entries"][0]["path"] == (
-            "compendiums/test-title/compendium.xml"
-        )
-        assert markdown_path.read_text(encoding="utf-8") == (
-            "# Markdown Content"
-        )
+        assert Path("custom_report.okf/compendium.md").exists()
+        assert Path("library/index.md").exists()
+        assert Path("library/compendiums/index.md").exists()
+        assert Path(
+            "library/compendiums/test-title/compendium.md"
+        ).exists()
         assert "Compendium published to library entry 'test-title'" in (
             result.output
         )
@@ -255,15 +250,26 @@ def test_cli_recover_uses_research_sidecar(
     ) as mock_recover:
         compendium = mock.Mock(spec=Compendium)
         compendium.topic = "Recovered"
+        compendium.overview = "Recovered overview."
+        compendium.methodology = []
         compendium.sections = []
-        compendium.to_markdown.return_value = "# Recovered"
+        compendium.citations = []
+        compendium.open_questions = []
+        compendium.generated_at = datetime(
+            2026, 7, 22, 12, 0, tzinfo=timezone.utc
+        )
+        compendium.to_okf_bundle.return_value = Compendium(
+            topic="Recovered",
+            overview="Recovered overview.",
+            generated_at=compendium.generated_at,
+        ).to_okf_bundle()
         mock_recover.return_value = compendium
 
         with runner.isolated_filesystem():
             state = ResearchRunState(
                 topic="Recovered",
                 title="Recovered",
-                output_formats=["md"],
+                output_formats=["okf"],
                 cost_report_path="report.costs.json",
             )
             state_path = Path("report.research.json")
@@ -278,7 +284,7 @@ def test_cli_recover_uses_research_sidecar(
             )
 
             assert result.exit_code == 0, result.output
-            assert Path("report.md").read_text() == "# Recovered"
+            assert Path("report.okf/compendium.md").exists()
             assert Path("report.costs.json").exists()
             mock_recover.assert_called_once()
             assert (
@@ -301,7 +307,7 @@ def test_cli_recover_research_failure_exits_nonzero(
             state = ResearchRunState(
                 topic="Recovered",
                 title="Recovered",
-                output_formats=["md"],
+                output_formats=["okf"],
                 cost_report_path="report.costs.json",
             )
             state_path = Path("report.research.json")
@@ -319,7 +325,7 @@ def test_cli_recover_research_failure_exits_nonzero(
             assert "Source coverage failed." in result.output
 
 
-def test_cli_library_import_writes_catalog_and_compendium_files(
+def test_cli_library_import_converts_xml_to_okf(
     runner,
 ):
     with runner.isolated_filesystem():
@@ -344,27 +350,27 @@ def test_cli_library_import_writes_catalog_and_compendium_files(
 
         assert result.exit_code == 0, result.output
         assert "Imported 'Imported Topic' as library entry" in result.output
-        catalog = json.loads(
-            Path("library/catalog.json").read_text(encoding="utf-8")
-        )
-        assert catalog["entries"][0]["id"] == "imported-topic"
-        assert Path(
-            "library/compendiums/imported-topic/compendium.xml"
-        ).exists()
         assert Path(
             "library/compendiums/imported-topic/compendium.md"
         ).exists()
-        assert Path("library/compendiums/imported-topic/card.json").exists()
+        assert Path(
+            "library/compendiums/imported-topic/sections/s1.md"
+        ).exists()
+        assert not list(Path("library").rglob("*.xml"))
+        assert not list(Path("library").rglob("*.json"))
 
         second = runner.invoke(
             cli,
             ["library", "import", "library", str(xml_path)],
         )
         assert second.exit_code == 0, second.output
-        catalog = json.loads(
-            Path("library/catalog.json").read_text(encoding="utf-8")
-        )
-        assert len(catalog["entries"]) == 1
+        assert len(
+            [
+                path
+                for path in Path("library/compendiums").iterdir()
+                if path.is_dir()
+            ]
+        ) == 1
 
 
 def test_cli_render_html(tmp_path):
@@ -401,12 +407,12 @@ def test_cli_render_html(tmp_path):
     assert (site_dir / "sections/s1.html").exists()
 
 
-def test_cli_render_markdown(tmp_path):
-    """Verify render subcommand creates a Markdown file from XML."""
+def test_cli_render_okf(tmp_path):
+    """Verify render subcommand creates an OKF bundle from XML."""
     runner = CliRunner()
 
     xml_content = """<compendium topic="MD Test">
-  <overview>Markdown Overview</overview>
+  <overview>OKF Overview</overview>
 </compendium>"""
     input_file = tmp_path / "md_test.xml"
     input_file.write_text(xml_content, encoding="utf-8")
@@ -414,17 +420,17 @@ def test_cli_render_markdown(tmp_path):
     # Run CLI
     result = runner.invoke(
         cli,
-        ["render", str(input_file), "--format", "md"],
+        ["render", str(input_file), "--format", "okf"],
     )
 
     assert result.exit_code == 0, result.output
 
     # Check output
-    output_file = tmp_path / "md_test.md"
-    assert output_file.exists()
-    content = output_file.read_text(encoding="utf-8")
-    assert "# MD Test" in content
-    assert "Markdown Overview" in content
+    output_bundle = tmp_path / "md_test.okf"
+    assert output_bundle.is_dir()
+    content = (output_bundle / "compendium.md").read_text(encoding="utf-8")
+    assert "title: MD Test" in content
+    assert "OKF Overview" in content
 
 
 def test_cli_render_invalid_file(tmp_path):
@@ -434,7 +440,7 @@ def test_cli_render_invalid_file(tmp_path):
     # Non-existent file - handled by click type=Path(exists=True)
     result = runner.invoke(cli, ["render", str(tmp_path / "missing.xml")])
     assert result.exit_code != 0
-    assert "Invalid value for 'INPUT_FILE'" in result.output
+    assert "Invalid value for 'INPUT_PATH'" in result.output
 
     # Invalid XML content
     invalid_file = tmp_path / "invalid.xml"
@@ -442,4 +448,80 @@ def test_cli_render_invalid_file(tmp_path):
 
     result = runner.invoke(cli, ["render", str(invalid_file)])
     assert result.exit_code != 0
-    assert "Error parsing XML file" in result.output
+    assert "Error parsing compendium" in result.output
+
+
+def test_cli_rejects_removed_markdown_format(runner) -> None:
+    result = runner.invoke(
+        cli,
+        ["create", "Test Topic", "--format", "md"],
+    )
+
+    assert result.exit_code != 0
+    assert "Invalid value for '--format'" in result.output
+
+
+def test_cli_recovery_rejects_removed_markdown_state(
+    runner,
+    mock_create_client,
+) -> None:
+    from compendiumscribe.research.agents_workflow import ResearchRunState
+
+    with runner.isolated_filesystem():
+        state = ResearchRunState(topic="Legacy", output_formats=["md"])
+        state_path = Path("legacy.research.json")
+        state_path.write_text(
+            state.model_dump_json(indent=2),
+            encoding="utf-8",
+        )
+
+        result = runner.invoke(
+            cli,
+            ["recover", "--input", str(state_path)],
+        )
+
+        assert result.exit_code == 1
+        assert "unsupported output format(s): md" in result.output
+
+
+def test_cli_renders_okf_input_to_xml_and_refuses_self_overwrite(
+    tmp_path: Path,
+) -> None:
+    bundle_path = tmp_path / "source.okf"
+    from compendiumscribe.compendium import write_okf_bundle
+
+    compendium = Compendium(topic="OKF Source", overview="Overview.")
+    write_okf_bundle(bundle_path, compendium.to_okf_bundle())
+
+    result = CliRunner().invoke(
+        cli,
+        ["render", str(bundle_path), "--format", "xml"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / "source.xml").exists()
+
+    overwrite = CliRunner().invoke(
+        cli,
+        ["render", str(bundle_path), "--format", "okf"],
+    )
+    assert overwrite.exit_code != 0
+    assert "Refusing to overwrite the input OKF bundle" in overwrite.output
+
+
+def test_cli_library_validate(tmp_path: Path) -> None:
+    from compendiumscribe.library import publish_compendium
+
+    library_path = tmp_path / "library"
+    publish_compendium(
+        Compendium(topic="Valid", overview="Overview."),
+        library_path,
+    )
+
+    result = CliRunner().invoke(
+        cli,
+        ["library", "validate", str(library_path)],
+    )
+
+    assert result.exit_code == 0
+    assert "Library is valid" in result.output

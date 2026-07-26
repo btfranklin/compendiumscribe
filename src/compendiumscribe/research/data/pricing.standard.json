@@ -1,6 +1,6 @@
 {
   "source_url": "https://developers.openai.com/api/docs/pricing",
-  "as_of_utc": "2026-05-01",
+  "as_of_utc": "2026-07-21",
   "tier": "standard",
   "tool_call_prices_per_1k_usd": {
     "web_search_call": 10.0,
@@ -11,6 +11,11 @@
     "file_search_call": "File search tool call pricing applies to the Responses API only."
   },
   "models": {
+    "gpt-5.6-sol": {
+      "input_per_1m_usd": 5.0,
+      "cached_input_per_1m_usd": 0.5,
+      "output_per_1m_usd": 30.0
+    },
     "gpt-5.5": {
       "input_per_1m_usd": 5.0,
       "cached_input_per_1m_usd": 0.5,

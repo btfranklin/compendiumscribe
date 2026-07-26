@@ -30,26 +30,27 @@ Observed positive trace claims may be established directly. Absence, upper-bound
 ## Compendium Library
 
 `compendium create TOPIC --library PATH` keeps the normal output behavior and
-also publishes the final `Compendium` into a filesystem-backed library. The
-library root is identified by `catalog.json`; compendium bodies live under
-`compendiums/<slug>/`.
+also publishes the final `Compendium` into a strict filesystem-backed OKF
+Library. The Library root and `compendiums/` directory have progressive
+`index.md` files; compendium bundles live under `compendiums/<slug>/`.
 
-Each library entry stores:
+Each compendium subtree contains `compendium.md`, typed section concepts,
+typed source concepts, and frontmatter-free indexes. It is the canonical
+Library content: XML, JSON cards/catalogs, display formats, symlinks, arbitrary
+non-Markdown files, and `log.md` are rejected.
 
-- `compendium.xml` as canonical structured content.
-- `compendium.md` as an agent-readable convenience rendering.
-- `card.json` as medium-depth progressive-disclosure metadata.
+The CompendiumScribe profile is versioned independently from OKF. Its root
+concept declares `profile: compendiumscribe` and `profile_version: "1"`.
+Generated concepts use deterministic frontmatter, relative links, and
+reversible Markdown bodies so `Compendium.from_okf_bundle()` reconstructs the
+renderer-facing dataclasses.
 
-`catalog.json` stays compact: it includes schema version, update time, and one
-entry per compendium with title, summary, keywords, and relative paths to the
-XML, Markdown, and card files. Libraries are movable because JSON paths are
-relative to the library root.
-
-`compendium library import LIBRARY_PATH COMPENDIUM_XML` parses XML through
-`Compendium.from_xml_file()`, writes normalized XML and Markdown, builds the
-card, and upserts the catalog entry. Publishing and importing use
-`slugify(compendium.topic)` for stable ids. If a different title collides with
-an existing slug, the storage layer appends numeric suffixes such as `-2`.
+`compendium library import LIBRARY_PATH SOURCE_PATH` accepts either a validated
+CompendiumScribe OKF directory or an XML file. XML is parsed transiently and
+written as OKF; it is never copied into the Library. Publishing and importing
+use `slugify(compendium.topic)` for stable ids. Re-publishing the same title
+replaces its complete subtree, while a different title collision receives a
+numeric suffix such as `-2`.
 
 ## Key Boundaries
 
@@ -64,7 +65,8 @@ an existing slug, the storage layer appends numeric suffixes such as `-2`.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.
-- `library/storage.py` owns library initialization, catalog upserts, import, relative paths, cards, and deterministic JSON writes.
+- `compendium/okf.py` owns the strict profile, deterministic rendering/parsing, validation, and staged standalone bundle writes.
+- `library/storage.py` owns nested OKF Library initialization, discovery, validation, import, subtree replacement, and index generation.
 - `research/data/pricing.standard.json` is a local pricing catalog, not a live pricing source. Update it only from official OpenAI pricing sources and adjust pricing tests with the change.
 
 ## Dependency Direction

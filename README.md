@@ -4,7 +4,7 @@
 
 [![Build Status](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml/badge.svg)](https://github.com/btfranklin/compendiumscribe/actions/workflows/python-package.yml) [![Supports Python versions 3.12+](https://img.shields.io/pypi/pyversions/compendiumscribe.svg)](https://pypi.python.org/pypi/compendiumscribe)
 
-Compendium Scribe is a Click-driven command line tool and library that builds sourced research compendiums through a bounded OpenAI Agents SDK workflow. It decomposes a topic into planning, web research, verification, and synthesis stages, then renders the final `Compendium` as Markdown, XML, HTML, or PDF.
+Compendium Scribe is a Click-driven command line tool and library that builds sourced research compendiums through a bounded OpenAI Agents SDK workflow. It decomposes a topic into planning, web research, verification, and synthesis stages, then renders the final `Compendium` as a strict Open Knowledge Format (OKF) bundle, XML, HTML, or PDF.
 
 ---
 
@@ -19,9 +19,10 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 - **Auditable research traces** - Writes attempt-aware normalized trace evidence and exact-frontier capture checkpoints, then verifies required controls and workflow stages before rendering.
 - **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls outside an agent's declared grants.
 - **Recoverable sidecars** - Atomically writes `<base>.research.json` after accepted artifacts, `<base>.research.trace.jsonl` for normalized events, and `<base>.research.trace-closure.json` for instrumentation-closure evidence, alongside `<base>.costs.json` usage/cost telemetry.
-- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.5 and GPT-5.4 family token rates, long-context uplifts, and built-in tool call pricing when usage metadata is available.
-- **Compendium Library publishing** - Optionally publishes XML, Markdown, and metadata cards into a movable filesystem library with a root `catalog.json`.
-- **Re-rendering** - Ingest existing XML compendiums to generate new output formats without re-running research.
+- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.6 Sol, GPT-5.5, and GPT-5.4 family token rates, long-context uplifts where applicable, and built-in tool call pricing when usage metadata is available.
+- **Strict OKF output** - Writes typed, linked Markdown concepts with safe YAML frontmatter and deterministic validation.
+- **Compendium Library publishing** - Publishes self-contained OKF compendium trees into a movable, progressively disclosed OKF library.
+- **Re-rendering** - Ingests existing OKF or XML compendiums to generate display or interchange formats without re-running research.
 - **Offline tests** - The workflow uses a runner adapter so tests can stub Agents SDK runs without live API calls.
 
 ---
@@ -48,7 +49,7 @@ Set `OPENAI_API_KEY` in `.env`. The example selects the bundled production runti
 
 The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
 
-Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers GPT-5.5, GPT-5.4 family token pricing, long-context rates above the documented threshold, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
+Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers GPT-5.6 Sol, GPT-5.5, and GPT-5.4 family token pricing, long-context rates where applicable, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
 
 ### 3. Generate a compendium
 
@@ -59,12 +60,12 @@ pdm run compendium create "Lithium-ion battery recycling"
 Options:
 
 - `--output PATH` - Base path/filename for the output. The extension is ignored.
-- `--format FORMAT` - Output format, defaulting to `md`. Available: `md`, `xml`, `html`, `pdf`. Repeat for multiple outputs.
+- `--format FORMAT` - Output format, defaulting to `okf`. Available: `okf`, `xml`, `html`, `pdf`. Repeat for multiple outputs.
 - `--library PATH` - Also publish the finished compendium into a Compendium Library directory.
 
-If you pass `--output report.md`, Compendium Scribe writes:
+If you pass `--output report`, Compendium Scribe writes:
 
-- `report.md` or the requested render formats
+- `report.okf/` by default, or the requested render formats
 - `report.research.json`
 - `report.research.trace.jsonl`
 - `report.research.trace-closure.json`
@@ -74,18 +75,23 @@ Without `--output`, the base name is the slugified topic plus a UTC timestamp.
 
 ### 4. Publish to a Compendium Library
 
-A Compendium Library is a directory agents can scan progressively. The root
-`catalog.json` is the compact card catalog. Each entry points to canonical XML,
-readable Markdown, and a richer card for one compendium:
+A Compendium Library is itself a strict OKF bundle that agents can scan
+progressively. Its indexes link to self-contained compendium subtrees:
 
 ```text
 research-library/
-├── catalog.json
+├── index.md
 └── compendiums/
+    ├── index.md
     └── lithium-ion-battery-recycling/
-        ├── compendium.xml
+        ├── index.md
         ├── compendium.md
-        └── card.json
+        ├── sections/
+        │   ├── index.md
+        │   └── s01.md
+        └── sources/
+            ├── index.md
+            └── c01.md
 ```
 
 Creation works the same as usual unless `--library` is provided. When it is
@@ -94,8 +100,8 @@ is also upserted into the library:
 
 ```bash
 pdm run compendium create "Lithium-ion battery recycling" \
-  --output report.md \
-  --format md \
+  --output report \
+  --format okf \
   --format xml \
   --library research-library
 ```
@@ -106,10 +112,21 @@ Import an existing XML compendium:
 pdm run compendium library import research-library report.xml
 ```
 
+Import an existing CompendiumScribe OKF bundle the same way:
+
+```bash
+pdm run compendium library import research-library report.okf
+```
+
+Validate a Library:
+
+```bash
+pdm run compendium library validate research-library
+```
+
 Library entries are idempotent by slugified title. Re-publishing the same title
-updates the existing `compendium.xml`, `compendium.md`, `card.json`, and
-`catalog.json` entry. If another title would use the same slug, the new entry
-gets a numeric suffix such as `-2`.
+replaces its complete OKF subtree. If another title would use the same slug, the
+new entry gets a numeric suffix such as `-2`.
 
 ### 5. Recover a research run
 
@@ -119,21 +136,24 @@ Recovery resumes from the next incomplete stage in the sidecar state file:
 pdm run compendium recover --input report.research.json
 ```
 
-The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.md` when the stored format is Markdown.
+The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.okf/` when the stored format is OKF. Recovery states that request the removed `md` format are rejected rather than silently reinterpreted.
 Recovery appends to the matching normalized trace only when its workflow and runtime-configuration digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. SDK exceptions and invalid canonical outputs receive at most five total attempts; the fifth failure is terminal and later recovery will not spend another call. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery rechecks its required controls and workflow stages before citation hydration or rendering.
 
 Progressed sidecars created by Compendium Scribe `v0.7.0` or earlier use incompatible evidence formats and cannot be resumed safely by newer builds. Restart those research runs from the original topic instead of copying, rewriting, or fabricating closure evidence.
 
-### 6. Render formats from existing XML
+### 6. Render formats from existing OKF or XML
 
 ```bash
-pdm run compendium render my-topic.xml --format html
+pdm run compendium render my-topic.okf --format html
 ```
 
 Options:
 
-- `--format FORMAT` - Output format(s) to generate: `md`, `xml`, `html`, `pdf`.
+- `--format FORMAT` - Output format(s) to generate: `okf`, `xml`, `html`, `pdf`.
 - `--output PATH` - Base path/filename for the output.
+
+Directory outputs remain separate: `--output report --format okf` writes
+`report.okf/`, while `--format html` writes `report/`.
 
 ---
 
@@ -151,49 +171,43 @@ except DeepResearchError:
     raise
 
 xml_payload = compendium.to_xml_string()
-markdown_doc = compendium.to_markdown()
+okf_files = compendium.to_okf_bundle()
 html_files = compendium.to_html_site()
 pdf_bytes = compendium.to_pdf_bytes()
 ```
 
-The returned `Compendium` object contains structured sections, insights, citations, and open questions.
+Load a canonical OKF bundle with
+`Compendium.from_okf_bundle("report.okf")`. XML remains available for
+interchange, but it does not carry arbitrary OKF extension metadata.
 
 ---
 
-## Data Model Overview
+## CompendiumScribe OKF Profile
 
-Compendium Scribe produces XML shaped like:
+OKF remains Markdown, but the removed `md` format was a single untyped
+rendering. The canonical OKF representation is a directory of typed concepts:
 
-```xml
-<compendium topic="Lithium-ion Battery Recycling" generated_at="2026-04-23T14:32:33+00:00">
-  <overview><![CDATA[Comprehensive synthesis of the state of lithium-ion recycling...]]></overview>
-  <methodology>
-    <step><![CDATA[Surveyed peer-reviewed literature and company disclosures.]]></step>
-  </methodology>
-  <sections>
-    <section id="S01">
-      <title><![CDATA[Technology Landscape]]></title>
-      <summary><![CDATA[Dominant recycling modalities and throughput metrics...]]></summary>
-      <insights>
-        <insight>
-          <title><![CDATA[Hydrometallurgy remains the throughput leader]]></title>
-          <evidence><![CDATA[Commercial operators report high recovery rates for core battery metals.]]></evidence>
-          <citations>
-            <ref>C01</ref>
-          </citations>
-        </insight>
-      </insights>
-    </section>
-  </sections>
-  <citations>
-    <citation id="C01">
-      <title><![CDATA[Example Recycling Benchmark]]></title>
-      <url><![CDATA[https://example.com/recycling-benchmark]]></url>
-      <publisher><![CDATA[Example Publisher]]></publisher>
-    </citation>
-  </citations>
-</compendium>
+```text
+report.okf/
+├── index.md
+├── compendium.md
+├── sections/
+│   ├── index.md
+│   └── s01.md
+└── sources/
+    ├── index.md
+    └── c01.md
 ```
+
+Every non-index document contains safe YAML frontmatter with a non-empty
+`type`. The root concept declares `profile: compendiumscribe` and
+`profile_version: "1"`. Section tags come from key terms; compendium tags are
+derived deterministically. Relative links connect insights to source concepts,
+so the same subtree works as a standalone export or inside a Library.
+
+The profile rejects `log.md`, symlinks, non-Markdown files, path traversal,
+colliding normalized IDs, malformed frontmatter, and broken required links.
+Unknown producer-defined frontmatter keys remain valid.
 
 ---
 

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 import xml.etree.ElementTree as ET
 
 from .entities import Citation, Section
 from .html_site_renderer import render_html_site
-from .markdown_renderer import render_markdown
+from .okf import parse_okf_bundle, render_okf_bundle
 from .payload_parser import build_from_payload
 from .xml_utils import etree_to_string
 
@@ -77,10 +78,10 @@ class Compendium:
         """Render the compendium to a UTF-8 XML string with CDATA wrapping."""
         return etree_to_string(self.to_xml(), cdata_tags=self.XML_CDATA_TAGS)
 
-    def to_markdown(self) -> str:
-        """Render the compendium as human-readable Markdown."""
+    def to_okf_bundle(self) -> dict[str, str]:
+        """Render the compendium as a strict CompendiumScribe OKF bundle."""
 
-        return render_markdown(self)
+        return render_okf_bundle(self)
 
     def to_html_site(self) -> dict[str, str]:
         """Render the compendium as a navigable multi-file HTML site.
@@ -123,6 +124,12 @@ class Compendium:
         from .xml_parser import parse_xml_string
 
         return parse_xml_string(content)
+
+    @classmethod
+    def from_okf_bundle(cls, path: str | Path) -> "Compendium":
+        """Load a compendium from a CompendiumScribe OKF directory."""
+
+        return parse_okf_bundle(Path(path))
 
 
 __all__ = ["Compendium"]

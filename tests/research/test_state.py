@@ -16,7 +16,7 @@ def test_save_state_writes_loadable_sidecar(tmp_path: Path) -> None:
     state = ResearchRunState(
         topic="Atomic Recovery",
         title="Atomic Recovery",
-        output_formats=["md"],
+        output_formats=["okf"],
     )
 
     save_state(state_path, state)
@@ -24,7 +24,7 @@ def test_save_state_writes_loadable_sidecar(tmp_path: Path) -> None:
     loaded = load_state(state_path)
     assert loaded.run_id == state.run_id
     assert loaded.topic == "Atomic Recovery"
-    assert loaded.output_formats == ["md"]
+    assert loaded.output_formats == ["okf"]
 
 
 def test_save_state_keeps_existing_sidecar_when_replace_fails(

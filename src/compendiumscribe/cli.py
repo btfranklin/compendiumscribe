@@ -3,15 +3,16 @@ from pathlib import Path
 
 import click
 
-from .compendium import Compendium, slugify
+from .compendium import Compendium, OKFError, slugify, write_okf_bundle
 from .create_llm_clients import (
     MissingAPIKeyError,
     create_openai_client,
 )
 from .library import (
     LibraryError,
-    import_compendium_xml,
+    import_compendium,
     publish_compendium,
+    validate_library as validate_library_path,
 )
 from .research import (
     DeepResearchError,
@@ -24,6 +25,9 @@ from .research import (
 from .research.costs import CostPricing, CostTracker
 from .research.agents_workflow.agents import selected_profile_agent_model
 from .research.pricing import resolve_model_pricing
+
+
+OUTPUT_FORMATS = ("okf", "xml", "html", "pdf")
 
 
 @click.group()
@@ -42,9 +46,9 @@ def cli() -> None:
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(OUTPUT_FORMATS, case_sensitive=False),
     multiple=True,
-    default=["md"],
+    default=["okf"],
     show_default=True,
     help=("Output format(s). Can be specified multiple times."),
 )
@@ -237,13 +241,13 @@ def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
 
 @cli.command()
 @click.argument(
-    "input_file",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    "input_path",
+    type=click.Path(exists=True, file_okay=True, dir_okay=True, path_type=Path),
 )
 @click.option(
     "--format",
     "formats",
-    type=click.Choice(["md", "xml", "html", "pdf"], case_sensitive=False),
+    type=click.Choice(OUTPUT_FORMATS, case_sensitive=False),
     multiple=True,
     default=["html"],
     show_default=True,
@@ -256,28 +260,43 @@ def _echo_cost_summary(cost_tracker: CostTracker | None) -> None:
     help="Base path/filename for the output.",
 )
 def render(
-    input_file: Path,
+    input_path: Path,
     formats: tuple[str, ...],
     output_path: Path | None,
 ):
-    """Render an existing compendium XML file to other formats.
+    """Render an existing XML or OKF compendium to other formats.
 
-    INPUT_FILE is the path to the existing compendium XML file.
+    INPUT_PATH is an XML file or CompendiumScribe OKF directory.
     """
     try:
-        click.echo(f"Reading compendium from {input_file}...")
-        compendium = Compendium.from_xml_file(str(input_file))
+        click.echo(f"Reading compendium from {input_path}...")
+        if input_path.is_dir():
+            compendium = Compendium.from_okf_bundle(input_path)
+        elif input_path.suffix.lower() == ".xml":
+            compendium = Compendium.from_xml_file(str(input_path))
+        else:
+            raise ValueError(
+                "Input must be an XML file or CompendiumScribe OKF directory."
+            )
     except Exception as exc:
-        click.echo(f"Error parsing XML file: {exc}", err=True)
+        click.echo(f"Error parsing compendium: {exc}", err=True)
         raise SystemExit(1) from exc
 
-    # Determine base filename stem
     if output_path:
         base_path = output_path.parent / output_path.stem
     else:
-        # Defaults to the input filename (without extension) in the same
-        # directory.
-        base_path = input_file.parent / input_file.stem
+        base_path = input_path.parent / input_path.stem
+
+    okf_destination = base_path.parent / f"{base_path.name}.okf"
+    if (
+        input_path.is_dir()
+        and "okf" in {fmt.lower() for fmt in formats}
+        and okf_destination.resolve() == input_path.resolve()
+    ):
+        raise click.ClickException(
+            "Refusing to overwrite the input OKF bundle. "
+            "Choose a different --output path."
+        )
 
     _write_outputs(compendium, base_path, formats)
 
@@ -293,16 +312,16 @@ def library_commands() -> None:
     type=click.Path(path_type=Path, file_okay=False, writable=True),
 )
 @click.argument(
-    "compendium_xml",
-    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    "source_path",
+    type=click.Path(exists=True, file_okay=True, dir_okay=True, path_type=Path),
 )
-def library_import(library_path: Path, compendium_xml: Path) -> None:
-    """Import an existing XML compendium into LIBRARY_PATH."""
+def library_import(library_path: Path, source_path: Path) -> None:
+    """Import an XML or OKF compendium into LIBRARY_PATH."""
 
     try:
-        entry = import_compendium_xml(
+        entry = import_compendium(
             library_path=library_path,
-            compendium_xml=compendium_xml,
+            source_path=source_path,
         )
     except LibraryError as exc:
         click.echo(f"Library import failed: {exc}", err=True)
@@ -311,6 +330,23 @@ def library_import(library_path: Path, compendium_xml: Path) -> None:
         f"Imported '{entry.title}' as library entry '{entry.id}' "
         f"at {library_path / entry.path}"
     )
+
+
+@library_commands.command(name="validate")
+@click.argument(
+    "library_path",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+)
+def library_validate(library_path: Path) -> None:
+    """Validate a strict CompendiumScribe OKF Library."""
+
+    issues = validate_library_path(library_path)
+    if issues:
+        click.echo(f"Library validation failed for {library_path}:", err=True)
+        for issue in issues:
+            click.echo(f"- {issue}", err=True)
+        raise SystemExit(1)
+    click.echo(f"Library is valid: {library_path}")
 
 
 @cli.command()
@@ -336,7 +372,18 @@ def recover(input_file: Path):
         raise SystemExit(1)
 
     title = state.title or state.topic
-    formats = tuple(state.output_formats or ["md"])
+    formats = tuple(state.output_formats or ["okf"])
+    unsupported_formats = sorted(
+        {fmt.lower() for fmt in formats} - set(OUTPUT_FORMATS)
+    )
+    if unsupported_formats:
+        unsupported = ", ".join(unsupported_formats)
+        click.echo(
+            "Recovery state requests unsupported output format(s): "
+            f"{unsupported}. Restart the research run with a supported format.",
+            err=True,
+        )
+        raise SystemExit(1)
     click.echo(f"Recovering research state for '{title}'...")
 
     cost_tracker: CostTracker | None = None
@@ -403,7 +450,16 @@ def _write_outputs(
     unique_formats = sorted(list(set(fmt.lower() for fmt in formats)))
 
     for fmt in unique_formats:
-        if fmt == "html":
+        if fmt == "okf":
+            bundle_dir = base_path.parent / f"{base_path.name}.okf"
+            try:
+                write_okf_bundle(bundle_dir, compendium.to_okf_bundle())
+            except OKFError as exc:
+                raise click.ClickException(
+                    f"Failed to write OKF bundle: {exc}"
+                ) from exc
+            click.echo(f"OKF bundle written to {bundle_dir}/")
+        elif fmt == "html":
             # HTML creates a directory of files
             site_dir = base_path.parent / base_path.name
             site_files = compendium.to_html_site()
@@ -415,12 +471,7 @@ def _write_outputs(
         else:
             target_file = base_path.with_suffix(f".{fmt}")
 
-            if fmt == "md":
-                target_file.write_text(
-                    compendium.to_markdown(),
-                    encoding="utf-8",
-                )
-            elif fmt == "xml":
+            if fmt == "xml":
                 target_file.write_text(
                     compendium.to_xml_string(),
                     encoding="utf-8",

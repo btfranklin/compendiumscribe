@@ -259,7 +259,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
         config=ResearchConfig(),
         runner=runner,
         state_path=state_path,
-        output_formats=["md", "xml"],
+        output_formats=["okf", "xml"],
     )
 
     assert compendium.topic == "Quantum Computing Compendium"
@@ -274,7 +274,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert state.config_snapshot["contract4agents_profile"] == "production"
     assert state.config_snapshot["contract_digest"].startswith("sha256:")
     assert state.config_snapshot["plan_digest"].startswith("sha256:")
-    assert set(state.config_snapshot["resolved_models"].values()) == {"gpt-5.5"}
+    assert set(state.config_snapshot["resolved_models"].values()) == {"gpt-5.6-sol"}
     assert state.run_spec_selection is not None
     assert state.run_spec_selection["run_spec_id"] == (
         "run_spec:CompendiumResearch"
@@ -1426,7 +1426,7 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
 
     costs = json.loads((tmp_path / "report.costs.json").read_text())
     assert len(costs["steps"]) == 6
-    assert {step["model"] for step in costs["steps"]} == {"gpt-5.5"}
+    assert {step["model"] for step in costs["steps"]} == {"gpt-5.6-sol"}
     assert costs["totals"]["input_tokens"] == 600
     assert costs["totals"]["tool_calls"]["web_search_call"] == 4
     phases = [event.phase for event in captured]

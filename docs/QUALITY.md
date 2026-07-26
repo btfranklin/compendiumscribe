@@ -49,8 +49,11 @@ pdm build
 - Research state, normalized trace, and trace-closure sidecars must be atomically replaced so failed writes preserve the previous complete file.
 - Assurance bundles are not emitted without a concrete downstream consumer; this does not weaken the mandatory in-process control and run-spec assessments.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
-- Omitted `--library` must preserve the existing create output set; specified libraries must write `catalog.json`, canonical XML, Markdown, and `card.json`.
-- Library JSON must use relative paths so a library directory can be moved.
+- Omitted `--library` must preserve requested standalone outputs; specified libraries must write only a validated nested OKF compendium subtree and deterministic indexes.
+- Standalone OKF writes and Library replacement candidates must validate before replacing existing content.
+- Compendium and Library links must be relative so subtrees and whole Libraries remain movable.
+- `log.md`, symlinks, non-Markdown files, malformed frontmatter, colliding normalized IDs, path traversal, and broken required links must fail closed.
+- Recovery state requesting the removed `md` format must fail explicitly instead of being aliased to OKF.
 - Tests must not require `OPENAI_API_KEY` for normal offline validation.
 
 ## Documentation Freshness

@@ -4,7 +4,7 @@ schema_version = "1"
 adapter = "openai"
 
 [targets.openai.profiles.production]
-default_model = "gpt-5.5"
+default_model = "gpt-5.6-sol"
 
 [targets.openai.tools."research.web_search"]
 provider = "openai"

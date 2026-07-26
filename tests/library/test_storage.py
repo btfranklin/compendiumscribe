@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from compendiumscribe.compendium import Citation, Compendium, Section
 from compendiumscribe.library import (
-    build_card,
-    import_compendium_xml,
-    load_catalog,
+    import_compendium,
+    list_library_entries,
     publish_compendium,
+    validate_library,
 )
 
 
@@ -41,14 +41,11 @@ def sample_compendium(
                 url="https://example.com/evals",
             )
         ],
+        generated_at=datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc),
     )
 
 
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def test_publish_compendium_creates_catalog_card_xml_and_markdown(
+def test_publish_compendium_creates_strict_okf_library(
     tmp_path: Path,
 ) -> None:
     library_path = tmp_path / "library"
@@ -56,58 +53,56 @@ def test_publish_compendium_creates_catalog_card_xml_and_markdown(
     entry = publish_compendium(sample_compendium(), library_path)
 
     assert entry.id == "evaluating-ai-agents"
-    assert entry.path == "compendiums/evaluating-ai-agents/compendium.xml"
-    assert entry.markdown_path == (
-        "compendiums/evaluating-ai-agents/compendium.md"
-    )
-    assert entry.card_path == "compendiums/evaluating-ai-agents/card.json"
-
-    catalog = read_json(library_path / "catalog.json")
-    assert catalog["schema_version"] == 1
-    assert len(catalog["entries"]) == 1
-    assert catalog["entries"][0]["id"] == entry.id
-    assert catalog["entries"][0]["path"] == entry.path
-
-    card = read_json(library_path / entry.card_path)
-    assert card["title"] == "Evaluating AI Agents"
-    assert card["section_count"] == 2
-    assert card["citation_count"] == 1
-    assert card["source_count"] == 1
-    assert card["path"] == entry.path
-    assert card["markdown_path"] == entry.markdown_path
-    assert card["sections"][0]["title"] == "Operational Metrics"
-
-    xml = library_path / entry.path
-    markdown = library_path / entry.markdown_path
-    assert xml.exists()
-    assert 'topic="Evaluating AI Agents"' in xml.read_text(
-        encoding="utf-8"
-    )
-    assert "# Evaluating AI Agents" in markdown.read_text(encoding="utf-8")
+    assert entry.path == "compendiums/evaluating-ai-agents"
+    assert entry.tags[:2] == ("evaluating", "operational")
+    assert validate_library(library_path) == ()
+    assert sorted(
+        path.relative_to(library_path).as_posix()
+        for path in library_path.rglob("*")
+        if path.is_file()
+    ) == [
+        "compendiums/evaluating-ai-agents/compendium.md",
+        "compendiums/evaluating-ai-agents/index.md",
+        "compendiums/evaluating-ai-agents/sections/index.md",
+        "compendiums/evaluating-ai-agents/sections/sec-1.md",
+        "compendiums/evaluating-ai-agents/sections/sec-2.md",
+        "compendiums/evaluating-ai-agents/sources/c1.md",
+        "compendiums/evaluating-ai-agents/sources/index.md",
+        "compendiums/index.md",
+        "index.md",
+    ]
+    assert not list(library_path.rglob("*.xml"))
+    assert not list(library_path.rglob("*.json"))
+    assert not list(library_path.rglob("log.md"))
 
 
-def test_publish_compendium_upserts_same_slug_and_preserves_created_at(
+def test_publish_replaces_same_entry_and_removes_stale_files(
     tmp_path: Path,
 ) -> None:
     library_path = tmp_path / "library"
     first = publish_compendium(sample_compendium(), library_path)
-    second = publish_compendium(
-        sample_compendium(overview="Updated overview."),
-        library_path,
-    )
+    stale_path = library_path / first.path / "manual.md"
+    stale_path.write_text("---\ntype: Note\n---\n\nManual.\n", encoding="utf-8")
+    updated = sample_compendium(overview="Updated overview.")
+    updated.sections = updated.sections[:1]
 
-    catalog = load_catalog(library_path)
+    second = publish_compendium(updated, library_path)
+
     assert first.id == second.id
-    assert len(catalog.entries) == 1
-    assert catalog.entries[0].summary == "Updated overview."
-    assert catalog.entries[0].created_at == first.created_at
-    assert catalog.entries[0].updated_at >= first.updated_at
+    assert second.description == "Updated overview."
+    assert not stale_path.exists()
+    assert not (
+        library_path
+        / second.path
+        / "sections"
+        / "sec-2.md"
+    ).exists()
+    assert validate_library(library_path) == ()
 
 
-def test_publish_compendium_appends_suffix_for_slug_collision(
-    tmp_path: Path,
-) -> None:
+def test_publish_appends_suffix_for_slug_collision(tmp_path: Path) -> None:
     library_path = tmp_path / "library"
+
     first = publish_compendium(
         sample_compendium(topic="Agent Safety"),
         library_path,
@@ -119,40 +114,69 @@ def test_publish_compendium_appends_suffix_for_slug_collision(
 
     assert first.id == "agent-safety"
     assert second.id == "agent-safety-2"
-    catalog = load_catalog(library_path)
-    assert {entry.id for entry in catalog.entries} == {
+    assert [entry.id for entry in list_library_entries(library_path)] == [
         "agent-safety",
         "agent-safety-2",
-    }
+    ]
+    assert validate_library(library_path) == ()
 
 
-def test_build_card_truncates_summary_and_derives_keywords() -> None:
-    compendium = sample_compendium(overview=" ".join(["summary"] * 120))
-
-    card = build_card(compendium, entry_id="evaluating-ai-agents")
-
-    assert len(card.summary) <= 500
-    assert card.summary.endswith("...")
-    assert "evaluating" in card.keywords
-    assert "operational" in card.keywords
-    assert "task success" in card.keywords
-
-
-def test_import_compendium_xml_normalizes_outputs(
-    tmp_path: Path,
-) -> None:
+def test_import_xml_converts_to_okf(tmp_path: Path) -> None:
     source = sample_compendium(topic="Imported Research")
     xml_path = tmp_path / "source.xml"
     xml_path.write_text(source.to_xml_string(), encoding="utf-8")
     library_path = tmp_path / "library"
 
-    entry = import_compendium_xml(
+    entry = import_compendium(
         library_path=library_path,
-        compendium_xml=xml_path,
+        source_path=xml_path,
     )
 
     assert entry.id == "imported-research"
-    assert (library_path / entry.path).exists()
-    assert (library_path / entry.markdown_path).exists()
-    assert (library_path / entry.card_path).exists()
-    assert load_catalog(library_path).entries[0].title == "Imported Research"
+    assert (library_path / entry.path / "compendium.md").exists()
+    assert not list((library_path / entry.path).rglob("*.xml"))
+    assert validate_library(library_path) == ()
+
+
+def test_import_okf_preserves_unknown_frontmatter(tmp_path: Path) -> None:
+    source_path = tmp_path / "source.okf"
+    from compendiumscribe.compendium import write_okf_bundle
+
+    source = sample_compendium(topic="Imported OKF")
+    files = source.to_okf_bundle()
+    files["compendium.md"] = files["compendium.md"].replace(
+        "profile: compendiumscribe\n",
+        "custom_field: retained\nprofile: compendiumscribe\n",
+    )
+    write_okf_bundle(source_path, files)
+
+    library_path = tmp_path / "library"
+    entry = import_compendium(
+        library_path=library_path,
+        source_path=source_path,
+    )
+
+    content = (
+        library_path / entry.path / "compendium.md"
+    ).read_text(encoding="utf-8")
+    assert "custom_field: retained" in content
+    assert validate_library(library_path) == ()
+
+
+def test_validation_reports_stale_inventory_and_non_markdown(
+    tmp_path: Path,
+) -> None:
+    library_path = tmp_path / "library"
+    publish_compendium(sample_compendium(), library_path)
+    (library_path / "compendiums" / "index.md").write_text(
+        "# Compendiums\n",
+        encoding="utf-8",
+    )
+    (library_path / "unexpected.xml").write_text("<x/>", encoding="utf-8")
+
+    issues = validate_library(library_path)
+
+    assert {issue.code for issue in issues} >= {
+        "inventory_index_stale",
+        "unexpected_library_file",
+    }

@@ -16,8 +16,8 @@ This repo is a Python package for generating sourced compendiums through a bound
 - Change CLI behavior in [cli.py](src/compendiumscribe/cli.py); mirror user-visible changes in [README.md](README.md) and CLI tests.
 - Change research orchestration in [agents_workflow](src/compendiumscribe/research/agents_workflow/); keep tests offline by using the runner adapter, and keep the packaged Contract4Agents project aligned.
 - Change agent contracts and instructions in [agent_contracts](src/compendiumscribe/agent_contracts/); regenerate language bindings and update contract tests.
-- Change final output shape in [compendium](src/compendiumscribe/compendium/); update payload, XML, Markdown, HTML, and parser tests together.
-- Change library publishing/import in [library](src/compendiumscribe/library/); keep `catalog.json`, `card.json`, and CLI tests aligned.
+- Change final output shape in [compendium](src/compendiumscribe/compendium/); update payload, OKF, XML, HTML, PDF, and parser tests together.
+- Change library publishing/import in [library](src/compendiumscribe/library/); keep strict OKF validation, nested indexes, and CLI tests aligned.
 - Change pricing in [pricing.standard.json](src/compendiumscribe/research/data/pricing.standard.json); update [test_pricing.py](tests/research/test_pricing.py) and cost tests.
 
 ## Required Checks
