@@ -9,7 +9,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 class CitationPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
     url: Annotated[str, Field(min_length=1)]
@@ -18,14 +18,14 @@ class CitationPayload(BaseModel):
     summary: str | None = None
 
 class InsightPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     title: Annotated[str, Field(min_length=1)]
     evidence: Annotated[str, Field(min_length=1)]
     implications: str | None = None
     citations: Annotated[list[str], Field(min_length=1)]
 
 class SectionPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
     summary: Annotated[str, Field(min_length=1)]
@@ -34,7 +34,7 @@ class SectionPayload(BaseModel):
     insights: list[InsightPayload]
 
 class CompendiumPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic_overview: Annotated[str, Field(min_length=1)]
     methodology: list[str]
     sections: Annotated[list[SectionPayload], Field(min_length=1, max_length=5)]
@@ -42,24 +42,24 @@ class CompendiumPayload(BaseModel):
     open_questions: list[str]
 
 class PlanningInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic: Annotated[str, Field(min_length=1)]
 
 class ResearchSection(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
     focus: Annotated[str, Field(min_length=1)]
     guiding_questions: Annotated[list[str], Field(min_length=1)]
 
 class ResearchAgenda(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     sections: Annotated[list[ResearchSection], Field(min_length=3, max_length=5)]
     source_strategy: Annotated[list[str], Field(min_length=1)]
     verification_focus: Annotated[list[str], Field(min_length=1)]
 
 class ResearchPlan(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     title: Annotated[str, Field(min_length=1)]
     primary_objective: Annotated[str, Field(min_length=1)]
     audience: Annotated[str, Field(min_length=1)]
@@ -69,14 +69,14 @@ class ResearchPlan(BaseModel):
     topic_flags: list[str]
 
 class ResearchAgendaInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic: Annotated[str, Field(min_length=1)]
     plan: ResearchPlan
 
 ResearchSourceStatus = Literal['cited', 'consulted', 'rejected']
 
 class ResearchSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     title: Annotated[str, Field(min_length=1)]
     url: Annotated[str, Field(min_length=1)]
     publisher: str | None = None
@@ -86,14 +86,14 @@ class ResearchSource(BaseModel):
     status: ResearchSourceStatus
 
 class SectionFinding(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     title: Annotated[str, Field(min_length=1)]
     evidence: Annotated[str, Field(min_length=1)]
     implications: str | None = None
     source_urls: Annotated[list[str], Field(min_length=1)]
 
 class SectionResearchBrief(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     section_id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
     summary: Annotated[str, Field(min_length=1)]
@@ -106,7 +106,7 @@ class SectionResearchBrief(BaseModel):
 VerificationSeverity = Literal['warning', 'error']
 
 class VerificationIssue(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     section_id: str | None = None
     message: Annotated[str, Field(min_length=1)]
     severity: VerificationSeverity
@@ -115,14 +115,14 @@ class VerificationIssue(BaseModel):
 VerificationStatus = Literal['accepted', 'follow_up', 'failed']
 
 class VerificationReport(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     status: VerificationStatus
     issues: list[VerificationIssue]
     follow_up_section_ids: list[str]
     notes: str | None = None
 
 class SectionResearchInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic: Annotated[str, Field(min_length=1)]
     section: ResearchSection
     plan: ResearchPlan
@@ -131,7 +131,7 @@ class SectionResearchInput(BaseModel):
     verification: VerificationReport | None = None
 
 class SourceLedgerEntry(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     id: Annotated[str, Field(min_length=1)]
     title: Annotated[str, Field(min_length=1)]
     url: Annotated[str, Field(min_length=1)]
@@ -143,11 +143,11 @@ class SourceLedgerEntry(BaseModel):
     section_ids: list[str]
 
 class SourceLedger(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     entries: list[SourceLedgerEntry]
 
 class SynthesisInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic: Annotated[str, Field(min_length=1)]
     plan: ResearchPlan
     agenda: ResearchAgenda
@@ -156,7 +156,7 @@ class SynthesisInput(BaseModel):
     verification: VerificationReport
 
 class VerificationInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     topic: Annotated[str, Field(min_length=1)]
     plan: ResearchPlan
     agenda: ResearchAgenda
@@ -165,11 +165,11 @@ class VerificationInput(BaseModel):
     follow_up_available: bool
 
 class WebSearchRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     query: Annotated[str, Field(min_length=1)]
 
 class WebSearchResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
     summary: Annotated[str, Field(min_length=1)]
     source_urls: list[str]
 

@@ -117,7 +117,7 @@ class StubAgentRunner:
         if name == "ResearchManagerAgent":
             return sample_agenda()
         if name == "SectionResearchAgent":
-            payload = json.loads(input_payload)
+            payload = json.loads(input_payload)["request"]
             return sample_brief(payload["section"]["id"])
         if name == "VerifierAgent":
             return self.verification_reports.pop(0)
@@ -372,6 +372,11 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
         "VerifierAgent",
         "SynthesisAgent",
     ]
+    serialized_inputs = [json.loads(payload) for _, payload in runner.calls]
+    assert all(set(payload) == {"request"} for payload in serialized_inputs)
+    assert serialized_inputs[0] == {
+        "request": {"topic": "Quantum Computing"}
+    }
 
 
 def test_build_compendium_requires_profile_selection_before_workflow_setup(
@@ -445,7 +450,7 @@ def test_verifier_follow_up_reruns_only_targeted_section_once(
     )
 
     section_calls = [
-        json.loads(payload)["section"]["id"]
+        json.loads(payload)["request"]["section"]["id"]
         for name, payload in runner.calls
         if name == "SectionResearchAgent"
     ]
@@ -579,7 +584,7 @@ def test_second_verifier_failure_does_not_repeat_follow_up_on_recovery(
 
     assert compendium.topic == "Quantum Computing Compendium"
     section_calls = [
-        json.loads(payload)["section"]["id"]
+        json.loads(payload)["request"]["section"]["id"]
         for name, payload in runner.calls
         if name == "SectionResearchAgent"
     ]
@@ -614,7 +619,7 @@ def test_interrupted_multi_section_follow_up_skips_completed_targets(
             max_turns: int,
         ) -> AgentRunResult:
             if agent.name == "SectionResearchAgent":
-                payload = json.loads(input_payload)
+                payload = json.loads(input_payload)["request"]
                 if (
                     payload["section"]["id"] == "applications"
                     and payload["previous_brief"] is not None
@@ -652,10 +657,10 @@ def test_interrupted_multi_section_follow_up_skips_completed_targets(
     )
 
     follow_up_calls = [
-        json.loads(payload)["section"]["id"]
+        json.loads(payload)["request"]["section"]["id"]
         for name, payload in runner.calls
         if name == "SectionResearchAgent"
-        and json.loads(payload)["previous_brief"] is not None
+        and json.loads(payload)["request"]["previous_brief"] is not None
     ]
     assert follow_up_calls == ["foundations", "applications", "applications"]
 
@@ -925,27 +930,19 @@ def test_progressed_recovery_rejects_mismatched_plan_digest(
         runner=StubAgentRunner(),
         state_path=state_path,
     )
-    production_team = build_research_agent_team(ResearchConfig())
-    comparison_team = replace(
-        production_team,
-        plan=replace(production_team.plan, profile="comparison"),
-    )
-    comparison_config = ResearchConfig(contract4agents_profile="comparison")
+    state = load_state(state_path)
+    state.config_snapshot["plan_digest"] = "sha256:mismatched-plan"
+    save_state(state_path, state)
 
-    with mock.patch(
-        "compendiumscribe.research.agents_workflow.orchestrator."
-        "build_research_agent_team",
-        return_value=comparison_team,
+    with pytest.raises(
+        DeepResearchError,
+        match="different Contract4Agents plan digest",
     ):
-        with pytest.raises(
-            DeepResearchError,
-            match="different Contract4Agents plan digest",
-        ):
-            recover_compendium(
-                state_path,
-                config=comparison_config,
-                runner=StubAgentRunner(),
-            )
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=StubAgentRunner(),
+        )
 
 
 def test_recovery_rejects_state_without_auditable_plan_digest(

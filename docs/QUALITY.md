@@ -42,6 +42,9 @@ pdm build
 - Positive observed trace claims may pass from direct evidence. Negative, absence, upper-bound, and missing-target claims require matching closure for the relevant coverage channel and remain unverified without it.
 - Run-spec observations come from the host's authoritative stage ledger and link to semantic trace events. Missing agent identity is unverified, never a pass.
 - Persisted enum-valued contract artifacts must pass generated-model validation before recovery resumes.
+- Generated contract files must be current. Their package digest must match the
+  exact compiler artifacts from materialization. Root agent inputs must pass the
+  materialized strict input contract before the SDK runner starts.
 - Progressed recovery requires a readable, nonempty trace and identity-bound closure manifest with matching contract and materialization-plan digests plus an exact ordered trace frontier. A prior attempt is sealed across sessions; a resumed provider call must use the next attempt identity and preserve its `retry_of` parent. Completed recovery must reassess the merged evidence before rendering.
 - Recovery resumes from `<base>.research.json`, extends normalized events in `<base>.research.trace.jsonl`, and updates closure evidence in `<base>.research.trace-closure.json`; it must not depend on a background response ID.
 - Progressed `v0.6.x` sidecars must be restarted because event occurrence cannot be upgraded into identity-bound closure after the original run.

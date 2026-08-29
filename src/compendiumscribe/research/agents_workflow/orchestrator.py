@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Mapping
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 from typing import Any, TYPE_CHECKING, TypeVar
 
@@ -130,7 +129,7 @@ async def _build_compendium_async(
         output_formats=output_formats,
         cost_tracker=cost_tracker,
         config=config,
-        plan=team.plan,
+        plan=team.materialization.plan,
     )
     trace_path = _contract_trace_path(state_path)
     closure_path = _contract_trace_closure_path(state_path)
@@ -160,10 +159,18 @@ async def _build_compendium_async(
                 f"{trace_path}"
             )
         if trace.events:
-            _validate_contract_trace(team.ir, team.plan, trace.trace)
+            _validate_contract_trace(
+                team.materialization.artifacts.ir,
+                team.materialization.plan,
+                trace.trace,
+            )
         _reconcile_terminal_attempts(state, trace)
         if trace.events:
-            _validate_contract_trace(team.ir, team.plan, trace.trace)
+            _validate_contract_trace(
+                team.materialization.artifacts.ir,
+                team.materialization.plan,
+                trace.trace,
+            )
             trace.checkpoint()
         return await _continue_research_workflow(
             topic,
@@ -193,7 +200,7 @@ async def _continue_research_workflow(
     if state.plan is None:
         state.plan = await _run_structured_agent(
             "planning",
-            team.planner,
+            "PlannerAgent",
             _planning_input(topic),
             output_type=ResearchPlan,
             config=config,
@@ -202,8 +209,7 @@ async def _continue_research_workflow(
             state=state,
             state_path=state_path,
             trace=trace,
-            plan=team.plan,
-            ir=team.ir,
+            team=team,
             invocation_key="planning",
         )
         state.title = state.plan.title
@@ -213,7 +219,7 @@ async def _continue_research_workflow(
     if state.agenda is None:
         state.agenda = await _run_structured_agent(
             "research_agenda",
-            team.research_manager,
+            "ResearchManagerAgent",
             _research_agenda_input(topic, state),
             output_type=ResearchAgenda,
             config=config,
@@ -222,8 +228,7 @@ async def _continue_research_workflow(
             state=state,
             state_path=state_path,
             trace=trace,
-            plan=team.plan,
-            ir=team.ir,
+            team=team,
             invocation_key="research_agenda",
         )
         state.mark_completed("research_agenda")
@@ -290,7 +295,7 @@ async def _continue_research_workflow(
     if state.final_payload is None:
         state.final_payload = await _run_structured_agent(
             "synthesis",
-            team.synthesis,
+            "SynthesisAgent",
             _synthesis_input(topic, state),
             output_type=CompendiumPayload,
             config=config,
@@ -299,8 +304,7 @@ async def _continue_research_workflow(
             state=state,
             state_path=state_path,
             trace=trace,
-            plan=team.plan,
-            ir=team.ir,
+            team=team,
             invocation_key="synthesis",
         )
         state.mark_completed("synthesis")
@@ -405,7 +409,7 @@ async def _run_section_agent(
         raise DeepResearchError(f"Unknown agenda section: {section_id}")
     return await _run_structured_agent(
         "section_research",
-        team.section_research,
+        "SectionResearchAgent",
         _section_research_input(state, section_id, section, follow_up=follow_up),
         output_type=SectionResearchBrief,
         config=config,
@@ -414,8 +418,7 @@ async def _run_section_agent(
         state=state,
         state_path=state_path,
         trace=trace,
-        plan=team.plan,
-        ir=team.ir,
+        team=team,
         invocation_key=(
             f"section_follow_up:{section_id}"
             if follow_up
@@ -437,7 +440,7 @@ async def _verify(
 ):
     return await _run_structured_agent(
         "verification",
-        team.verifier,
+        "VerifierAgent",
         _verification_input(state),
         output_type=VerificationReport,
         config=config,
@@ -446,25 +449,22 @@ async def _verify(
         state=state,
         state_path=state_path,
         trace=trace,
-        plan=team.plan,
-        ir=team.ir,
+        team=team,
         invocation_key=(
             "verification_follow_up" if state.follow_up_done else "verification"
         ),
     )
 
 
-def _planning_input(topic: str) -> str:
-    return _json_prompt({"topic": topic})
+def _planning_input(topic: str) -> dict[str, Any]:
+    return {"topic": topic}
 
 
-def _research_agenda_input(topic: str, state: ResearchRunState) -> str:
-    return _json_prompt(
-        {
-            "topic": topic,
-            "plan": state.plan.model_dump(mode="json"),
-        }
-    )
+def _research_agenda_input(topic: str, state: ResearchRunState) -> dict[str, Any]:
+    return {
+        "topic": topic,
+        "plan": state.plan.model_dump(mode="json"),
+    }
 
 
 def _section_research_input(
@@ -473,61 +473,55 @@ def _section_research_input(
     section: Any,
     *,
     follow_up: bool,
-) -> str:
-    return _json_prompt(
-        {
-            "topic": state.title or state.topic,
-            "section": section.model_dump(mode="json"),
-            "plan": state.plan.model_dump(mode="json"),
-            "agenda": state.agenda.model_dump(mode="json"),
-            "previous_brief": (
-                state.section_briefs.get(section_id).model_dump(mode="json")
-                if follow_up and section_id in state.section_briefs
-                else None
-            ),
-            "verification": (
-                state.verification.model_dump(mode="json")
-                if follow_up and state.verification is not None
-                else None
-            ),
-        }
-    )
+) -> dict[str, Any]:
+    return {
+        "topic": state.title or state.topic,
+        "section": section.model_dump(mode="json"),
+        "plan": state.plan.model_dump(mode="json"),
+        "agenda": state.agenda.model_dump(mode="json"),
+        "previous_brief": (
+            state.section_briefs.get(section_id).model_dump(mode="json")
+            if follow_up and section_id in state.section_briefs
+            else None
+        ),
+        "verification": (
+            state.verification.model_dump(mode="json")
+            if follow_up and state.verification is not None
+            else None
+        ),
+    }
 
 
-def _verification_input(state: ResearchRunState) -> str:
-    return _json_prompt(
-        {
-            "topic": state.title or state.topic,
-            "plan": state.plan.model_dump(mode="json"),
-            "agenda": state.agenda.model_dump(mode="json"),
-            "section_briefs": [
-                brief.model_dump(mode="json") for brief in state.section_briefs.values()
-            ],
-            "source_ledger": state.ledger.model_dump(mode="json"),
-            "follow_up_available": not state.follow_up_done,
-        }
-    )
+def _verification_input(state: ResearchRunState) -> dict[str, Any]:
+    return {
+        "topic": state.title or state.topic,
+        "plan": state.plan.model_dump(mode="json"),
+        "agenda": state.agenda.model_dump(mode="json"),
+        "section_briefs": [
+            brief.model_dump(mode="json") for brief in state.section_briefs.values()
+        ],
+        "source_ledger": state.ledger.model_dump(mode="json"),
+        "follow_up_available": not state.follow_up_done,
+    }
 
 
-def _synthesis_input(topic: str, state: ResearchRunState) -> str:
-    return _json_prompt(
-        {
-            "topic": state.title or topic,
-            "plan": state.plan.model_dump(mode="json"),
-            "agenda": state.agenda.model_dump(mode="json"),
-            "section_briefs": [
-                brief.model_dump(mode="json") for brief in state.section_briefs.values()
-            ],
-            "source_ledger": state.ledger.model_dump(mode="json"),
-            "verification": state.verification.model_dump(mode="json"),
-        }
-    )
+def _synthesis_input(topic: str, state: ResearchRunState) -> dict[str, Any]:
+    return {
+        "topic": state.title or topic,
+        "plan": state.plan.model_dump(mode="json"),
+        "agenda": state.agenda.model_dump(mode="json"),
+        "section_briefs": [
+            brief.model_dump(mode="json") for brief in state.section_briefs.values()
+        ],
+        "source_ledger": state.ledger.model_dump(mode="json"),
+        "verification": state.verification.model_dump(mode="json"),
+    }
 
 
 async def _run_structured_agent(
     phase: str,
-    agent: Any,
-    input_payload: str,
+    agent_name: str,
+    input_data: Mapping[str, object],
     *,
     output_type: type[ArtifactT],
     config: ResearchConfig,
@@ -536,12 +530,18 @@ async def _run_structured_agent(
     state: ResearchRunState,
     state_path: Path,
     trace: ContractTraceRecorder,
-    plan: MaterializationPlan,
-    ir: CanonicalIR,
+    team: ResearchAgentTeam,
     invocation_key: str,
     metadata: dict[str, Any] | None = None,
 ) -> ArtifactT:
-    agent_name = str(getattr(agent, "name", phase))
+    materialization = team.materialization
+    agent = materialization.agents[agent_name]
+    plan = materialization.plan
+    ir = materialization.artifacts.ir
+    input_payload = materialization.serialize_agent_input(
+        agent_name,
+        {"request": input_data},
+    )
     invocation_id = f"{state.run_id}:{invocation_key}"
     while True:
         attempt = _next_attempt(trace, invocation_id)
@@ -817,10 +817,13 @@ def _evaluate_contract_run(
     closure: TraceClosureEvidence,
     state: ResearchRunState,
 ) -> None:
-    _validate_contract_trace(team.ir, team.plan, trace)
+    materialization = team.materialization
+    ir = materialization.artifacts.ir
+    plan = materialization.plan
+    _validate_contract_trace(ir, plan, trace)
     control_results = assess_controls(
-        team.ir,
-        team.plan,
+        ir,
+        plan,
         trace,
         closure=closure,
         run_id=state.run_id,
@@ -828,7 +831,7 @@ def _evaluate_contract_run(
     run_spec_id = next(
         (
             item.id
-            for item in team.ir.run_specs.values()
+            for item in ir.run_specs.values()
             if item.name == "CompendiumResearch"
         ),
         None,
@@ -839,8 +842,8 @@ def _evaluate_contract_run(
         )
     run_spec_evidence = _run_spec_evidence(state, trace)
     run_spec_result = assess_run_spec(
-        team.ir,
-        team.plan,
+        ir,
+        plan,
         trace,
         run_spec_id,
         run_spec_evidence,
@@ -1165,10 +1168,6 @@ def _resolved_agent_model(plan: MaterializationPlan, agent_name: str) -> str:
     return matches[0]
 
 
-def _json_prompt(payload: dict[str, Any]) -> str:
-    return json.dumps(payload, indent=2, sort_keys=True)
-
-
 def _agenda_section(state: ResearchRunState, section_id: str):
     for section in state.agenda.sections:
         if section.id == section_id:
@@ -1248,8 +1247,8 @@ def _contract_trace_recorder(
             path,
             closure_path,
             run_id=run_id,
-            ir=team.ir,
-            plan=team.plan,
+            ir=team.materialization.artifacts.ir,
+            plan=team.materialization.plan,
             append=append,
         )
     except (OSError, ValueError) as exc:

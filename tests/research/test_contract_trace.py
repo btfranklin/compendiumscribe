@@ -25,8 +25,8 @@ def test_trace_write_failure_preserves_the_accepted_capture_frontier(
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     recorder.record("agent.started", agent_name="PlannerAgent")
@@ -60,8 +60,8 @@ def test_trace_recorders_reuse_process_router_with_disposable_sessions(
             tmp_path / "first.trace.jsonl",
             tmp_path / "first.trace-closure.json",
             run_id="run-1",
-            ir=team.ir,
-            plan=team.plan,
+            ir=team.materialization.artifacts.ir,
+            plan=team.materialization.plan,
             append=False,
         )
         first_session = first.session
@@ -70,8 +70,8 @@ def test_trace_recorders_reuse_process_router_with_disposable_sessions(
             tmp_path / "second.trace.jsonl",
             tmp_path / "second.trace-closure.json",
             run_id="run-2",
-            ir=team.ir,
-            plan=team.plan,
+            ir=team.materialization.artifacts.ir,
+            plan=team.materialization.plan,
             append=False,
         )
         second_session = second.session
@@ -92,8 +92,8 @@ def test_session_close_detaches_router_trace_without_fabricating_completion(
         tmp_path / "report.trace.jsonl",
         tmp_path / "report.trace-closure.json",
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     attempt = TraceAttempt("planning", "planning-attempt-1", 1)
@@ -120,8 +120,8 @@ def test_checkpoint_resume_preserves_retry_chain_without_rebinding_prior_attempt
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     attempt_1 = TraceAttempt("planning", "planning-attempt-1", 1)
@@ -138,8 +138,8 @@ def test_checkpoint_resume_preserves_retry_chain_without_rebinding_prior_attempt
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=True,
     )
     attempt_2 = TraceAttempt(
@@ -181,8 +181,8 @@ def test_resumed_session_can_select_a_checkpointed_attempt(
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     attempt = TraceAttempt("planning", "planning-attempt-1", 1)
@@ -199,8 +199,8 @@ def test_resumed_session_can_select_a_checkpointed_attempt(
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=True,
     )
     selection = resumed.record_terminal_attempt(
@@ -228,8 +228,8 @@ def test_zero_response_batch_emits_receipt_and_persists_closure_manifest(
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     attempt = TraceAttempt(
@@ -275,8 +275,8 @@ def test_closure_write_failure_preserves_prior_file_and_cleans_temporary_file(
         trace_path,
         closure_path,
         run_id="run-1",
-        ir=team.ir,
-        plan=team.plan,
+        ir=team.materialization.artifacts.ir,
+        plan=team.materialization.plan,
         append=False,
     )
     attempt = TraceAttempt(

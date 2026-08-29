@@ -5,27 +5,22 @@ from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Any
 
-from contract4agents.ir import CanonicalIR
 from contract4agents.materialization import (
+    MaterializationResult,
     MaterializationTraceEvent,
     RecordingMaterializationTraceSink,
     materialize,
 )
-from contract4agents.planning import MaterializationPlan, PlanningError
+from contract4agents.planning import PlanningError
 from contract4agents.target_bindings import load_target_bindings
 
+from ...agent_contracts.generated import python as generated_contracts
 from ..errors import MissingConfigurationError
 
 
 @dataclass(frozen=True)
 class ResearchAgentTeam:
-    planner: Any
-    research_manager: Any
-    section_research: Any
-    verifier: Any
-    synthesis: Any
-    ir: CanonicalIR
-    plan: MaterializationPlan
+    materialization: MaterializationResult
     materialization_events: tuple[MaterializationTraceEvent, ...]
 
 
@@ -48,14 +43,16 @@ def build_research_agent_team(config: Any) -> ResearchAgentTeam:
                 raise _unknown_profile_error(config.contract4agents_profile) from exc
             raise
 
+    if (
+        generated_contracts.__contract4agents_contract_digest__
+        != result.artifacts.contract_digest
+    ):
+        raise RuntimeError(
+            "Generated contract models do not match the materialized contract digest."
+        )
+
     return ResearchAgentTeam(
-        planner=result.agents["PlannerAgent"],
-        research_manager=result.agents["ResearchManagerAgent"],
-        section_research=result.agents["SectionResearchAgent"],
-        verifier=result.agents["VerifierAgent"],
-        synthesis=result.agents["SynthesisAgent"],
-        ir=result.context.ir,
-        plan=result.plan,
+        materialization=result,
         materialization_events=tuple(trace_sink.events),
     )
 
