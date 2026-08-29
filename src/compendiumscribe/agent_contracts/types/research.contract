@@ -13,8 +13,8 @@ enum VerificationSeverity:
     "error"
 
 type ResearchSource:
-    title: string
-    url: string
+    title: string(min_length=1)
+    url: string(min_length=1)
     publisher: string?
     published_at: string?
     summary: string?
@@ -22,35 +22,35 @@ type ResearchSource:
     status: ResearchSourceStatus
 
 type ResearchSection:
-    id: string
-    title: string
-    focus: string
-    guiding_questions: list[string]
+    id: string(min_length=1)
+    title: string(min_length=1)
+    focus: string(min_length=1)
+    guiding_questions: list[string](min_items=1)
 
 type ResearchPlan:
-    title: string
-    primary_objective: string
-    audience: string
-    key_sections: list[ResearchSection]
-    research_questions: list[string]
+    title: string(min_length=1)
+    primary_objective: string(min_length=1)
+    audience: string(min_length=1)
+    key_sections: list[ResearchSection](min_items=3,max_items=5)
+    research_questions: list[string](min_items=1)
     methodology_preferences: list[string]
     topic_flags: list[string]
 
 type ResearchAgenda:
-    sections: list[ResearchSection]
-    source_strategy: list[string]
-    verification_focus: list[string]
+    sections: list[ResearchSection](min_items=3,max_items=5)
+    source_strategy: list[string](min_items=1)
+    verification_focus: list[string](min_items=1)
 
 type SectionFinding:
-    title: string
-    evidence: string
+    title: string(min_length=1)
+    evidence: string(min_length=1)
     implications: string?
-    source_urls: list[string]
+    source_urls: list[string](min_items=1)
 
 type SectionResearchBrief:
-    section_id: string
-    title: string
-    summary: string
+    section_id: string(min_length=1)
+    title: string(min_length=1)
+    summary: string(min_length=1)
     key_terms: list[string]
     guiding_questions: list[string]
     findings: list[SectionFinding]
@@ -58,9 +58,9 @@ type SectionResearchBrief:
     open_questions: list[string]
 
 type SourceLedgerEntry:
-    id: string
-    title: string
-    url: string
+    id: string(min_length=1)
+    title: string(min_length=1)
+    url: string(min_length=1)
     publisher: string?
     published_at: string?
     summary: string?
@@ -73,7 +73,7 @@ type SourceLedger:
 
 type VerificationIssue:
     section_id: string?
-    message: string
+    message: string(min_length=1)
     severity: VerificationSeverity
     suggested_follow_up: string?
 
@@ -84,50 +84,50 @@ type VerificationReport:
     notes: string?
 
 type InsightPayload:
-    title: string
-    evidence: string
+    title: string(min_length=1)
+    evidence: string(min_length=1)
     implications: string?
-    citations: list[string]
+    citations: list[string](min_items=1)
 
 type SectionPayload:
-    id: string
-    title: string
-    summary: string
+    id: string(min_length=1)
+    title: string(min_length=1)
+    summary: string(min_length=1)
     key_terms: list[string]
     guiding_questions: list[string]
     insights: list[InsightPayload]
 
 type CitationPayload:
-    id: string
-    title: string
-    url: string
+    id: string(min_length=1)
+    title: string(min_length=1)
+    url: string(min_length=1)
     publisher: string?
     published_at: string?
     summary: string?
 
 type CompendiumPayload:
-    topic_overview: string
+    topic_overview: string(min_length=1)
     methodology: list[string]
-    sections: list[SectionPayload]
+    sections: list[SectionPayload](min_items=1,max_items=5)
     citations: list[CitationPayload]
     open_questions: list[string]
 
 type WebSearchRequest:
-    query: string
+    query: string(min_length=1)
 
 type WebSearchResult:
-    summary: string
+    summary: string(min_length=1)
     source_urls: list[string]
 
 type PlanningInput:
-    topic: string
+    topic: string(min_length=1)
 
 type ResearchAgendaInput:
-    topic: string
+    topic: string(min_length=1)
     plan: ResearchPlan
 
 type SectionResearchInput:
-    topic: string
+    topic: string(min_length=1)
     section: ResearchSection
     plan: ResearchPlan
     agenda: ResearchAgenda
@@ -135,7 +135,7 @@ type SectionResearchInput:
     verification: VerificationReport?
 
 type VerificationInput:
-    topic: string
+    topic: string(min_length=1)
     plan: ResearchPlan
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]
@@ -143,7 +143,7 @@ type VerificationInput:
     follow_up_available: boolean
 
 type SynthesisInput:
-    topic: string
+    topic: string(min_length=1)
     plan: ResearchPlan
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]

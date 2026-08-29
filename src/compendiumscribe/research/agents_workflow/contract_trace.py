@@ -114,6 +114,20 @@ class ContractTraceRecorder:
             attempt=attempt,
         )
 
+    def record_result(
+        self,
+        result: object,
+        *,
+        agent_name: str,
+        attempt: TraceAttempt,
+    ) -> tuple[TraceEvent, ...]:
+        self._ensure_closure_writable()
+        return self.session.record_result(
+            result,
+            agent=agent_name,
+            attempt=attempt,
+        )
+
     def normalize_exception_responses(
         self,
         exception: BaseException,

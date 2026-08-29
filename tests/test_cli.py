@@ -1,4 +1,5 @@
 import os
+from contextlib import chdir
 import pytest
 from click.testing import CliRunner
 from datetime import datetime, timezone
@@ -78,8 +79,9 @@ def test_cli_create_default_format_is_okf(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         result = runner.invoke(
             cli,
             ["create", "Test Topic"],
@@ -102,12 +104,13 @@ def test_cli_create_default_format_is_okf(
 def test_cli_create_reports_unknown_profile_as_configuration_error(
     runner,
     mock_create_client,
+    tmp_path,
 ) -> None:
     with mock.patch.dict(
         os.environ,
         {"CONTRACT4AGENTS_PROFILE": "missing"},
     ):
-        with runner.isolated_filesystem():
+        with chdir(tmp_path):
             result = runner.invoke(cli, ["create", "Test Topic"])
 
             assert result.exit_code == 1
@@ -121,8 +124,9 @@ def test_cli_create_format_xml(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         result = runner.invoke(
             cli,
             ["create", "Test Topic", "--format", "xml"],
@@ -141,8 +145,9 @@ def test_cli_create_multiple_formats(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         result = runner.invoke(
             cli,
             [
@@ -167,8 +172,9 @@ def test_cli_create_output_path_override(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         # Provide base path, ignoring extension
         result = runner.invoke(
             cli,
@@ -189,8 +195,9 @@ def test_cli_create_with_library_writes_outputs_and_library(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         result = runner.invoke(
             cli,
             [
@@ -219,8 +226,9 @@ def test_cli_create_html_format_creates_directory(
     runner,
     mock_build_compendium,
     mock_create_client,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         result = runner.invoke(
             cli,
             ["create", "Test Topic", "--format", "html"],
@@ -242,6 +250,7 @@ def test_cli_create_html_format_creates_directory(
 def test_cli_recover_uses_research_sidecar(
     runner,
     mock_create_client,
+    tmp_path,
 ):
     from compendiumscribe.research.agents_workflow import ResearchRunState
 
@@ -265,7 +274,7 @@ def test_cli_recover_uses_research_sidecar(
         ).to_okf_bundle()
         mock_recover.return_value = compendium
 
-        with runner.isolated_filesystem():
+        with chdir(tmp_path):
             state = ResearchRunState(
                 topic="Recovered",
                 title="Recovered",
@@ -296,6 +305,7 @@ def test_cli_recover_uses_research_sidecar(
 def test_cli_recover_research_failure_exits_nonzero(
     runner,
     mock_create_client,
+    tmp_path,
 ):
     from compendiumscribe.research.agents_workflow import ResearchRunState
 
@@ -303,7 +313,7 @@ def test_cli_recover_research_failure_exits_nonzero(
         "compendiumscribe.cli.recover_compendium",
         side_effect=DeepResearchError("Source coverage failed."),
     ):
-        with runner.isolated_filesystem():
+        with chdir(tmp_path):
             state = ResearchRunState(
                 topic="Recovered",
                 title="Recovered",
@@ -327,8 +337,9 @@ def test_cli_recover_research_failure_exits_nonzero(
 
 def test_cli_library_import_converts_xml_to_okf(
     runner,
+    tmp_path,
 ):
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         xml_path = Path("existing.xml")
         xml_path.write_text(
             """<compendium topic="Imported Topic">
@@ -464,10 +475,11 @@ def test_cli_rejects_removed_markdown_format(runner) -> None:
 def test_cli_recovery_rejects_removed_markdown_state(
     runner,
     mock_create_client,
+    tmp_path,
 ) -> None:
     from compendiumscribe.research.agents_workflow import ResearchRunState
 
-    with runner.isolated_filesystem():
+    with chdir(tmp_path):
         state = ResearchRunState(topic="Legacy", output_formats=["md"])
         state_path = Path("legacy.research.json")
         state_path.write_text(

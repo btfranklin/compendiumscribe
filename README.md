@@ -11,14 +11,14 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 ## Features
 
 - **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
-- **Packaged agent definitions** - Materializes the complete Agents SDK graph from versioned agent instructions, capability grants, output types, and runtime configuration.
+- **Packaged agent definitions** - Materializes the complete Agents SDK graph from agent instructions, capability grants, output types, and runtime configuration.
 - **Generated portable models** - Generates the Pydantic models used by the application from the canonical contract types.
 - **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
-- **Auditable research traces** - Writes attempt-aware normalized trace evidence and exact-frontier capture checkpoints, then verifies required controls and workflow stages before rendering.
+- **Research trace evidence** - Records attempts, provider outcomes, token use, and exact trace checkpoints. It checks controls and workflow stages before rendering.
 - **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls outside an agent's declared grants.
-- **Recoverable sidecars** - Atomically writes `<base>.research.json` after accepted artifacts, `<base>.research.trace.jsonl` for normalized events, and `<base>.research.trace-closure.json` for instrumentation-closure evidence, alongside `<base>.costs.json` usage/cost telemetry.
+- **Recoverable sidecars** - Writes research state, trace events, trace-closure evidence, usage, and cost data to separate local files.
 - **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.6 Sol, GPT-5.5, and GPT-5.4 family token rates, long-context uplifts where applicable, and built-in tool call pricing when usage metadata is available.
 - **Strict OKF output** - Writes typed, linked Markdown concepts with safe YAML frontmatter and deterministic validation.
 - **Compendium Library publishing** - Publishes self-contained OKF compendium trees into a movable, progressively disclosed OKF library.

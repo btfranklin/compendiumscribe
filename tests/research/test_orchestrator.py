@@ -96,7 +96,19 @@ class StubAgentRunner:
         output = self._output_for(name, input_payload)
         return AgentRunResult(
             final_output=output,
-            raw_result=SimpleNamespace(raw_responses=[response]),
+            raw_result=SimpleNamespace(
+                raw_responses=[response],
+                context_wrapper=SimpleNamespace(
+                    usage=SimpleNamespace(
+                        requests=1,
+                        input_tokens=100,
+                        input_tokens_details=SimpleNamespace(cached_tokens=10),
+                        output_tokens=40,
+                        output_tokens_details=SimpleNamespace(reasoning_tokens=5),
+                        total_tokens=140,
+                    )
+                ),
+            ),
         )
 
     def _output_for(self, name: str, input_payload: str) -> Any:
@@ -141,6 +153,12 @@ def sample_plan() -> ResearchPlan:
                 title="Applications",
                 focus="Commercial deployments.",
                 guiding_questions=["Where is it used?"],
+            ),
+            ResearchSection(
+                id="risks",
+                title="Risks",
+                focus="Technical and operational limits.",
+                guiding_questions=["What limits adoption?"],
             ),
         ],
         research_questions=["What evidence supports adoption?"],
@@ -268,7 +286,11 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     state = load_state(state_path)
     assert state.plan is not None
     assert state.agenda is not None
-    assert set(state.section_briefs) == {"foundations", "applications"}
+    assert set(state.section_briefs) == {
+        "foundations",
+        "applications",
+        "risks",
+    }
     assert state.ledger.entries[0].id == "C01"
     assert state.final_payload is not None
     assert state.config_snapshot["contract4agents_profile"] == "production"
@@ -282,16 +304,34 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert state.run_spec_selection["evidence_refs"]
     assert state.run_spec_result is not None
     assert state.run_spec_result["status"] == "passed"
-    assert len(state.agent_stages) == 6
+    assert len(state.agent_stages) == 7
     trace_path = _contract_trace_path(state_path)
     assert trace_path.exists()
     loaded_trace = load_trace_jsonl(trace_path)
+    closure = _load_trace_closure(state_path)
     _evaluate_contract_run(
         build_research_agent_team(ResearchConfig()),
         loaded_trace,
-        _load_trace_closure(state_path),
+        closure,
         state,
     )
+    outcomes = [
+        event.data["evidence"]
+        for event in loaded_trace.events
+        if event.event_type == "provider.outcome.reported"
+    ]
+    usage = [
+        event.data["evidence"]
+        for event in loaded_trace.events
+        if event.event_type == "provider.usage.reported"
+    ]
+    assert len(outcomes) == 7
+    assert {item["outcome"] for item in outcomes} == {"succeeded"}
+    assert len(usage) == 7
+    assert {item["coverage"] for item in usage} == {"complete"}
+    assert {item["total_tokens"] for item in usage} == {140}
+    assert {item.outcome_status for item in closure.attempts} == {"complete"}
+    assert {item.usage_status for item in closure.attempts} == {"complete"}
     observed_grants = {
         (
             str(event.semantic.agent_id),
@@ -326,6 +366,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert [name for name, _ in runner.calls] == [
         "PlannerAgent",
         "ResearchManagerAgent",
+        "SectionResearchAgent",
         "SectionResearchAgent",
         "SectionResearchAgent",
         "VerifierAgent",
@@ -408,7 +449,12 @@ def test_verifier_follow_up_reruns_only_targeted_section_once(
         for name, payload in runner.calls
         if name == "SectionResearchAgent"
     ]
-    assert section_calls == ["foundations", "applications", "applications"]
+    assert section_calls == [
+        "foundations",
+        "applications",
+        "risks",
+        "applications",
+    ]
 
 
 def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
@@ -537,7 +583,12 @@ def test_second_verifier_failure_does_not_repeat_follow_up_on_recovery(
         for name, payload in runner.calls
         if name == "SectionResearchAgent"
     ]
-    assert section_calls == ["foundations", "applications", "applications"]
+    assert section_calls == [
+        "foundations",
+        "applications",
+        "risks",
+        "applications",
+    ]
     assert [name for name, _ in runner.calls].count("VerifierAgent") == 3
     assert [name for name, _ in runner.calls].count("SynthesisAgent") == 1
 
@@ -690,7 +741,7 @@ def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
 
     assert [name for name, _ in second_runner.calls] == ["SynthesisAgent"]
     trace_lines = trace_path.read_text(encoding="utf-8")
-    assert trace_lines.count('"event_type":"agent.completed"') == 6
+    assert trace_lines.count('"event_type":"agent.completed"') == 7
 
 
 def test_completed_recovery_reassesses_matching_trace_without_agent_calls(
@@ -1425,10 +1476,10 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
     )
 
     costs = json.loads((tmp_path / "report.costs.json").read_text())
-    assert len(costs["steps"]) == 6
+    assert len(costs["steps"]) == 7
     assert {step["model"] for step in costs["steps"]} == {"gpt-5.6-sol"}
-    assert costs["totals"]["input_tokens"] == 600
-    assert costs["totals"]["tool_calls"]["web_search_call"] == 4
+    assert costs["totals"]["input_tokens"] == 700
+    assert costs["totals"]["tool_calls"]["web_search_call"] == 5
     phases = [event.phase for event in captured]
     assert "planning" in phases
     assert "research_agenda" in phases

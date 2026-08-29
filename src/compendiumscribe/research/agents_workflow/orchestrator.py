@@ -641,8 +641,8 @@ async def _run_structured_agent(
             continue
 
         raw_result = getattr(result, "raw_result", result)
-        response_events = trace.normalize_response_events(
-            list(getattr(raw_result, "raw_responses", []) or []),
+        response_events = trace.record_result(
+            raw_result,
             agent_name=agent_name,
             attempt=attempt,
         )
