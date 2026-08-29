@@ -14,6 +14,7 @@ import mistune
 import yaml
 
 from .entities import Citation, Insight, Section
+from .source_metadata import normalize_accessed_at, normalize_revision
 from .text_utils import slugify
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle guard
@@ -180,6 +181,8 @@ def parse_okf_bundle(path: Path) -> Compendium:
                 url=str(fields.get("resource") or ""),
                 publisher=_optional_string(fields.get("publisher")),
                 published_at=_optional_string(fields.get("published_at")),
+                revision=_optional_string(fields.get("revision")),
+                accessed_at=_optional_string(fields.get("accessed_at")),
                 summary=_optional_string(
                     _decode_block(source_sections.get("Summary", ""))
                 ),
@@ -472,6 +475,7 @@ def validate_okf_mapping(
             _validate_profile_frontmatter(path, fields, issues)
             _require_exact(fields, path, "type", "Source", issues)
             _require_value(fields, path, "resource", issues)
+            _validate_source_metadata(path, fields, issues)
             _validate_body_headings(
                 path,
                 concept.body,
@@ -685,6 +689,10 @@ def _render_source_document(
         frontmatter["publisher"] = citation.publisher
     if citation.published_at:
         frontmatter["published_at"] = citation.published_at
+    if citation.revision:
+        frontmatter["revision"] = citation.revision
+    if citation.accessed_at:
+        frontmatter["accessed_at"] = citation.accessed_at
 
     citation_link = (
         f"[{_encode_link_label(citation.title)}]"
@@ -1067,6 +1075,35 @@ def _validate_profile_frontmatter(
 ) -> None:
     for name in ("id", "title", "timestamp"):
         _require_value(fields, path, name, issues)
+
+
+def _validate_source_metadata(
+    path: str,
+    fields: Mapping[str, Any],
+    issues: list[ValidationIssue],
+) -> None:
+    if "revision" in fields:
+        try:
+            normalize_revision(fields["revision"])
+        except ValueError:
+            issues.append(
+                ValidationIssue(
+                    path,
+                    "invalid_revision",
+                    "Source revision must be a non-empty string.",
+                )
+            )
+    if "accessed_at" in fields:
+        try:
+            normalize_accessed_at(fields["accessed_at"])
+        except ValueError:
+            issues.append(
+                ValidationIssue(
+                    path,
+                    "invalid_accessed_at",
+                    "Source accessed_at must be a timezone-aware ISO 8601 timestamp.",
+                )
+            )
 
 
 def _validate_body_headings(

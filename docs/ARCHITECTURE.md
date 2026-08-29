@@ -15,15 +15,17 @@ Compendium Scribe has four main surfaces:
 2. `ResearchManagerAgent` uses hosted web search to produce a `ResearchAgenda`.
 3. `SectionResearchAgent` runs sequentially once per agenda section.
 4. The application builds a `SourceLedger` from section sources and finding URLs.
-5. `VerifierAgent` checks source coverage and may request one targeted follow-up pass. Only an `accepted` terminal report permits synthesis.
-6. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
-   Before each root agent run, the materialization result validates the complete
-   contract input and serializes it for the SDK runner.
-7. One Contract4Agents OpenAI trace router receives Agents SDK spans. Each research run opens a separate trace session. Each SDK call has an explicit attempt identity. The session records response checks, provider outcomes, and token use. It keeps raw responses from SDK exceptions. An unsupported, unknown, or ambiguous hosted call stops the run. Session close removes its router mappings. It does not create a false completion event when an SDK trace has no end event.
-8. The deterministic host owns retries, recovery, stage order and cardinality, the one-follow-up limit, terminal business decisions, and ledger-backed citation IDs. Stable invocation IDs and ordered retry attempts remain durable in host state and trace evidence. SDK exceptions and schema-invalid outputs receive five total attempts across the initial run and recovery; the fifth failure is terminal. Contract violations remain immediately terminal.
-9. Contract4Agents assesses controls and the declared `CompendiumResearch` run specification separately. Conditional controls evaluate `when` before `require` and retain `applicable`, `not_applicable`, or `unverified` applicability. Run-spec observations come from the host's accepted stage ledger and must link to trace events carrying semantic agent identity.
-10. `prepare_compendium_payload()` hydrates final citation metadata from the ledger.
-11. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
+5. `VerifierAgent` checks source coverage without web search. Warnings do not block publication. It classifies blocking issues as repair, research, or fatal.
+6. `EvidenceRepairAgent` can revise affected content from saved evidence. It cannot search, add sources, or change source metadata.
+7. If new evidence is required, the host saves the issue set and stops before search. `compendium recover --allow-paid-follow-up` authorizes one `TargetedResearchAgent` call for that saved issue set.
+8. The application rebuilds the ledger after repair. One final verifier either accepts the evidence or stops the run. Only an accepted report permits synthesis.
+9. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
+10. Before each root agent run, the materialization result validates the complete contract input and serializes it for the SDK runner.
+11. One Contract4Agents OpenAI trace router receives Agents SDK spans. Each research run opens a separate trace session. Each SDK call has an explicit attempt identity. The session records response checks, provider outcomes, and token use. It keeps raw responses from SDK exceptions. An unsupported, unknown, or ambiguous hosted call stops the run. Session close removes its router mappings. It does not create a false completion event when an SDK trace has no end event.
+12. The deterministic host owns retries, recovery, stage order and cardinality, the repair limits, paid-search approval, terminal business decisions, and ledger-backed citation IDs. Stable invocation IDs and ordered retry attempts remain durable in host state and trace evidence. Paid search agents receive two total attempts. No-search agents receive three total attempts. Contract violations remain immediately terminal.
+13. Contract4Agents assesses controls and the declared `CompendiumResearch` run specification separately. Conditional controls evaluate `when` before `require` and retain `applicable`, `not_applicable`, or `unverified` applicability. Run-spec observations come from the host's accepted stage ledger and must link to trace events carrying semantic agent identity.
+14. `prepare_compendium_payload()` hydrates final citation metadata from the ledger, including publication, revision, and access metadata.
+15. `Compendium.from_payload()` converts the stable payload into the renderer-facing dataclasses.
 
 The workflow atomically persists `<base>.research.json` after accepted artifacts, atomically replaces `<base>.research.trace.jsonl` as normalized trace evidence grows, and checkpoints matching exact-frontier closure evidence to `<base>.research.trace-closure.json` before provider execution, after retry evidence, after accepted stages and terminal selection, and when the logical session closes. It records usage in `<base>.costs.json` when SDK usage metadata is available. A successful attempt is terminally selected only after its accepted stage record is durable; recovery reconciles the narrow state-before-selection crash window and writes a fresh frontier checkpoint. Progressed state requires matching trace and closure evidence during recovery, and completed recovery reruns both control and run-spec assurance before rendering.
 
@@ -66,6 +68,7 @@ numeric suffix such as `-2`.
 - Compendium Scribe assesses required controls and the selected run specification before rendering, but does not emit a Contract4Agents assurance bundle. Bundle creation remains deferred until a release-review, incident, compliance, or other concrete consumer needs that portable artifact.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
+- `published_at` stores the source publication date. `revision` stores a commit SHA, tag, or document version. `accessed_at` stores the timezone-aware access time.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.
 - `compendium/okf.py` owns the strict profile, deterministic rendering/parsing, validation, and staged standalone bundle writes.
 - `library/storage.py` owns nested OKF Library initialization, discovery, validation, import, subtree replacement, and index generation.
@@ -81,5 +84,3 @@ numeric suffix such as `-2`.
 ## Current Research Path
 
 There is one runnable research path: the bounded Agents SDK workflow described above. Keep new orchestration work aligned with the runner adapter, state sidecar, source ledger, and committed named profiles.
-
-Progressed `v0.6.x` research sidecars have no identity-bound closure manifest and must be restarted. Progressed `v0.7.0` sidecars use the pre-freeze Contract4Agents 0.12.1 formats, while unreleased 0.11 sidecars use an earlier incompatible evidence shape. Contract4Agents 0.12.2 intentionally rejects both; restart the run rather than inferring, migrating, or rewriting its evidence.

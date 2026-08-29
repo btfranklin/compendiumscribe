@@ -178,8 +178,46 @@ def render_pdf(compendium: Compendium) -> bytes:
                 link=citation.url,
             )
             pdf.set_text_color(0, 0, 0)
+            if citation.publisher:
+                pdf.multi_cell(
+                    0,
+                    6,
+                    f"Publisher: {citation.publisher}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
+            if citation.published_at:
+                pdf.multi_cell(
+                    0,
+                    6,
+                    f"Published: {citation.published_at}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
+            if citation.revision:
+                pdf.multi_cell(
+                    0,
+                    6,
+                    f"Revision: {citation.revision}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
+            if citation.accessed_at:
+                pdf.multi_cell(
+                    0,
+                    6,
+                    f"Accessed: {citation.accessed_at}",
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
             if citation.summary:
-                pdf.multi_cell(0, 6, citation.summary)
+                pdf.multi_cell(
+                    0,
+                    6,
+                    citation.summary,
+                    new_x=XPos.LMARGIN,
+                    new_y=YPos.NEXT,
+                )
             pdf.ln(2)
 
     # Open Questions

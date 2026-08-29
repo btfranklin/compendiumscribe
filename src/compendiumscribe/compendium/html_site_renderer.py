@@ -267,13 +267,26 @@ def _render_citations_page(compendium: "Compendium") -> str:
                 )
             else:
                 parts.append(f"        <p>{escaped_url}</p>")
-            details: list[str] = []
             if citation.publisher:
-                details.append(html.escape(citation.publisher))
+                parts.append(
+                    "        <p><strong>Publisher:</strong> "
+                    f"{html.escape(citation.publisher)}</p>"
+                )
             if citation.published_at:
-                details.append(html.escape(citation.published_at))
-            if details:
-                parts.append(f"        <p>{' · '.join(details)}</p>")
+                parts.append(
+                    "        <p><strong>Published:</strong> "
+                    f"{html.escape(citation.published_at)}</p>"
+                )
+            if citation.revision:
+                parts.append(
+                    "        <p><strong>Revision:</strong> "
+                    f"{html.escape(citation.revision)}</p>"
+                )
+            if citation.accessed_at:
+                parts.append(
+                    "        <p><strong>Accessed:</strong> "
+                    f"{html.escape(citation.accessed_at)}</p>"
+                )
             if citation.summary:
                 parts.append(
                     f"        <p>{format_html_text(citation.summary)}</p>"

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
+import zlib
+
+import pytest
 
 from compendiumscribe.compendium import (
     Citation,
@@ -48,6 +52,8 @@ def test_compendium_to_xml_contains_expected_structure():
                 url="https://example.com/qec",
                 publisher="ACM",
                 published_at="2023-04-01",
+                revision="v2",
+                accessed_at="2026-08-29T12:00:00-07:00",
                 summary=(
                     "Overview of leading quantum error correction"
                     " strategies."
@@ -67,6 +73,10 @@ def test_compendium_to_xml_contains_expected_structure():
     assert (
         root.find("citations/citation/title").text
         == "A Survey on Quantum Error Correction"
+    )
+    assert root.findtext("citations/citation/revision") == "v2"
+    assert root.findtext("citations/citation/accessed_at") == (
+        "2026-08-29T12:00:00-07:00"
     )
 
     lines = xml_string.splitlines()
@@ -88,6 +98,55 @@ def test_compendium_pdf_export():
     pdf_bytes = compendium.to_pdf_bytes()
     assert pdf_bytes.startswith(b"%PDF-")
     assert pdf_bytes.rstrip().endswith(b"%%EOF")
+
+
+def test_compendium_pdf_labels_source_metadata() -> None:
+    compendium = Compendium(
+        topic="Source metadata",
+        overview="Metadata labels.",
+        citations=[
+            Citation(
+                identifier="C1",
+                title="Source",
+                url="https://example.com/source",
+                revision="abc123",
+                accessed_at="2026-08-29T12:00:00-07:00",
+            )
+        ],
+    )
+
+    pdf_bytes = compendium.to_pdf_bytes()
+    streams = re.findall(
+        rb"stream\r?\n(.*?)\r?\nendstream",
+        pdf_bytes,
+        flags=re.DOTALL,
+    )
+    content = b"\n".join(zlib.decompress(stream) for stream in streams)
+
+    assert b"Revision: abc123" in content
+    assert b"Accessed: 2026-08-29T12:00:00-07:00" in content
+
+
+@pytest.mark.parametrize(
+    ("revision", "accessed_at"),
+    [
+        ("", None),
+        (None, "2026-08-29T12:00:00"),
+        (None, "not-a-time"),
+    ],
+)
+def test_citation_rejects_invalid_source_metadata(
+    revision: str | None,
+    accessed_at: str | None,
+) -> None:
+    with pytest.raises(ValueError):
+        Citation(
+            identifier="C1",
+            title="Source",
+            url="https://example.com/source",
+            revision=revision,
+            accessed_at=accessed_at,
+        )
 
 
 def test_inline_links_render_per_format():
@@ -174,6 +233,8 @@ def test_compendium_from_payload_normalizes_fields():
                 "url": "https://example.com/pitchbook",
                 "publisher": "PitchBook",
                 "published_at": "2024-01-15",
+                "revision": "edition-3",
+                "accessed_at": "2026-08-29T19:00:00Z",
                 "summary": "Investment trends across quantum startups.",
             }
         ],
@@ -186,6 +247,8 @@ def test_compendium_from_payload_normalizes_fields():
     assert compendium.methodology[0] == "Collect expert commentary"
     assert compendium.sections[0].insights[0].citation_refs == ["C1"]
     assert compendium.citations[0].publisher == "PitchBook"
+    assert compendium.citations[0].revision == "edition-3"
+    assert compendium.citations[0].accessed_at == "2026-08-29T19:00:00Z"
     assert compendium.open_questions == [
         "How will regulation shape deployment?"
     ]

@@ -83,6 +83,10 @@ def build_from_payload(
                 published_at=(
                     (citation.get("published_at") or "").strip() or None
                 ),
+                revision=_strict_optional_string(citation.get("revision")),
+                accessed_at=_strict_optional_string(
+                    citation.get("accessed_at")
+                ),
                 summary=(
                     (citation.get("summary") or "").strip() or None
                 ),
@@ -102,6 +106,14 @@ def build_from_payload(
         open_questions=open_questions,
         generated_at=generated_at or datetime.now(timezone.utc),
     )
+
+
+def _strict_optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("Source metadata values must be strings.")
+    return value.strip()
 
 
 __all__ = ["build_from_payload"]

@@ -12,11 +12,19 @@ enum VerificationSeverity:
     "warning"
     "error"
 
+enum VerificationResolution:
+    "none"
+    "repair"
+    "research"
+    "fatal"
+
 type ResearchSource:
     title: string(min_length=1)
     url: string(min_length=1)
     publisher: string?
     published_at: string?
+    revision: string?
+    accessed_at: string?
     summary: string?
     credibility_notes: string?
     status: ResearchSourceStatus
@@ -63,6 +71,8 @@ type SourceLedgerEntry:
     url: string(min_length=1)
     publisher: string?
     published_at: string?
+    revision: string?
+    accessed_at: string?
     summary: string?
     credibility_notes: string?
     status: ResearchSourceStatus
@@ -73,15 +83,35 @@ type SourceLedger:
 
 type VerificationIssue:
     section_id: string?
+    code: string(min_length=1)
     message: string(min_length=1)
     severity: VerificationSeverity
-    suggested_follow_up: string?
+    resolution: VerificationResolution
+    required_change: string(min_length=1)
 
 type VerificationReport:
     status: VerificationStatus
     issues: list[VerificationIssue]
-    follow_up_section_ids: list[string]
     notes: string?
+
+type SectionContentRevision:
+    section_id: string(min_length=1)
+    summary: string(min_length=1)
+    findings: list[SectionFinding]
+    open_questions: list[string]
+
+type EvidenceRepairResult:
+    revisions: list[SectionContentRevision](min_items=1)
+
+type TargetedSectionRevision:
+    section_id: string(min_length=1)
+    summary: string(min_length=1)
+    findings: list[SectionFinding]
+    sources: list[ResearchSource]
+    open_questions: list[string]
+
+type TargetedResearchResult:
+    revisions: list[TargetedSectionRevision](min_items=1)
 
 type InsightPayload:
     title: string(min_length=1)
@@ -103,6 +133,8 @@ type CitationPayload:
     url: string(min_length=1)
     publisher: string?
     published_at: string?
+    revision: string?
+    accessed_at: string?
     summary: string?
 
 type CompendiumPayload:
@@ -131,8 +163,15 @@ type SectionResearchInput:
     section: ResearchSection
     plan: ResearchPlan
     agenda: ResearchAgenda
-    previous_brief: SectionResearchBrief?
-    verification: VerificationReport?
+
+type EvidenceRepairInput:
+    affected_briefs: list[SectionResearchBrief](min_items=1)
+    issues: list[VerificationIssue](min_items=1)
+
+type TargetedResearchInput:
+    topic: string(min_length=1)
+    affected_briefs: list[SectionResearchBrief](min_items=1)
+    issues: list[VerificationIssue](min_items=1)
 
 type VerificationInput:
     topic: string(min_length=1)
@@ -140,7 +179,7 @@ type VerificationInput:
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]
     source_ledger: SourceLedger
-    follow_up_available: boolean
+    final_verification: boolean
 
 type SynthesisInput:
     topic: string(min_length=1)

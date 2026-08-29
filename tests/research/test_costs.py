@@ -111,13 +111,14 @@ def test_cost_tracker_persists_steps_and_totals(tmp_path: Path) -> None:
         cached_input_per_1m_usd=0.5,
         output_per_1m_usd=2.0,
         tool_call_prices_per_1k_usd={"web_search_call": 10.0},
+        last_updated_utc="2026-08-29T00:00:00Z",
     )
     tracker = CostTracker(path=path, pricing=pricing)
 
     first = tracker.record_step(
         phase="planning",
         request_id="resp_1",
-        model="gpt-5.2",
+        model="gpt-5.6-terra",
         usage=TokenUsage(
             input_tokens=100_000,
             cached_input_tokens=20_000,
@@ -131,7 +132,7 @@ def test_cost_tracker_persists_steps_and_totals(tmp_path: Path) -> None:
     second = tracker.record_step(
         phase="section_research",
         request_id="resp_2",
-        model="gpt-5.2",
+        model="gpt-5.6-terra",
         usage=TokenUsage(
             input_tokens=50_000,
             cached_input_tokens=0,
@@ -146,6 +147,14 @@ def test_cost_tracker_persists_steps_and_totals(tmp_path: Path) -> None:
     assert payload["schema_version"] == COSTS_SCHEMA_VERSION
     assert len(payload["steps"]) == 2
     assert payload["totals"]["tool_calls"]["web_search_call"] == 3
+    assert (
+        payload["default_pricing"]["last_updated_utc"]
+        == "2026-08-29T00:00:00Z"
+    )
+    assert (
+        payload["steps"][0]["pricing"]["last_updated_utc"]
+        == "2026-08-29T00:00:00Z"
+    )
 
 
 def test_cost_tracker_records_applied_long_context_rate(tmp_path: Path) -> None:
@@ -166,7 +175,7 @@ def test_cost_tracker_records_applied_long_context_rate(tmp_path: Path) -> None:
     tracker.record_step(
         phase="section_research",
         request_id="resp_long",
-        model="gpt-5.4",
+        model="gpt-5.6-sol",
         usage=TokenUsage(input_tokens=300_000, output_tokens=1_000),
     )
 
@@ -187,12 +196,12 @@ def test_cost_tracker_record_response_uses_model_resolver(tmp_path: Path) -> Non
         input_per_1m_usd=2.0,
         cached_input_per_1m_usd=0.5,
         output_per_1m_usd=8.0,
-        requested_model="gpt-5.2",
-        resolved_model="gpt-5.2",
+        requested_model="gpt-5.6-terra",
+        resolved_model="gpt-5.6-terra",
     )
 
     def resolver(model: str) -> CostPricing | None:
-        if model == "gpt-5.2":
+        if model == "gpt-5.6-terra":
             return resolved_pricing
         return None
 
@@ -204,7 +213,7 @@ def test_cost_tracker_record_response_uses_model_resolver(tmp_path: Path) -> Non
 
     response = SimpleNamespace(
         id="resp_123",
-        model="gpt-5.2",
+        model="gpt-5.6-terra",
         usage={
             "input_tokens": 100,
             "input_tokens_details": {"cached_tokens": 0},
@@ -219,4 +228,4 @@ def test_cost_tracker_record_response_uses_model_resolver(tmp_path: Path) -> Non
     assert step is not None
     assert step.estimated_cost_usd is not None
     payload = json.loads(path.read_text(encoding="utf-8"))
-    assert payload["steps"][0]["pricing"]["resolved_model"] == "gpt-5.2"
+    assert payload["steps"][0]["pricing"]["resolved_model"] == "gpt-5.6-terra"

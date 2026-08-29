@@ -81,7 +81,6 @@ def _selected_profile_agent_model(
         raise _unknown_profile_error(profile)
     agent_profile = selected.agents.get(agent_name)
     model = agent_profile.model if agent_profile is not None else None
-    model = model or selected.default_model
     if not model:
         raise RuntimeError(
             f"Contract4Agents profile {profile!r} has no model for {agent_name}."

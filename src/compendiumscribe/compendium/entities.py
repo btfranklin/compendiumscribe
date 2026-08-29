@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import xml.etree.ElementTree as ET
 
+from .source_metadata import normalize_accessed_at, normalize_revision
+
 
 @dataclass
 class Citation:
@@ -14,6 +16,12 @@ class Citation:
     publisher: str | None = None
     published_at: str | None = None
     summary: str | None = None
+    revision: str | None = None
+    accessed_at: str | None = None
+
+    def __post_init__(self) -> None:
+        self.revision = normalize_revision(self.revision)
+        self.accessed_at = normalize_accessed_at(self.accessed_at)
 
     def to_xml(self) -> ET.Element:
         citation_elem = ET.Element("citation", attrib={"id": self.identifier})
@@ -27,6 +35,12 @@ class Citation:
         if self.published_at:
             published_elem = ET.SubElement(citation_elem, "published_at")
             published_elem.text = self.published_at
+        if self.revision:
+            revision_elem = ET.SubElement(citation_elem, "revision")
+            revision_elem.text = self.revision
+        if self.accessed_at:
+            accessed_elem = ET.SubElement(citation_elem, "accessed_at")
+            accessed_elem.text = self.accessed_at
         if self.summary:
             summary_elem = ET.SubElement(citation_elem, "summary")
             summary_elem.text = self.summary

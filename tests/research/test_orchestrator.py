@@ -20,10 +20,12 @@ from contract4agents.tracing import (
 from pydantic import ValidationError
 from compendiumscribe.agent_contracts.generated.python import (
     CompendiumPayload,
+    EvidenceRepairResult,
     ResearchAgenda,
     ResearchPlan,
     ResearchSection,
     SectionResearchBrief,
+    TargetedResearchResult,
     VerificationIssue,
     VerificationReport,
 )
@@ -45,6 +47,7 @@ from compendiumscribe.research.costs import CostPricing, CostTracker
 from compendiumscribe.research.errors import (
     DeepResearchError,
     MissingConfigurationError,
+    ResearchApprovalRequired,
 )
 from compendiumscribe.research.orchestrator import (
     build_compendium,
@@ -60,7 +63,12 @@ class StubAgentRunner:
         final_payload: CompendiumPayload | None = None,
     ) -> None:
         self.calls: list[tuple[str, str]] = []
-        self.verification_reports = verification_reports or [accepted_report()]
+        self.turn_limits: list[tuple[str, int]] = []
+        self.verification_reports = (
+            [accepted_report()]
+            if verification_reports is None
+            else list(verification_reports)
+        )
         self.final_payload = final_payload or sample_payload()
 
     async def run(
@@ -72,6 +80,7 @@ class StubAgentRunner:
     ) -> AgentRunResult:
         name = agent.name
         self.calls.append((name, input_payload))
+        self.turn_limits.append((name, max_turns))
         index = len(self.calls)
         response = SimpleNamespace(
             response_id=f"resp_{index}",
@@ -88,7 +97,7 @@ class StubAgentRunner:
                 in {
                     "ResearchManagerAgent",
                     "SectionResearchAgent",
-                    "VerifierAgent",
+                    "TargetedResearchAgent",
                 }
                 else []
             ),
@@ -119,6 +128,33 @@ class StubAgentRunner:
         if name == "SectionResearchAgent":
             payload = json.loads(input_payload)["request"]
             return sample_brief(payload["section"]["id"])
+        if name == "EvidenceRepairAgent":
+            payload = json.loads(input_payload)["request"]
+            return EvidenceRepairResult(
+                revisions=[
+                    {
+                        "section_id": brief["section_id"],
+                        "summary": f"Repaired {brief['summary']}",
+                        "findings": brief["findings"],
+                        "open_questions": brief["open_questions"],
+                    }
+                    for brief in payload["affected_briefs"]
+                ]
+            )
+        if name == "TargetedResearchAgent":
+            payload = json.loads(input_payload)["request"]
+            return TargetedResearchResult(
+                revisions=[
+                    {
+                        "section_id": brief["section_id"],
+                        "summary": f"Researched {brief['summary']}",
+                        "findings": brief["findings"],
+                        "sources": brief["sources"],
+                        "open_questions": brief["open_questions"],
+                    }
+                    for brief in payload["affected_briefs"]
+                ]
+            )
         if name == "VerifierAgent":
             return self.verification_reports.pop(0)
         if name == "SynthesisAgent":
@@ -244,26 +280,62 @@ def accepted_report() -> VerificationReport:
     return VerificationReport(
         status="accepted",
         issues=[],
-        follow_up_section_ids=[],
         notes=None,
     )
 
 
-def follow_up_report(
+def repair_report(
     *section_ids: str,
-    message: str = "Needs follow-up.",
+    message: str = "Needs repair.",
 ) -> VerificationReport:
     return VerificationReport(
         status="follow_up",
         issues=[
             VerificationIssue(
-                section_id=section_ids[0] if section_ids else None,
+                section_id=section_id,
+                code=f"repair-{index}",
                 message=message,
-                severity="warning",
-                suggested_follow_up=None,
+                severity="error",
+                resolution="repair",
+                required_change="Correct the unsupported claim.",
+            )
+            for index, section_id in enumerate(section_ids, start=1)
+        ],
+        notes=None,
+    )
+
+
+def research_report(*section_ids: str) -> VerificationReport:
+    return VerificationReport(
+        status="follow_up",
+        issues=[
+            VerificationIssue(
+                section_id=section_id,
+                code=f"research-{index}",
+                message="Needs new evidence.",
+                severity="error",
+                resolution="research",
+                required_change="Find one primary source.",
+            )
+            for index, section_id in enumerate(section_ids, start=1)
+        ],
+        notes=None,
+    )
+
+
+def fatal_report(message: str = "Source coverage failed.") -> VerificationReport:
+    return VerificationReport(
+        status="failed",
+        issues=[
+            VerificationIssue(
+                section_id=None,
+                code="fatal-source-coverage",
+                message=message,
+                severity="error",
+                resolution="fatal",
+                required_change="Stop publication.",
             )
         ],
-        follow_up_section_ids=list(section_ids),
         notes=None,
     )
 
@@ -296,7 +368,10 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert state.config_snapshot["contract4agents_profile"] == "production"
     assert state.config_snapshot["contract_digest"].startswith("sha256:")
     assert state.config_snapshot["plan_digest"].startswith("sha256:")
-    assert set(state.config_snapshot["resolved_models"].values()) == {"gpt-5.6-sol"}
+    assert set(state.config_snapshot["resolved_models"].values()) == {
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+    }
     assert state.run_spec_selection is not None
     assert state.run_spec_selection["run_spec_id"] == (
         "run_spec:CompendiumResearch"
@@ -349,13 +424,8 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
         ),
         (
             "agent:SectionResearchAgent",
-            "tool:research.deep_web_search",
-            "grant:SectionResearchAgent:research.deep_web_search",
-        ),
-        (
-            "agent:VerifierAgent",
             "tool:research.web_search",
-            "grant:VerifierAgent:research.web_search",
+            "grant:SectionResearchAgent:research.web_search",
         ),
     }
     assert {
@@ -377,6 +447,15 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert serialized_inputs[0] == {
         "request": {"topic": "Quantum Computing"}
     }
+    assert runner.turn_limits == [
+        ("PlannerAgent", 2),
+        ("ResearchManagerAgent", 4),
+        ("SectionResearchAgent", 8),
+        ("SectionResearchAgent", 8),
+        ("SectionResearchAgent", 8),
+        ("VerifierAgent", 2),
+        ("SynthesisAgent", 2),
+    ]
 
 
 def test_build_compendium_requires_profile_selection_before_workflow_setup(
@@ -420,24 +499,11 @@ def test_build_compendium_rejects_unknown_profile_as_configuration(
     assert not state_path.exists()
 
 
-def test_verifier_follow_up_reruns_only_targeted_section_once(
-    tmp_path: Path,
-) -> None:
+def test_no_search_repair_changes_only_affected_content(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
     runner = StubAgentRunner(
         verification_reports=[
-            VerificationReport(
-                status="follow_up",
-                follow_up_section_ids=["applications"],
-                notes=None,
-                issues=[
-                    VerificationIssue(
-                        section_id="applications",
-                        message="Needs more source diversity.",
-                        severity="warning",
-                        suggested_follow_up=None,
-                    )
-                ],
-            ),
+            repair_report("applications"),
             accepted_report(),
         ]
     )
@@ -446,40 +512,27 @@ def test_verifier_follow_up_reruns_only_targeted_section_once(
         "Quantum Computing",
         config=ResearchConfig(),
         runner=runner,
-        state_path=tmp_path / "report.research.json",
+        state_path=state_path,
     )
 
-    section_calls = [
-        json.loads(payload)["request"]["section"]["id"]
-        for name, payload in runner.calls
-        if name == "SectionResearchAgent"
-    ]
-    assert section_calls == [
-        "foundations",
-        "applications",
-        "risks",
-        "applications",
-    ]
+    names = [name for name, _ in runner.calls]
+    assert names.count("SectionResearchAgent") == 3
+    assert names.count("EvidenceRepairAgent") == 1
+    assert names.count("VerifierAgent") == 2
+    assert "TargetedResearchAgent" not in names
+    state = load_state(state_path)
+    repaired = state.section_briefs["applications"]
+    assert repaired.summary.startswith("Repaired ")
+    assert repaired.title == "Applications"
+    assert repaired.guiding_questions == []
+    assert repaired.sources[0].title == "Source"
+    assert "evidence_repair" in state.completed_stages
 
 
 def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
     state_path = tmp_path / "report.research.json"
     runner = StubAgentRunner(
-        verification_reports=[
-            VerificationReport(
-                status="failed",
-                issues=[
-                    VerificationIssue(
-                        section_id=None,
-                        message="Source coverage failed.",
-                        severity="error",
-                        suggested_follow_up=None,
-                    )
-                ],
-                follow_up_section_ids=[],
-                notes=None,
-            )
-        ]
+        verification_reports=[fatal_report()]
     )
 
     with pytest.raises(DeepResearchError, match="Source coverage failed"):
@@ -491,21 +544,55 @@ def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
         )
 
     state = load_state(state_path)
-    assert state.verification is not None
-    assert state.verification.status == "failed"
+    assert state.verification_reports[-1].status == "failed"
     assert state.final_payload is None
 
 
-def test_second_follow_up_fails_without_synthesis(tmp_path: Path) -> None:
+def test_warning_does_not_block_synthesis(tmp_path: Path) -> None:
+    warning_report = VerificationReport(
+        status="accepted",
+        issues=[
+            VerificationIssue(
+                section_id="applications",
+                code="minor-wording",
+                message="One sentence could be clearer.",
+                severity="warning",
+                resolution="none",
+                required_change="No change is required.",
+            )
+        ],
+        notes=None,
+    )
+    runner = StubAgentRunner(verification_reports=[warning_report])
+    build_compendium(
+        "Quantum Computing",
+        config=ResearchConfig(),
+        runner=runner,
+        state_path=tmp_path / "report.research.json",
+    )
+    names = [name for name, _ in runner.calls]
+    assert "SynthesisAgent" in names
+    assert "EvidenceRepairAgent" not in names
+    assert "TargetedResearchAgent" not in names
+
+
+def test_mixed_repair_and_research_stops_for_approval_then_recovers(
+    tmp_path: Path,
+) -> None:
     state_path = tmp_path / "report.research.json"
+    mixed_report = VerificationReport(
+        status="follow_up",
+        issues=[
+            repair_report("foundations").issues[0],
+            research_report("applications").issues[0],
+        ],
+        notes=None,
+    )
     runner = StubAgentRunner(
-        verification_reports=[
-            follow_up_report("applications", message="First gap."),
-            follow_up_report("applications", message="Gap remains."),
-        ]
+        verification_reports=[mixed_report]
     )
 
-    with pytest.raises(DeepResearchError, match="bounded follow-up cycle"):
+    with pytest.raises(ResearchApprovalRequired, match="allow-paid-follow-up"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
@@ -513,14 +600,14 @@ def test_second_follow_up_fails_without_synthesis(tmp_path: Path) -> None:
             state_path=state_path,
         )
 
-    assert "SynthesisAgent" not in [name for name, _ in runner.calls]
     state = load_state(state_path)
-    assert state.follow_up_done is True
-    assert state.verification.status == "follow_up"
+    assert "evidence_repair" in state.completed_stages
+    assert "targeted_research" not in state.completed_stages
     assert state.final_payload is None
+    assert "TargetedResearchAgent" not in [name for name, _ in runner.calls]
 
     recovery_runner = StubAgentRunner()
-    with pytest.raises(DeepResearchError, match="bounded follow-up cycle"):
+    with pytest.raises(ResearchApprovalRequired):
         recover_compendium(
             state_path,
             config=ResearchConfig(),
@@ -528,168 +615,125 @@ def test_second_follow_up_fails_without_synthesis(tmp_path: Path) -> None:
         )
     assert recovery_runner.calls == []
 
-
-def test_second_verifier_failure_does_not_repeat_follow_up_on_recovery(
-    tmp_path: Path,
-) -> None:
-    class FlakyVerifierRunner(StubAgentRunner):
-        def __init__(self) -> None:
-            super().__init__(
-                verification_reports=[
-                    follow_up_report("applications"),
-                    accepted_report(),
-                ]
-            )
-            self.verifier_attempts = 0
-
-        async def run(
-            self,
-            agent: Any,
-            input_payload: str,
-            *,
-            max_turns: int,
-        ) -> AgentRunResult:
-            if agent.name == "VerifierAgent":
-                self.verifier_attempts += 1
-                if self.verifier_attempts == 2:
-                    self.calls.append((agent.name, input_payload))
-                    raise WorkflowInterrupted("second verifier outage")
-            return await super().run(
-                agent,
-                input_payload,
-                max_turns=max_turns,
-            )
-
-    state_path = tmp_path / "report.research.json"
-    runner = FlakyVerifierRunner()
-
-    with pytest.raises(WorkflowInterrupted, match="second verifier outage"):
-        build_compendium(
-            "Quantum Computing",
-            config=ResearchConfig(),
-            runner=runner,
-            state_path=state_path,
-        )
-
-    interrupted = load_state(state_path)
-    assert interrupted.follow_up_done is True
-    assert interrupted.verification is None
-    assert "section_follow_up:applications" in interrupted.completed_stages
-
     compendium = recover_compendium(
         state_path,
         config=ResearchConfig(),
-        runner=runner,
+        runner=recovery_runner,
+        allow_paid_follow_up=True,
     )
-
     assert compendium.topic == "Quantum Computing Compendium"
-    section_calls = [
-        json.loads(payload)["request"]["section"]["id"]
-        for name, payload in runner.calls
-        if name == "SectionResearchAgent"
+    recovery_names = [name for name, _ in recovery_runner.calls]
+    assert recovery_names == [
+        "TargetedResearchAgent",
+        "VerifierAgent",
+        "SynthesisAgent",
     ]
-    assert section_calls == [
-        "foundations",
-        "applications",
-        "risks",
-        "applications",
-    ]
-    assert [name for name, _ in runner.calls].count("VerifierAgent") == 3
-    assert [name for name, _ in runner.calls].count("SynthesisAgent") == 1
+    finished = load_state(state_path)
+    assert "targeted_research" in finished.completed_stages
+    assert len(finished.verification_reports) == 2
 
 
-def test_interrupted_multi_section_follow_up_skips_completed_targets(
+def test_no_search_repair_rejects_a_new_source_url(
     tmp_path: Path,
 ) -> None:
-    class FlakyFollowUpRunner(StubAgentRunner):
-        def __init__(self) -> None:
-            super().__init__(
-                verification_reports=[
-                    follow_up_report("foundations", "applications"),
-                    accepted_report(),
+    class NewSourceRepairRunner(StubAgentRunner):
+        def _output_for(self, name: str, input_payload: str) -> Any:
+            output = super()._output_for(name, input_payload)
+            if name == "EvidenceRepairAgent":
+                output.revisions[0].findings[0].source_urls = [
+                    "https://new.example/source"
                 ]
-            )
-            self.failed_application_follow_up = False
+            return output
 
-        async def run(
-            self,
-            agent: Any,
-            input_payload: str,
-            *,
-            max_turns: int,
-        ) -> AgentRunResult:
-            if agent.name == "SectionResearchAgent":
-                payload = json.loads(input_payload)["request"]
-                if (
-                    payload["section"]["id"] == "applications"
-                    and payload["previous_brief"] is not None
-                    and not self.failed_application_follow_up
-                ):
-                    self.failed_application_follow_up = True
-                    self.calls.append((agent.name, input_payload))
-                    raise WorkflowInterrupted("application follow-up outage")
-            return await super().run(
-                agent,
-                input_payload,
-                max_turns=max_turns,
-            )
-
-    state_path = tmp_path / "report.research.json"
-    runner = FlakyFollowUpRunner()
-
-    with pytest.raises(WorkflowInterrupted, match="application follow-up outage"):
-        build_compendium(
-            "Quantum Computing",
-            config=ResearchConfig(),
-            runner=runner,
-            state_path=state_path,
-        )
-
-    interrupted = load_state(state_path)
-    assert interrupted.follow_up_done is False
-    assert "section_follow_up:foundations" in interrupted.completed_stages
-    assert "section_follow_up:applications" not in interrupted.completed_stages
-
-    recover_compendium(
-        state_path,
-        config=ResearchConfig(),
-        runner=runner,
+    runner = NewSourceRepairRunner(
+        verification_reports=[repair_report("applications")]
     )
-
-    follow_up_calls = [
-        json.loads(payload)["request"]["section"]["id"]
-        for name, payload in runner.calls
-        if name == "SectionResearchAgent"
-        and json.loads(payload)["request"]["previous_brief"] is not None
-    ]
-    assert follow_up_calls == ["foundations", "applications", "applications"]
-
-
-@pytest.mark.parametrize(
-    ("section_ids", "message"),
-    [
-        ((), "without any section IDs"),
-        (("missing",), "unknown follow-up section IDs"),
-        (("applications", "applications"), "duplicate follow-up section IDs"),
-    ],
-)
-def test_invalid_follow_up_targets_fail_before_rerun(
-    tmp_path: Path,
-    section_ids: tuple[str, ...],
-    message: str,
-) -> None:
-    runner = StubAgentRunner(verification_reports=[follow_up_report(*section_ids)])
-
-    with pytest.raises(DeepResearchError, match=message):
+    with pytest.raises(ValueError, match="not in the prior brief"):
         build_compendium(
             "Quantum Computing",
             config=ResearchConfig(),
             runner=runner,
             state_path=tmp_path / "report.research.json",
         )
-
-    assert [name for name, _ in runner.calls].count("VerifierAgent") == 1
+    assert [name for name, _ in runner.calls].count("EvidenceRepairAgent") == 3
     assert "SynthesisAgent" not in [name for name, _ in runner.calls]
+
+
+def test_interrupted_targeted_research_recovers_with_next_attempt(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
+    with pytest.raises(ResearchApprovalRequired):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=StubAgentRunner(
+                verification_reports=[research_report("applications")]
+            ),
+            state_path=state_path,
+        )
+
+    class InterruptedTargetedRunner(StubAgentRunner):
+        async def run(
+            self,
+            agent: Any,
+            input_payload: str,
+            *,
+            max_turns: int,
+        ) -> AgentRunResult:
+            if agent.name == "TargetedResearchAgent":
+                self.calls.append((agent.name, input_payload))
+                raise WorkflowInterrupted("targeted research interrupted")
+            return await super().run(
+                agent,
+                input_payload,
+                max_turns=max_turns,
+            )
+
+    with pytest.raises(WorkflowInterrupted, match="targeted research interrupted"):
+        recover_compendium(
+            state_path,
+            config=ResearchConfig(),
+            runner=InterruptedTargetedRunner(),
+            allow_paid_follow_up=True,
+        )
+
+    resumed_runner = StubAgentRunner()
+    recover_compendium(
+        state_path,
+        config=ResearchConfig(),
+        runner=resumed_runner,
+        allow_paid_follow_up=True,
+    )
+    names = [name for name, _ in resumed_runner.calls]
+    assert names == [
+        "TargetedResearchAgent",
+        "VerifierAgent",
+        "SynthesisAgent",
+    ]
+    state = load_state(state_path)
+    invocation_id = f"{state.run_id}:targeted_research"
+    assert state.attempt_counts[invocation_id] == 2
+
+
+def test_final_verification_is_terminal(tmp_path: Path) -> None:
+    runner = StubAgentRunner(
+        verification_reports=[
+            repair_report("applications"),
+            fatal_report("Gap remains."),
+        ]
+    )
+    with pytest.raises(DeepResearchError, match="Final research verification failed"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=tmp_path / "report.research.json",
+        )
+    names = [name for name, _ in runner.calls]
+    assert names.count("EvidenceRepairAgent") == 1
+    assert names.count("VerifierAgent") == 2
+    assert "SynthesisAgent" not in names
 
 
 def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
@@ -1305,7 +1349,7 @@ def test_schema_invalid_attempt_remains_evidence_without_poisoning_retry(
     assert completed_state.run_spec_result["status"] == "passed"
 
 
-def test_runner_exception_fails_out_after_five_attempts(tmp_path: Path) -> None:
+def test_runner_exception_fails_out_after_planner_attempt_limit(tmp_path: Path) -> None:
     class FailingPlannerRunner(StubAgentRunner):
         async def run(
             self,
@@ -1333,18 +1377,18 @@ def test_runner_exception_fails_out_after_five_attempts(tmp_path: Path) -> None:
             state_path=state_path,
         )
 
-    assert len(runner.calls) == 5
+    assert len(runner.calls) == 3
     failed_state = load_state(state_path)
     invocation_id = f"{failed_state.run_id}:planning"
-    assert failed_state.attempt_counts[invocation_id] == 5
+    assert failed_state.attempt_counts[invocation_id] == 3
     trace = load_trace_jsonl(_contract_trace_path(state_path))
     selection = trace.events[-1]
     assert selection.event_type == "attempt.selected"
     assert selection.data["outcome"] == "failed"
-    assert selection.data["attempt"]["number"] == 5
+    assert selection.data["attempt"]["number"] == 3
 
     recovery_runner = StubAgentRunner()
-    with pytest.raises(DeepResearchError, match="failed after 5 attempts"):
+    with pytest.raises(DeepResearchError, match="failed after 3 attempts"):
         recover_compendium(
             state_path,
             config=ResearchConfig(),
@@ -1353,7 +1397,7 @@ def test_runner_exception_fails_out_after_five_attempts(tmp_path: Path) -> None:
     assert recovery_runner.calls == []
 
 
-def test_schema_failure_fails_out_after_five_attempts(tmp_path: Path) -> None:
+def test_schema_failure_fails_out_after_planner_attempt_limit(tmp_path: Path) -> None:
     class InvalidPlannerRunner(StubAgentRunner):
         def _output_for(self, name: str, input_payload: str) -> Any:
             if name == "PlannerAgent":
@@ -1370,15 +1414,15 @@ def test_schema_failure_fails_out_after_five_attempts(tmp_path: Path) -> None:
             state_path=state_path,
         )
 
-    assert len(runner.calls) == 5
+    assert len(runner.calls) == 3
     trace = load_trace_jsonl(_contract_trace_path(state_path))
     assert sum(
         event.event_type == "output.schema_failed" for event in trace.events
-    ) == 5
+    ) == 3
     selection = trace.events[-1]
     assert selection.event_type == "attempt.selected"
     assert selection.data["outcome"] == "failed"
-    assert selection.data["attempt"]["number"] == 5
+    assert selection.data["attempt"]["number"] == 3
 
 
 def test_run_spec_rejects_stage_evidence_without_agent_identity(
@@ -1474,9 +1518,12 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
 
     costs = json.loads((tmp_path / "report.costs.json").read_text())
     assert len(costs["steps"]) == 7
-    assert {step["model"] for step in costs["steps"]} == {"gpt-5.6-sol"}
+    assert {step["model"] for step in costs["steps"]} == {
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+    }
     assert costs["totals"]["input_tokens"] == 700
-    assert costs["totals"]["tool_calls"]["web_search_call"] == 5
+    assert costs["totals"]["tool_calls"]["web_search_call"] == 4
     phases = [event.phase for event in captured]
     assert "planning" in phases
     assert "research_agenda" in phases

@@ -8,6 +8,10 @@ from ...agent_contracts.generated.python import (
     SourceLedger,
     SourceLedgerEntry,
 )
+from ...compendium.source_metadata import (
+    normalize_accessed_at,
+    normalize_revision,
+)
 
 
 def normalize_url(url: str) -> str:
@@ -34,6 +38,8 @@ def build_source_ledger(
 
     for brief in briefs:
         for source in brief.sources:
+            normalize_revision(source.revision)
+            normalize_accessed_at(source.accessed_at)
             if source.status == "rejected":
                 continue
             normalized = normalize_url(source.url)
@@ -79,6 +85,8 @@ def _entry_from_source(
         url=normalize_url(source.url),
         publisher=source.publisher,
         published_at=source.published_at,
+        revision=source.revision,
+        accessed_at=source.accessed_at,
         summary=source.summary,
         credibility_notes=source.credibility_notes,
         status=source.status,

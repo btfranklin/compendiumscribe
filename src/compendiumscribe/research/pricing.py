@@ -1,14 +1,30 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
+import warnings
 import json
 
 from .costs import CostPricing
 
 
 CATALOG_PATH = Path(__file__).resolve().parent / "data" / "pricing.standard.json"
+PRICING_MAX_AGE_DAYS = 90
+
+
+class PricingCatalogWarning(UserWarning):
+    """Warn that pricing estimates use missing, invalid, or old rates."""
+
+
+_catalog_warning_lock = Lock()
+_catalog_freshness_checked = False
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 @dataclass(frozen=True)
@@ -17,7 +33,7 @@ class ModelPricing:
     resolved_model: str
     tier: str
     source_url: str
-    as_of_utc: str
+    last_updated_utc: str
     input_per_1m_usd: float
     cached_input_per_1m_usd: float | None
     output_per_1m_usd: float
@@ -43,7 +59,7 @@ class ModelPricing:
             resolved_model=self.resolved_model,
             tier=self.tier,
             source_url=self.source_url,
-            as_of_utc=self.as_of_utc,
+            last_updated_utc=self.last_updated_utc,
         )
 
 
@@ -54,6 +70,62 @@ def _load_catalog(catalog_path: str) -> dict:
     if not isinstance(data, dict):
         raise ValueError("Pricing catalog must be a JSON object")
     return data
+
+
+def _warn_if_catalog_is_not_current(
+    catalog: dict,
+    *,
+    now_utc: datetime | None = None,
+) -> None:
+    global _catalog_freshness_checked
+
+    with _catalog_warning_lock:
+        if _catalog_freshness_checked:
+            return
+        _catalog_freshness_checked = True
+
+    raw_timestamp = catalog.get("last_updated_utc")
+    if not isinstance(raw_timestamp, str) or not raw_timestamp.strip():
+        _warn_about_pricing_catalog(
+            "The pricing catalog has no last_updated_utc timestamp. "
+            "Cost estimates can use old rates."
+        )
+        return
+
+    try:
+        parsed_timestamp = datetime.fromisoformat(
+            raw_timestamp.strip().replace("Z", "+00:00")
+        )
+    except ValueError:
+        _warn_about_pricing_catalog(
+            "The pricing catalog has an invalid last_updated_utc timestamp. "
+            "Cost estimates can use old rates."
+        )
+        return
+
+    if (
+        parsed_timestamp.tzinfo is None
+        or parsed_timestamp.utcoffset() != timedelta(0)
+    ):
+        _warn_about_pricing_catalog(
+            "The pricing catalog has an invalid last_updated_utc timestamp. "
+            "The timestamp must use UTC. Cost estimates can use old rates."
+        )
+        return
+
+    current_time = now_utc or _utc_now()
+    age = current_time.astimezone(timezone.utc) - parsed_timestamp.astimezone(
+        timezone.utc
+    )
+    if age > timedelta(days=PRICING_MAX_AGE_DAYS):
+        _warn_about_pricing_catalog(
+            f"The pricing catalog is more than {PRICING_MAX_AGE_DAYS} days old. "
+            "Cost estimates can use old rates."
+        )
+
+
+def _warn_about_pricing_catalog(message: str) -> None:
+    warnings.warn(message, PricingCatalogWarning, stacklevel=3)
 
 
 def resolve_model_pricing(
@@ -67,6 +139,7 @@ def resolve_model_pricing(
 
     resolved_catalog_path = catalog_path or CATALOG_PATH
     catalog = _load_catalog(str(resolved_catalog_path))
+    _warn_if_catalog_is_not_current(catalog)
     models = catalog.get("models", {})
     if not isinstance(models, dict):
         return None
@@ -118,7 +191,7 @@ def resolve_model_pricing(
         resolved_model=normalized_model,
         tier=str(catalog.get("tier", "unknown")),
         source_url=str(catalog.get("source_url", "")),
-        as_of_utc=str(catalog.get("as_of_utc", "")),
+        last_updated_utc=str(catalog.get("last_updated_utc", "")),
         input_per_1m_usd=input_rate,
         cached_input_per_1m_usd=cached_input_rate,
         output_per_1m_usd=output_rate,
@@ -145,5 +218,7 @@ def _optional_int(value: object) -> int | None:
 __all__ = [
     "CATALOG_PATH",
     "ModelPricing",
+    "PRICING_MAX_AGE_DAYS",
+    "PricingCatalogWarning",
     "resolve_model_pricing",
 ]

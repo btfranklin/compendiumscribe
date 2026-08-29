@@ -15,6 +15,7 @@ from .costs import (
 from .errors import (
     DeepResearchError,
     MissingConfigurationError,
+    ResearchApprovalRequired,
 )
 from .agents_workflow import (
     AgentRunResult,
@@ -40,6 +41,7 @@ __all__ = [
     "AgentRunResult",
     "DeepResearchError",
     "MissingConfigurationError",
+    "ResearchApprovalRequired",
     "ResearchConfig",
     "CostPricing",
     "CostTracker",

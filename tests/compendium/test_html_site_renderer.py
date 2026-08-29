@@ -45,6 +45,8 @@ def _sample_compendium() -> Compendium:
                 url="https://example.com/source",
                 publisher="Publisher Inc",
                 published_at="2024-01-15",
+                revision="release-4",
+                accessed_at="2026-08-29T12:00:00-07:00",
                 summary="Source summary.",
             )
         ],
@@ -131,6 +133,11 @@ def test_citations_page_lists_all_citations():
     assert "https://example.com/source" in citations
     assert "Publisher Inc" in citations
     assert "2024-01-15" in citations
+    assert "<strong>Revision:</strong> release-4" in citations
+    assert (
+        "<strong>Accessed:</strong> 2026-08-29T12:00:00-07:00"
+        in citations
+    )
 
 
 def test_citations_page_links_only_safe_url_schemes():

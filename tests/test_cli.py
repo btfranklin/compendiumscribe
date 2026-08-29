@@ -289,7 +289,12 @@ def test_cli_recover_uses_research_sidecar(
 
             result = runner.invoke(
                 cli,
-                ["recover", "--input", str(state_path)],
+                [
+                    "recover",
+                    "--input",
+                    str(state_path),
+                    "--allow-paid-follow-up",
+                ],
             )
 
             assert result.exit_code == 0, result.output
@@ -300,6 +305,7 @@ def test_cli_recover_uses_research_sidecar(
                 mock_recover.call_args.kwargs["client"]
                 is mock_create_client.return_value
             )
+            assert mock_recover.call_args.kwargs["allow_paid_follow_up"] is True
 
 
 def test_cli_recover_research_failure_exits_nonzero(

@@ -51,6 +51,8 @@ def full_compendium() -> Compendium:
                 url="https://example.com/one",
                 publisher="Publisher",
                 published_at="2026-07-01",
+                revision="a1b2c3d",
+                accessed_at="2026-07-22T14:30:00+00:00",
                 summary="Source summary.",
             ),
             Citation(
@@ -81,6 +83,12 @@ def test_okf_bundle_has_exact_layout_and_profile() -> None:
     assert "tags:" in files["compendium.md"]
     assert "../sources/c01.md" in files["sections/s01.md"]
     assert "../sources/c02.md" in files["sections/s01.md"]
+    assert (
+        "published_at: '2026-07-01'\n"
+        "revision: a1b2c3d\n"
+        "accessed_at: '2026-07-22T14:30:00+00:00'"
+        in files["sources/c01.md"]
+    )
     assert not any(path.endswith("log.md") for path in files)
     assert validate_okf_mapping(files) == ()
 
@@ -222,6 +230,26 @@ def test_unknown_frontmatter_is_accepted(tmp_path: Path) -> None:
                 ),
             ),
             "invalid_timestamp",
+        ),
+        (
+            lambda files: files.__setitem__(
+                "sources/c01.md",
+                files["sources/c01.md"].replace(
+                    "revision: a1b2c3d",
+                    "revision: ''",
+                ),
+            ),
+            "invalid_revision",
+        ),
+        (
+            lambda files: files.__setitem__(
+                "sources/c01.md",
+                files["sources/c01.md"].replace(
+                    "accessed_at: '2026-07-22T14:30:00+00:00'",
+                    "accessed_at: '2026-07-22T14:30:00'",
+                ),
+            ),
+            "invalid_accessed_at",
         ),
     ],
 )

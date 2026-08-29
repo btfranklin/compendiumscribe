@@ -154,6 +154,8 @@ def _parse_citation(elem: ET.Element) -> Citation:
     url = _get_text(elem.find("url"))
     publisher = _get_text_or_none(elem.find("publisher"))
     published_at = _get_text_or_none(elem.find("published_at"))
+    revision = _get_text_or_none(elem.find("revision"))
+    accessed_at = _get_text_or_none(elem.find("accessed_at"))
     summary = _get_text_or_none(elem.find("summary"))
 
     return Citation(
@@ -162,5 +164,7 @@ def _parse_citation(elem: ET.Element) -> Citation:
         url=url,
         publisher=publisher,
         published_at=published_at,
+        revision=revision,
+        accessed_at=accessed_at,
         summary=summary,
     )

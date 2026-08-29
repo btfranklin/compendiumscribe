@@ -30,9 +30,6 @@ class ResearchConfig:
     max_poll_time_minutes: float = field(
         default_factory=lambda: float(os.getenv("MAX_POLL_TIME_IN_MINUTES", "60.0"))
     )
-    max_agent_turns: int = field(
-        default_factory=lambda: int(os.getenv("MAX_AGENT_TURNS", "12"))
-    )
     request_timeout_seconds: int = 3600
     progress_callback: Callable[["ResearchProgress"], None] | None = None
 
@@ -50,7 +47,6 @@ class ResearchConfig:
     def runtime_snapshot(self) -> dict[str, str | int | float]:
         return {
             "contract4agents_profile": self.contract4agents_profile,
-            "max_agent_turns": self.max_agent_turns,
             "polling_interval_seconds": self.polling_interval_seconds,
             "max_poll_time_minutes": self.max_poll_time_minutes,
         }

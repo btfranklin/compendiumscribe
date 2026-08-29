@@ -57,9 +57,8 @@ class ResearchRunState(BaseModel):
     plan: ResearchPlan | None = None
     agenda: ResearchAgenda | None = None
     section_briefs: dict[str, SectionResearchBrief] = Field(default_factory=dict)
-    follow_up_done: bool = False
     ledger: SourceLedger = Field(default_factory=lambda: SourceLedger(entries=[]))
-    verification: VerificationReport | None = None
+    verification_reports: list[VerificationReport] = Field(default_factory=list)
     final_payload: CompendiumPayload | None = None
     run_spec_selection: dict[str, Any] | None = None
     run_spec_result: dict[str, Any] | None = None
@@ -106,6 +105,8 @@ def prepare_compendium_payload(
             url=cited_entries[ref].url,
             publisher=cited_entries[ref].publisher,
             published_at=cited_entries[ref].published_at,
+            revision=cited_entries[ref].revision,
+            accessed_at=cited_entries[ref].accessed_at,
             summary=cited_entries[ref].summary,
         )
         for ref in ordered_refs

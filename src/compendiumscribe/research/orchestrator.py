@@ -46,6 +46,7 @@ def recover_compendium(
     config: ResearchConfig | None = None,
     cost_tracker: "CostTracker | None" = None,
     runner: "AgentRunner | None" = None,
+    allow_paid_follow_up: bool = False,
 ) -> Compendium:
     """Resume an Agents SDK research run from a sidecar state file."""
 
@@ -55,6 +56,7 @@ def recover_compendium(
         config=config,
         runner=runner,
         cost_tracker=cost_tracker,
+        allow_paid_follow_up=allow_paid_follow_up,
     )
 
 

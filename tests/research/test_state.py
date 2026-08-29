@@ -64,19 +64,20 @@ def test_load_state_rejects_invalid_portable_artifact_values(
 ) -> None:
     state_path = tmp_path / "report.research.json"
     payload = ResearchRunState(topic="Invalid state").model_dump(mode="json")
-    payload["verification"] = {
+    payload["verification_reports"] = [{
         "status": value if field == "verification_status" else "accepted",
         "issues": [
             {
                 "section_id": None,
+                "code": "CHECK",
                 "message": "Check",
                 "severity": value if field == "verification_severity" else "warning",
-                "suggested_follow_up": None,
+                "resolution": "none",
+                "required_change": "Review the evidence.",
             }
         ],
-        "follow_up_section_ids": [],
         "notes": None,
-    }
+    }]
     payload["section_briefs"] = {
         "S01": {
             "section_id": "S01",
@@ -91,6 +92,8 @@ def test_load_state_rejects_invalid_portable_artifact_values(
                     "url": "https://example.com",
                     "publisher": None,
                     "published_at": None,
+                    "revision": "v1.2.3",
+                    "accessed_at": "2026-08-29T18:00:00Z",
                     "summary": None,
                     "credibility_notes": None,
                     "status": value if field == "brief_source_status" else "cited",
@@ -107,6 +110,8 @@ def test_load_state_rejects_invalid_portable_artifact_values(
                 "url": "https://example.com",
                 "publisher": None,
                 "published_at": None,
+                "revision": "v1.2.3",
+                "accessed_at": "2026-08-29T18:00:00Z",
                 "summary": None,
                 "credibility_notes": None,
                 "status": value if field == "ledger_status" else "cited",

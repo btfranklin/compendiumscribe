@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, TYPE_CHECKING, TypeVar
@@ -27,21 +27,27 @@ from pydantic import BaseModel, ValidationError
 
 from ...compendium import Compendium, slugify
 from ..config import ResearchConfig
-from ..errors import DeepResearchError
+from ..errors import DeepResearchError, ResearchApprovalRequired
 from ..progress import emit_progress
 from .agents import ResearchAgentTeam, build_research_agent_team
 from ...agent_contracts.generated.python import (
     CompendiumPayload,
+    EvidenceRepairResult,
     ResearchAgenda,
     ResearchPlan,
+    ResearchSource,
+    SectionContentRevision,
     SectionResearchBrief,
+    TargetedResearchResult,
+    TargetedSectionRevision,
+    VerificationIssue,
     VerificationReport,
 )
 from .artifacts import CompletedAgentStage, ResearchRunState, prepare_compendium_payload
 from .contract_trace import ContractTraceRecorder
 from .costing import record_agent_result_cost
 from .runner import AgentRunResult, AgentRunner, OpenAIAgentRunner
-from .source_ledger import build_source_ledger, mark_cited_sources
+from .source_ledger import build_source_ledger, mark_cited_sources, normalize_url
 from .state import load_state, save_state
 
 if TYPE_CHECKING:
@@ -49,7 +55,25 @@ if TYPE_CHECKING:
     from openai import AsyncOpenAI
 
 ArtifactT = TypeVar("ArtifactT", bound=BaseModel)
-MAX_AGENT_ATTEMPTS = 5
+AGENT_MAX_TURNS = {
+    "PlannerAgent": 2,
+    "ResearchManagerAgent": 4,
+    "SectionResearchAgent": 8,
+    "EvidenceRepairAgent": 2,
+    "TargetedResearchAgent": 6,
+    "VerifierAgent": 2,
+    "SynthesisAgent": 2,
+}
+
+AGENT_MAX_ATTEMPTS = {
+    "PlannerAgent": 3,
+    "ResearchManagerAgent": 2,
+    "SectionResearchAgent": 2,
+    "EvidenceRepairAgent": 3,
+    "TargetedResearchAgent": 2,
+    "VerifierAgent": 3,
+    "SynthesisAgent": 3,
+}
 
 
 def build_compendium_with_agents(
@@ -78,6 +102,7 @@ def build_compendium_with_agents(
                 state_path=resolved_state_path,
                 cost_tracker=cost_tracker,
                 output_formats=list(output_formats),
+                allow_paid_follow_up=False,
             )
         )
     except DeepResearchError:
@@ -99,16 +124,21 @@ def recover_compendium_from_state(
     config: ResearchConfig | None = None,
     runner: AgentRunner | None = None,
     cost_tracker: "CostTracker | None" = None,
+    allow_paid_follow_up: bool = False,
 ) -> Compendium:
     state = load_state(state_path)
-    return build_compendium_with_agents(
-        state.topic,
-        client=client,
-        config=config,
-        runner=runner,
-        state_path=state_path,
-        cost_tracker=cost_tracker,
-        output_formats=state.output_formats,
+    config = config or ResearchConfig()
+    runner = runner or OpenAIAgentRunner(openai_client=client)
+    return asyncio.run(
+        _build_compendium_async(
+            state.topic,
+            config=config,
+            runner=runner,
+            state_path=state_path,
+            cost_tracker=cost_tracker,
+            output_formats=state.output_formats,
+            allow_paid_follow_up=allow_paid_follow_up,
+        )
     )
 
 
@@ -120,6 +150,7 @@ async def _build_compendium_async(
     state_path: Path,
     cost_tracker: "CostTracker | None",
     output_formats: list[str],
+    allow_paid_follow_up: bool,
 ) -> Compendium:
     state_path_existed = state_path.exists()
     team = build_research_agent_team(config)
@@ -181,6 +212,7 @@ async def _build_compendium_async(
             team=team,
             state=state,
             trace=trace,
+            allow_paid_follow_up=allow_paid_follow_up,
         )
     finally:
         trace.close()
@@ -196,6 +228,7 @@ async def _continue_research_workflow(
     team: ResearchAgentTeam,
     state: ResearchRunState,
     trace: ContractTraceRecorder,
+    allow_paid_follow_up: bool,
 ) -> Compendium:
     if state.plan is None:
         state.plan = await _run_structured_agent(
@@ -247,8 +280,8 @@ async def _continue_research_workflow(
     state.mark_completed("source_ledger")
     _checkpoint_state(state_path, state, trace)
 
-    if state.verification is None:
-        state.verification = await _verify(
+    if not state.verification_reports:
+        initial_verification = await _verify(
             state,
             team=team,
             config=config,
@@ -256,15 +289,26 @@ async def _continue_research_workflow(
             cost_tracker=cost_tracker,
             state_path=state_path,
             trace=trace,
+            final_verification=False,
         )
-        state.mark_completed(
-            "verification_follow_up" if state.follow_up_done else "verification"
-        )
+        state.verification_reports.append(initial_verification)
+        state.mark_completed("verification")
         _checkpoint_state(state_path, state, trace)
 
-    if state.verification.status == "follow_up" and not state.follow_up_done:
-        await _run_follow_up_sections(
+    initial_verification = state.verification_reports[0]
+    if initial_verification.status == "failed":
+        _checkpoint_state(state_path, state, trace)
+        raise DeepResearchError(
+            _verification_failure_message(initial_verification, final=False)
+        )
+
+    repair_issues = _issues_with_resolution(initial_verification, "repair")
+    research_issues = _issues_with_resolution(initial_verification, "research")
+
+    if repair_issues and "evidence_repair" not in state.completed_stages:
+        repair = await _run_evidence_repair(
             state,
+            repair_issues,
             team=team,
             config=config,
             runner=runner,
@@ -272,12 +316,21 @@ async def _continue_research_workflow(
             state_path=state_path,
             trace=trace,
         )
+        _apply_evidence_repair(state, repair, repair_issues)
         _rebuild_ledger(state)
-        state.follow_up_done = True
-        state.verification = None
+        state.mark_completed("evidence_repair")
         _checkpoint_state(state_path, state, trace)
-        state.verification = await _verify(
+
+    if research_issues and "targeted_research" not in state.completed_stages:
+        if not allow_paid_follow_up:
+            _checkpoint_state(state_path, state, trace)
+            raise ResearchApprovalRequired(
+                state_path,
+                tuple(issue.code for issue in research_issues),
+            )
+        targeted = await _run_targeted_research(
             state,
+            research_issues,
             team=team,
             config=config,
             runner=runner,
@@ -285,12 +338,33 @@ async def _continue_research_workflow(
             state_path=state_path,
             trace=trace,
         )
-        state.mark_completed("verification_follow_up")
+        _apply_targeted_research(state, targeted, research_issues)
+        _rebuild_ledger(state)
+        state.mark_completed("targeted_research")
         _checkpoint_state(state_path, state, trace)
 
-    if state.verification.status != "accepted":
+    if repair_issues or research_issues:
+        if len(state.verification_reports) < 2:
+            final_verification = await _verify(
+                state,
+                team=team,
+                config=config,
+                runner=runner,
+                cost_tracker=cost_tracker,
+                state_path=state_path,
+                trace=trace,
+                final_verification=True,
+            )
+            state.verification_reports.append(final_verification)
+            state.mark_completed("final_verification")
+            _checkpoint_state(state_path, state, trace)
+
+    verification = state.verification_reports[-1]
+    if verification.status != "accepted":
         _checkpoint_state(state_path, state, trace)
-        raise DeepResearchError(_verification_failure_message(state))
+        raise DeepResearchError(
+            _verification_failure_message(verification, final=True)
+        )
 
     if state.final_payload is None:
         state.final_payload = await _run_structured_agent(
@@ -362,8 +436,9 @@ async def _run_missing_sections(
         _checkpoint_state(state_path, state, trace)
 
 
-async def _run_follow_up_sections(
+async def _run_evidence_repair(
     state: ResearchRunState,
+    issues: list[VerificationIssue],
     *,
     team: ResearchAgentTeam,
     config: ResearchConfig,
@@ -371,25 +446,54 @@ async def _run_follow_up_sections(
     cost_tracker: "CostTracker | None",
     state_path: Path,
     trace: ContractTraceRecorder,
-) -> None:
-    section_ids = _validated_follow_up_section_ids(state)
-    for section_id in section_ids:
-        stage = f"section_follow_up:{section_id}"
-        if stage in state.completed_stages:
-            continue
-        state.section_briefs[section_id] = await _run_section_agent(
-            section_id,
-            state,
-            team=team,
-            config=config,
-            runner=runner,
-            cost_tracker=cost_tracker,
-            state_path=state_path,
-            trace=trace,
-            follow_up=True,
-        )
-        state.mark_completed(stage)
-        _checkpoint_state(state_path, state, trace)
+) -> EvidenceRepairResult:
+    return await _run_structured_agent(
+        "evidence_repair",
+        "EvidenceRepairAgent",
+        _evidence_repair_input(state, issues),
+        output_type=EvidenceRepairResult,
+        config=config,
+        runner=runner,
+        cost_tracker=cost_tracker,
+        state=state,
+        state_path=state_path,
+        trace=trace,
+        team=team,
+        invocation_key="evidence_repair",
+        artifact_validator=lambda result: _validate_evidence_repair(
+            state, result, issues
+        ),
+    )
+
+
+async def _run_targeted_research(
+    state: ResearchRunState,
+    issues: list[VerificationIssue],
+    *,
+    team: ResearchAgentTeam,
+    config: ResearchConfig,
+    runner: AgentRunner,
+    cost_tracker: "CostTracker | None",
+    state_path: Path,
+    trace: ContractTraceRecorder,
+) -> TargetedResearchResult:
+    return await _run_structured_agent(
+        "targeted_research",
+        "TargetedResearchAgent",
+        _targeted_research_input(state, issues),
+        output_type=TargetedResearchResult,
+        config=config,
+        runner=runner,
+        cost_tracker=cost_tracker,
+        state=state,
+        state_path=state_path,
+        trace=trace,
+        team=team,
+        invocation_key="targeted_research",
+        artifact_validator=lambda result: _validate_targeted_research(
+            state, result, issues
+        ),
+    )
 
 
 async def _run_section_agent(
@@ -402,7 +506,6 @@ async def _run_section_agent(
     cost_tracker: "CostTracker | None",
     state_path: Path,
     trace: ContractTraceRecorder,
-    follow_up: bool = False,
 ) -> SectionResearchBrief:
     section = _agenda_section(state, section_id)
     if section is None:
@@ -410,7 +513,7 @@ async def _run_section_agent(
     return await _run_structured_agent(
         "section_research",
         "SectionResearchAgent",
-        _section_research_input(state, section_id, section, follow_up=follow_up),
+        _section_research_input(state, section),
         output_type=SectionResearchBrief,
         config=config,
         runner=runner,
@@ -419,12 +522,8 @@ async def _run_section_agent(
         state_path=state_path,
         trace=trace,
         team=team,
-        invocation_key=(
-            f"section_follow_up:{section_id}"
-            if follow_up
-            else f"section_research:{section_id}"
-        ),
-        metadata={"section_id": section_id, "follow_up": follow_up},
+        invocation_key=f"section_research:{section_id}",
+        metadata={"section_id": section_id},
     )
 
 
@@ -437,11 +536,12 @@ async def _verify(
     cost_tracker: "CostTracker | None",
     state_path: Path,
     trace: ContractTraceRecorder,
+    final_verification: bool,
 ):
     return await _run_structured_agent(
         "verification",
         "VerifierAgent",
-        _verification_input(state),
+        _verification_input(state, final_verification=final_verification),
         output_type=VerificationReport,
         config=config,
         runner=runner,
@@ -451,7 +551,10 @@ async def _verify(
         trace=trace,
         team=team,
         invocation_key=(
-            "verification_follow_up" if state.follow_up_done else "verification"
+            "final_verification" if final_verification else "verification"
+        ),
+        artifact_validator=lambda report: _validate_verification_report(
+            state, report, final_verification=final_verification
         ),
     )
 
@@ -469,30 +572,50 @@ def _research_agenda_input(topic: str, state: ResearchRunState) -> dict[str, Any
 
 def _section_research_input(
     state: ResearchRunState,
-    section_id: str,
     section: Any,
-    *,
-    follow_up: bool,
 ) -> dict[str, Any]:
     return {
         "topic": state.title or state.topic,
         "section": section.model_dump(mode="json"),
         "plan": state.plan.model_dump(mode="json"),
         "agenda": state.agenda.model_dump(mode="json"),
-        "previous_brief": (
-            state.section_briefs.get(section_id).model_dump(mode="json")
-            if follow_up and section_id in state.section_briefs
-            else None
-        ),
-        "verification": (
-            state.verification.model_dump(mode="json")
-            if follow_up and state.verification is not None
-            else None
-        ),
     }
 
 
-def _verification_input(state: ResearchRunState) -> dict[str, Any]:
+def _evidence_repair_input(
+    state: ResearchRunState,
+    issues: list[VerificationIssue],
+) -> dict[str, Any]:
+    section_ids = _issue_section_ids(issues)
+    return {
+        "affected_briefs": [
+            state.section_briefs[section_id].model_dump(mode="json")
+            for section_id in section_ids
+        ],
+        "issues": [issue.model_dump(mode="json") for issue in issues],
+    }
+
+
+def _targeted_research_input(
+    state: ResearchRunState,
+    issues: list[VerificationIssue],
+) -> dict[str, Any]:
+    section_ids = _issue_section_ids(issues)
+    return {
+        "topic": state.title or state.topic,
+        "affected_briefs": [
+            state.section_briefs[section_id].model_dump(mode="json")
+            for section_id in section_ids
+        ],
+        "issues": [issue.model_dump(mode="json") for issue in issues],
+    }
+
+
+def _verification_input(
+    state: ResearchRunState,
+    *,
+    final_verification: bool,
+) -> dict[str, Any]:
     return {
         "topic": state.title or state.topic,
         "plan": state.plan.model_dump(mode="json"),
@@ -501,7 +624,7 @@ def _verification_input(state: ResearchRunState) -> dict[str, Any]:
             brief.model_dump(mode="json") for brief in state.section_briefs.values()
         ],
         "source_ledger": state.ledger.model_dump(mode="json"),
-        "follow_up_available": not state.follow_up_done,
+        "final_verification": final_verification,
     }
 
 
@@ -514,8 +637,217 @@ def _synthesis_input(topic: str, state: ResearchRunState) -> dict[str, Any]:
             brief.model_dump(mode="json") for brief in state.section_briefs.values()
         ],
         "source_ledger": state.ledger.model_dump(mode="json"),
-        "verification": state.verification.model_dump(mode="json"),
+        "verification": state.verification_reports[-1].model_dump(mode="json"),
     }
+
+
+def _issues_with_resolution(
+    report: VerificationReport,
+    resolution: str,
+) -> list[VerificationIssue]:
+    return [issue for issue in report.issues if issue.resolution == resolution]
+
+
+def _issue_section_ids(issues: list[VerificationIssue]) -> list[str]:
+    return list(dict.fromkeys(str(issue.section_id) for issue in issues))
+
+
+def _validate_verification_report(
+    state: ResearchRunState,
+    report: VerificationReport,
+    *,
+    final_verification: bool,
+) -> None:
+    agenda_ids = {section.id for section in state.agenda.sections}
+    codes = [issue.code for issue in report.issues]
+    if len(codes) != len(set(codes)):
+        raise ValueError("Verification issue codes must be unique.")
+
+    for issue in report.issues:
+        if issue.section_id is not None and issue.section_id not in agenda_ids:
+            raise ValueError(
+                f"Verification issue {issue.code} names unknown section "
+                f"{issue.section_id}."
+            )
+        if issue.severity == "warning" and issue.resolution != "none":
+            raise ValueError(
+                f"Verification warning {issue.code} must use resolution none."
+            )
+        if issue.severity == "error" and issue.resolution == "none":
+            raise ValueError(
+                f"Verification error {issue.code} must use a blocking resolution."
+            )
+        if issue.resolution in {"repair", "research"} and not issue.section_id:
+            raise ValueError(
+                f"Verification issue {issue.code} must name a section."
+            )
+        if issue.resolution == "fatal" and issue.severity != "error":
+            raise ValueError(
+                f"Fatal verification issue {issue.code} must be an error."
+            )
+
+    error_resolutions = {
+        issue.resolution for issue in report.issues if issue.severity == "error"
+    }
+    if report.status == "accepted" and error_resolutions:
+        raise ValueError("An accepted verification report cannot contain errors.")
+    if report.status == "follow_up":
+        if not error_resolutions or not error_resolutions <= {"repair", "research"}:
+            raise ValueError(
+                "A follow-up verification report must contain only repair or "
+                "research errors."
+            )
+    if report.status == "failed":
+        if "fatal" not in error_resolutions or error_resolutions != {"fatal"}:
+            raise ValueError(
+                "A failed verification report must contain fatal errors only."
+            )
+    if final_verification and report.status == "follow_up":
+        raise ValueError("Final verification cannot request another follow-up.")
+
+
+def _validate_evidence_repair(
+    state: ResearchRunState,
+    result: EvidenceRepairResult,
+    issues: list[VerificationIssue],
+) -> None:
+    expected = set(_issue_section_ids(issues))
+    revisions = _revision_map(result.revisions, expected, "Evidence repair")
+    for section_id, revision in revisions.items():
+        allowed_urls = {
+            normalize_url(source.url)
+            for source in state.section_briefs[section_id].sources
+        }
+        cited_urls = {
+            normalize_url(url)
+            for finding in revision.findings
+            for url in finding.source_urls
+        }
+        unknown_urls = sorted(cited_urls - allowed_urls)
+        if unknown_urls:
+            raise ValueError(
+                "Evidence repair cited source URLs that were not in the prior "
+                f"brief for {section_id}: {', '.join(unknown_urls)}"
+            )
+
+
+def _validate_targeted_research(
+    state: ResearchRunState,
+    result: TargetedResearchResult,
+    issues: list[VerificationIssue],
+) -> None:
+    expected = set(_issue_section_ids(issues))
+    revisions = _revision_map(result.revisions, expected, "Targeted research")
+    candidate_briefs: list[SectionResearchBrief] = []
+    for section_id, revision in revisions.items():
+        old = state.section_briefs[section_id]
+        merged_sources = _merge_sources(old.sources, revision.sources)
+        allowed_urls = {normalize_url(source.url) for source in merged_sources}
+        cited_urls = {
+            normalize_url(url)
+            for finding in revision.findings
+            for url in finding.source_urls
+        }
+        unknown_urls = sorted(cited_urls - allowed_urls)
+        if unknown_urls:
+            raise ValueError(
+                "Targeted research cited source URLs without source records for "
+                f"{section_id}: {', '.join(unknown_urls)}"
+            )
+        candidate_briefs.append(
+            _targeted_brief(old, revision, merged_sources=merged_sources)
+        )
+    build_source_ledger(candidate_briefs)
+
+
+def _revision_map(
+    revisions: list[SectionContentRevision] | list[TargetedSectionRevision],
+    expected: set[str],
+    label: str,
+) -> dict[str, SectionContentRevision | TargetedSectionRevision]:
+    section_ids = [revision.section_id for revision in revisions]
+    if len(section_ids) != len(set(section_ids)):
+        raise ValueError(f"{label} returned duplicate section revisions.")
+    if set(section_ids) != expected:
+        raise ValueError(
+            f"{label} must return exactly these sections: "
+            + ", ".join(sorted(expected))
+        )
+    return {revision.section_id: revision for revision in revisions}
+
+
+def _apply_evidence_repair(
+    state: ResearchRunState,
+    result: EvidenceRepairResult,
+    issues: list[VerificationIssue],
+) -> None:
+    revisions = _revision_map(
+        result.revisions,
+        set(_issue_section_ids(issues)),
+        "Evidence repair",
+    )
+    for section_id, revision in revisions.items():
+        old = state.section_briefs[section_id]
+        state.section_briefs[section_id] = old.model_copy(
+            update={
+                "summary": revision.summary,
+                "findings": revision.findings,
+                "open_questions": revision.open_questions,
+            }
+        )
+
+
+def _apply_targeted_research(
+    state: ResearchRunState,
+    result: TargetedResearchResult,
+    issues: list[VerificationIssue],
+) -> None:
+    revisions = _revision_map(
+        result.revisions,
+        set(_issue_section_ids(issues)),
+        "Targeted research",
+    )
+    for section_id, revision in revisions.items():
+        old = state.section_briefs[section_id]
+        state.section_briefs[section_id] = _targeted_brief(
+            old,
+            revision,
+            merged_sources=_merge_sources(old.sources, revision.sources),
+        )
+
+
+def _targeted_brief(
+    old: SectionResearchBrief,
+    revision: TargetedSectionRevision,
+    *,
+    merged_sources: list[ResearchSource],
+) -> SectionResearchBrief:
+    return old.model_copy(
+        update={
+            "summary": revision.summary,
+            "findings": revision.findings,
+            "sources": merged_sources,
+            "open_questions": revision.open_questions,
+        }
+    )
+
+
+def _merge_sources(
+    existing: list[ResearchSource],
+    returned: list[ResearchSource],
+) -> list[ResearchSource]:
+    merged = list(existing)
+    by_url = {normalize_url(source.url): source for source in existing}
+    returned_urls: set[str] = set()
+    for source in returned:
+        normalized = normalize_url(source.url)
+        if normalized in returned_urls:
+            raise ValueError("Targeted research returned duplicate source URLs.")
+        returned_urls.add(normalized)
+        if normalized not in by_url:
+            merged.append(source)
+            by_url[normalized] = source
+    return merged
 
 
 async def _run_structured_agent(
@@ -533,6 +865,7 @@ async def _run_structured_agent(
     team: ResearchAgentTeam,
     invocation_key: str,
     metadata: dict[str, Any] | None = None,
+    artifact_validator: Callable[[ArtifactT], None] | None = None,
 ) -> ArtifactT:
     materialization = team.materialization
     agent = materialization.agents[agent_name]
@@ -542,10 +875,12 @@ async def _run_structured_agent(
         agent_name,
         {"request": input_data},
     )
+    max_turns = _agent_limit(AGENT_MAX_TURNS, agent_name, "turn")
+    max_attempts = _agent_limit(AGENT_MAX_ATTEMPTS, agent_name, "attempt")
     invocation_id = f"{state.run_id}:{invocation_key}"
     while True:
         attempt = _next_attempt(trace, invocation_id)
-        if attempt.number > MAX_AGENT_ATTEMPTS:
+        if attempt.number > max_attempts:
             exhausted = _latest_attempt(trace, invocation_id)
             if exhausted is not None:
                 _record_terminal_failure(
@@ -561,7 +896,7 @@ async def _run_structured_agent(
                 plan=plan,
             )
             raise DeepResearchError(
-                f"{agent_name} failed after {MAX_AGENT_ATTEMPTS} attempts."
+                f"{agent_name} failed after {max_attempts} attempts."
             )
 
         trace.record(
@@ -580,7 +915,7 @@ async def _run_structured_agent(
         progress_metadata = {
             **(metadata or {}),
             "attempt_number": attempt.number,
-            "max_attempts": MAX_AGENT_ATTEMPTS,
+            "max_attempts": max_attempts,
         }
         emit_progress(
             config,
@@ -588,7 +923,7 @@ async def _run_structured_agent(
             status="in_progress",
             message=(
                 f"Running {agent_name}, attempt {attempt.number} of "
-                f"{MAX_AGENT_ATTEMPTS}."
+                f"{max_attempts}."
             ),
             metadata=progress_metadata,
         )
@@ -598,7 +933,7 @@ async def _run_structured_agent(
                 result = await runner.run(
                     agent,
                     input_payload,
-                    max_turns=config.max_agent_turns,
+                    max_turns=max_turns,
                 )
         except Exception as exc:
             exception_events = trace.normalize_exception_responses(
@@ -612,7 +947,7 @@ async def _run_structured_agent(
                 data={"phase": phase, "reason": type(exc).__name__},
                 attempt=attempt,
             )
-            terminal = attempt.number == MAX_AGENT_ATTEMPTS or any(
+            terminal = attempt.number == max_attempts or any(
                 event.event_type == "capability.undeclared"
                 for event in exception_events
             )
@@ -637,6 +972,7 @@ async def _run_structured_agent(
                 agent_name=agent_name,
                 attempt=attempt,
                 metadata=metadata,
+                max_attempts=max_attempts,
             )
             continue
 
@@ -691,7 +1027,9 @@ async def _run_structured_agent(
         )
         try:
             artifact = _coerce_artifact(result, output_type)
-        except ValidationError:
+            if artifact_validator is not None:
+                artifact_validator(artifact)
+        except (ValidationError, ValueError):
             trace.record_output_schema_failure(
                 agent_name=agent_name,
                 attempt=attempt,
@@ -704,7 +1042,7 @@ async def _run_structured_agent(
                 response_ids=result.response_ids,
                 attempt=attempt,
             )
-            terminal = attempt.number == MAX_AGENT_ATTEMPTS
+            terminal = attempt.number == max_attempts
             if terminal:
                 _record_terminal_failure(
                     trace,
@@ -726,6 +1064,7 @@ async def _run_structured_agent(
                 agent_name=agent_name,
                 attempt=attempt,
                 metadata=metadata,
+                max_attempts=max_attempts,
             )
             continue
         trace.record(
@@ -776,6 +1115,7 @@ def _emit_retry_progress(
     agent_name: str,
     attempt: TraceAttempt,
     metadata: dict[str, Any] | None,
+    max_attempts: int,
 ) -> None:
     emit_progress(
         config,
@@ -783,12 +1123,12 @@ def _emit_retry_progress(
         status="update",
         message=(
             f"Retrying {agent_name} after attempt {attempt.number} of "
-            f"{MAX_AGENT_ATTEMPTS} failed."
+            f"{max_attempts} failed."
         ),
         metadata={
             **(metadata or {}),
             "attempt_number": attempt.number,
-            "max_attempts": MAX_AGENT_ATTEMPTS,
+            "max_attempts": max_attempts,
         },
     )
 
@@ -860,7 +1200,21 @@ def _evaluate_contract_run(
     state.run_spec_selection = selection.to_dict()
     state.run_spec_result = run_spec_result.to_dict()
 
-    failures = [result for result in control_results if result.status != "passed"]
+    optional_agents = {"EvidenceRepairAgent", "TargetedResearchAgent"}
+    observed_agents = {stage.agent_name for stage in state.agent_stages.values()}
+    failures = [
+        result
+        for result in control_results
+        if result.status != "passed"
+        and not (
+            result.status == "unverified"
+            and any(
+                str(result.control_id).startswith(f"control:{agent_name}:")
+                and agent_name not in observed_agents
+                for agent_name in optional_agents
+            )
+        )
+    ]
     if run_spec_result.status != "passed":
         failures.append(run_spec_result)
     if failures:
@@ -1175,26 +1529,6 @@ def _agenda_section(state: ResearchRunState, section_id: str):
     return None
 
 
-def _validated_follow_up_section_ids(state: ResearchRunState) -> list[str]:
-    section_ids = list(state.verification.follow_up_section_ids)
-    if not section_ids:
-        raise DeepResearchError(
-            "Research verification requested follow-up without any section IDs."
-        )
-    if len(section_ids) != len(set(section_ids)):
-        raise DeepResearchError(
-            "Research verification requested duplicate follow-up section IDs."
-        )
-    agenda_ids = {section.id for section in state.agenda.sections}
-    unknown = sorted(set(section_ids) - agenda_ids)
-    if unknown:
-        raise DeepResearchError(
-            "Research verification requested unknown follow-up section IDs: "
-            + ", ".join(unknown)
-        )
-    return section_ids
-
-
 def _state_requires_trace(state: ResearchRunState) -> bool:
     return bool(
         state.completed_stages
@@ -1204,21 +1538,32 @@ def _state_requires_trace(state: ResearchRunState) -> bool:
         or state.plan is not None
         or state.agenda is not None
         or state.section_briefs
-        or state.verification is not None
+        or state.verification_reports
         or state.final_payload is not None
         or state.run_spec_result is not None
     )
 
 
-def _verification_failure_message(state: ResearchRunState) -> str:
-    issues = state.verification.issues if state.verification else []
-    details = "; ".join(issue.message for issue in issues) or "unspecified"
-    if state.verification and state.verification.status == "follow_up":
-        return (
-            "Research verification requested another follow-up after the bounded "
-            f"follow-up cycle was exhausted: {details}"
-        )
+def _verification_failure_message(
+    report: VerificationReport,
+    *,
+    final: bool,
+) -> str:
+    details = "; ".join(
+        f"{issue.code}: {issue.message}" for issue in report.issues
+    ) or "unspecified"
+    if final:
+        return f"Final research verification failed: {details}"
     return f"Research verification failed: {details}"
+
+
+def _agent_limit(limits: Mapping[str, int], agent_name: str, label: str) -> int:
+    try:
+        return limits[agent_name]
+    except KeyError as exc:
+        raise DeepResearchError(
+            f"No {label} limit is configured for {agent_name}."
+        ) from exc
 
 
 def _default_state_path(topic: str) -> Path:
@@ -1258,6 +1603,8 @@ def _contract_trace_recorder(
 
 
 __all__ = [
+    "AGENT_MAX_ATTEMPTS",
+    "AGENT_MAX_TURNS",
     "build_compendium_with_agents",
     "recover_compendium_from_state",
 ]

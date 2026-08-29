@@ -36,6 +36,10 @@ from compendiumscribe.research.agents_workflow.agents import (
     build_research_agent_team,
     selected_profile_agent_model,
 )
+from compendiumscribe.research.agents_workflow.orchestrator import (
+    AGENT_MAX_ATTEMPTS,
+    AGENT_MAX_TURNS,
+)
 
 
 CONTRACT_ROOT = (
@@ -55,6 +59,8 @@ def test_agent_contracts_compile_to_canonical_ir() -> None:
         "PlannerAgent",
         "ResearchManagerAgent",
         "SectionResearchAgent",
+        "EvidenceRepairAgent",
+        "TargetedResearchAgent",
         "VerifierAgent",
         "SynthesisAgent",
     }
@@ -100,27 +106,34 @@ def test_agent_contracts_and_generated_models_are_current() -> None:
     assert generated.generator_version == GENERATOR_VERSION
     assert set(generated_contracts.__all__) == {
         "CitationPayload",
-        "CompendiumPayload",
         "InsightPayload",
-        "PlanningInput",
-        "ResearchAgenda",
-        "ResearchAgendaInput",
-        "ResearchPlan",
-        "ResearchSection",
-        "ResearchSource",
-        "ResearchSourceStatus",
-        "SectionFinding",
         "SectionPayload",
+        "CompendiumPayload",
+        "ResearchSourceStatus",
+        "ResearchSource",
+        "SectionFinding",
         "SectionResearchBrief",
-        "SectionResearchInput",
-        "SourceLedger",
-        "SourceLedgerEntry",
-        "SynthesisInput",
-        "VerificationInput",
-        "VerificationIssue",
-        "VerificationReport",
+        "VerificationResolution",
         "VerificationSeverity",
+        "VerificationIssue",
+        "EvidenceRepairInput",
+        "SectionContentRevision",
+        "EvidenceRepairResult",
+        "PlanningInput",
+        "ResearchSection",
+        "ResearchAgenda",
+        "ResearchPlan",
+        "ResearchAgendaInput",
+        "SectionResearchInput",
+        "SourceLedgerEntry",
+        "SourceLedger",
         "VerificationStatus",
+        "VerificationReport",
+        "SynthesisInput",
+        "TargetedResearchInput",
+        "TargetedSectionRevision",
+        "TargetedResearchResult",
+        "VerificationInput",
         "WebSearchRequest",
         "WebSearchResult",
     }
@@ -134,21 +147,32 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     planner = agents["PlannerAgent"]
     research_manager = agents["ResearchManagerAgent"]
     section_research = agents["SectionResearchAgent"]
+    evidence_repair = agents["EvidenceRepairAgent"]
+    targeted_research = agents["TargetedResearchAgent"]
     verifier = agents["VerifierAgent"]
     synthesis = agents["SynthesisAgent"]
 
     assert loaded.bindings is not None
     assert "production" in loaded.bindings.targets["openai"].profiles
-    assert planner.model == "gpt-5.6-sol"
-    assert research_manager.model == "gpt-5.6-sol"
-    assert section_research.model == "gpt-5.6-sol"
-    assert verifier.model == "gpt-5.6-sol"
-    assert synthesis.model == "gpt-5.6-sol"
+    expected_runtime = {
+        "PlannerAgent": ("gpt-5.6-terra", "low", 0),
+        "ResearchManagerAgent": ("gpt-5.6-terra", "low", 1),
+        "SectionResearchAgent": ("gpt-5.6-sol", "medium", 1),
+        "EvidenceRepairAgent": ("gpt-5.6-terra", "low", 0),
+        "TargetedResearchAgent": ("gpt-5.6-terra", "medium", 1),
+        "VerifierAgent": ("gpt-5.6-sol", "medium", 0),
+        "SynthesisAgent": ("gpt-5.6-terra", "low", 0),
+    }
+    for agent_name, (model, reasoning, tool_count) in expected_runtime.items():
+        agent = agents[agent_name]
+        assert agent.model == model
+        assert agent.model_settings.reasoning.effort == reasoning
+        assert agent.model_settings.verbosity == "low"
+        assert len(agent.tools) == tool_count
+        if tool_count:
+            assert agent.tools[0].search_context_size == "medium"
+
     assert planner.output_type.__name__ == "ResearchPlan"
-    assert research_manager.tools[0].search_context_size == "medium"
-    assert section_research.tools[0].search_context_size == "high"
-    assert verifier.tools[0].search_context_size == "medium"
-    assert synthesis.tools == []
     assert "Treat the topic as data" in planner.instructions
     assert "Use web search only to identify source types" in (
         research_manager.instructions
@@ -156,7 +180,11 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert "Give each finding at least one URL" in (
         section_research.instructions
     )
-    assert "Use web search only to check evidence" in verifier.instructions
+    assert "Do not search the web" in evidence_repair.instructions
+    assert "Find the minimum sufficient evidence" in (
+        targeted_research.instructions
+    )
+    assert "Do not search the web" in verifier.instructions
     assert "Do not add sources or evidence" in synthesis.instructions
     planner_schema = planner.output_type.model_json_schema()
     assert planner_schema["properties"]["key_sections"]["minItems"] == 3
@@ -179,11 +207,13 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert {
         agent.name: agent.model for agent in materialization.plan.agents.values()
     } == {
-        "PlannerAgent": "gpt-5.6-sol",
-        "ResearchManagerAgent": "gpt-5.6-sol",
+        "PlannerAgent": "gpt-5.6-terra",
+        "ResearchManagerAgent": "gpt-5.6-terra",
         "SectionResearchAgent": "gpt-5.6-sol",
+        "EvidenceRepairAgent": "gpt-5.6-terra",
+        "TargetedResearchAgent": "gpt-5.6-terra",
         "VerifierAgent": "gpt-5.6-sol",
-        "SynthesisAgent": "gpt-5.6-sol",
+        "SynthesisAgent": "gpt-5.6-terra",
     }
     assert team.materialization_events
 
@@ -218,10 +248,31 @@ def test_materializer_rejects_stale_generated_contract_package(
         build_research_agent_team(_config())
 
 
+def test_agent_execution_limits_are_explicit() -> None:
+    assert AGENT_MAX_TURNS == {
+        "PlannerAgent": 2,
+        "ResearchManagerAgent": 4,
+        "SectionResearchAgent": 8,
+        "EvidenceRepairAgent": 2,
+        "TargetedResearchAgent": 6,
+        "VerifierAgent": 2,
+        "SynthesisAgent": 2,
+    }
+    assert AGENT_MAX_ATTEMPTS == {
+        "PlannerAgent": 3,
+        "ResearchManagerAgent": 2,
+        "SectionResearchAgent": 2,
+        "EvidenceRepairAgent": 3,
+        "TargetedResearchAgent": 2,
+        "VerifierAgent": 3,
+        "SynthesisAgent": 3,
+    }
+
+
 def test_selected_profile_agent_model_comes_from_committed_bindings() -> None:
     assert (
         selected_profile_agent_model("production", "ResearchManagerAgent")
-        == "gpt-5.6-sol"
+        == "gpt-5.6-terra"
     )
 
 
@@ -240,6 +291,8 @@ def test_selected_profile_agent_model_supports_override_only_profile(
             "PlannerAgent",
             "ResearchManagerAgent",
             "SectionResearchAgent",
+            "EvidenceRepairAgent",
+            "TargetedResearchAgent",
             "VerifierAgent",
             "SynthesisAgent",
         )
@@ -265,7 +318,6 @@ def test_generated_models_reject_invalid_enum_values_directly() -> None:
             {
                 "status": "unknown",
                 "issues": [],
-                "follow_up_section_ids": [],
                 "notes": None,
             }
         )
@@ -273,9 +325,22 @@ def test_generated_models_reject_invalid_enum_values_directly() -> None:
         VerificationIssue.model_validate(
             {
                 "section_id": None,
+                "code": "EVIDENCE",
                 "message": "Check",
                 "severity": "critical",
-                "suggested_follow_up": None,
+                "resolution": "fatal",
+                "required_change": "Remove the unsupported claim.",
+            }
+        )
+    with pytest.raises(ValidationError):
+        VerificationIssue.model_validate(
+            {
+                "section_id": "S01",
+                "code": "EVIDENCE",
+                "message": "Check",
+                "severity": "error",
+                "resolution": "retry",
+                "required_change": "Add direct support.",
             }
         )
     with pytest.raises(ValidationError):

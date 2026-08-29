@@ -35,7 +35,7 @@ class CostPricing:
     resolved_model: str | None = None
     tier: str | None = None
     source_url: str | None = None
-    as_of_utc: str | None = None
+    last_updated_utc: str | None = None
 
     @property
     def token_pricing_configured(self) -> bool:
@@ -86,7 +86,7 @@ class CostPricing:
             resolved_model=self.resolved_model,
             tier=self.tier,
             source_url=self.source_url,
-            as_of_utc=self.as_of_utc,
+            last_updated_utc=self.last_updated_utc,
         )
 
 
@@ -431,7 +431,7 @@ class CostTracker:
             "resolved_model": pricing.resolved_model,
             "tier": pricing.tier,
             "source_url": pricing.source_url,
-            "as_of_utc": pricing.as_of_utc,
+            "last_updated_utc": pricing.last_updated_utc,
             "input_per_1m_usd": pricing.input_per_1m_usd,
             "cached_input_per_1m_usd": pricing.effective_cached_input_per_1m_usd,
             "output_per_1m_usd": pricing.output_per_1m_usd,

@@ -47,6 +47,8 @@ def _create_full_compendium() -> Compendium:
                 url=citation_url,
                 publisher="Python Software Foundation",
                 published_at="2024-10-01",
+                revision="3.13.0",
+                accessed_at="2024-12-16T11:30:00+00:00",
                 summary="Official documentation.",
             )
         ],
@@ -100,6 +102,8 @@ def test_round_trip_serialization():
     assert c1_new.url == c1_orig.url
     assert c1_new.publisher == c1_orig.publisher
     assert c1_new.published_at == c1_orig.published_at
+    assert c1_new.revision == c1_orig.revision
+    assert c1_new.accessed_at == c1_orig.accessed_at
     assert c1_new.summary == c1_orig.summary
 
 

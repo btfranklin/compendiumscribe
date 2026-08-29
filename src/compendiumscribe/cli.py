@@ -156,15 +156,15 @@ def _build_cost_tracker(
     base_path: Path,
     config: ResearchConfig,
 ) -> CostTracker:
-    default_model = selected_profile_agent_model(
+    baseline_model = selected_profile_agent_model(
         config.contract4agents_profile,
         "ResearchManagerAgent",
     )
-    default_pricing = _resolve_cost_pricing(default_model) or CostPricing(
+    default_pricing = _resolve_cost_pricing(baseline_model) or CostPricing(
         input_per_1m_usd=None,
         output_per_1m_usd=None,
         cached_input_per_1m_usd=None,
-        requested_model=default_model,
+        requested_model=baseline_model,
     )
     tracker = CostTracker(
         path=base_path.with_suffix(".costs.json"),
@@ -357,7 +357,12 @@ def library_validate(library_path: Path) -> None:
     required=True,
     help="Path to the .research.json sidecar state file.",
 )
-def recover(input_file: Path):
+@click.option(
+    "--allow-paid-follow-up",
+    is_flag=True,
+    help="Allow one saved targeted-research call for this recovery.",
+)
+def recover(input_file: Path, allow_paid_follow_up: bool):
     """Recover an Agents SDK research run from sidecar state."""
     if not input_file.exists():
         click.echo(f"Error: Recovery file {input_file} not found.", err=True)
@@ -396,18 +401,18 @@ def recover(input_file: Path):
             if state.cost_report_path
             else _base_path_from_state_path(input_file).with_suffix(".costs.json")
         )
-        default_model = selected_profile_agent_model(
+        baseline_model = selected_profile_agent_model(
             config.contract4agents_profile,
             "ResearchManagerAgent",
         )
         cost_tracker = CostTracker(
             path=cost_path,
-            pricing=_resolve_cost_pricing(default_model)
+            pricing=_resolve_cost_pricing(baseline_model)
             or CostPricing(
                 input_per_1m_usd=None,
                 output_per_1m_usd=None,
                 cached_input_per_1m_usd=None,
-                requested_model=default_model,
+                requested_model=baseline_model,
             ),
             pricing_resolver=_resolve_cost_pricing,
         )
@@ -418,6 +423,7 @@ def recover(input_file: Path):
             client=client,
             config=config,
             cost_tracker=cost_tracker,
+            allow_paid_follow_up=allow_paid_follow_up,
         )
 
         click.echo("Research completed! Writing outputs.")

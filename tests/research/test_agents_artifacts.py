@@ -46,6 +46,8 @@ def test_payload_maps_to_compendium() -> None:
                 "url": "https://example.com/citation",
                 "publisher": None,
                 "published_at": None,
+                "revision": "commit-123",
+                "accessed_at": "2026-08-29T12:00:00-07:00",
                 "summary": None,
             }
         ],
@@ -58,6 +60,10 @@ def test_payload_maps_to_compendium() -> None:
 
     assert compendium.overview == "Overview"
     assert compendium.sections[0].insights[0].citation_refs == ["C01"]
+    assert compendium.citations[0].revision == "commit-123"
+    assert compendium.citations[0].accessed_at == (
+        "2026-08-29T12:00:00-07:00"
+    )
 
 
 def test_source_ledger_deduplicates_urls_and_keeps_section_usage() -> None:
@@ -75,6 +81,8 @@ def test_source_ledger_deduplicates_urls_and_keeps_section_usage() -> None:
                 "status": "cited",
                 "publisher": None,
                 "published_at": None,
+                "revision": "commit-123",
+                "accessed_at": "2026-08-29T12:00:00-07:00",
                 "summary": None,
                 "credibility_notes": None,
             }
@@ -108,6 +116,47 @@ def test_source_ledger_deduplicates_urls_and_keeps_section_usage() -> None:
     assert ledger.entries[0].id == "C01"
     assert ledger.entries[0].section_ids == ["s1", "s2"]
     assert ledger.entries[0].status == "cited"
+    assert ledger.entries[0].revision == "commit-123"
+    assert ledger.entries[0].accessed_at == "2026-08-29T12:00:00-07:00"
+
+
+@pytest.mark.parametrize(
+    ("revision", "accessed_at"),
+    [
+        ("", None),
+        (None, "2026-08-29T12:00:00"),
+        (None, "bad-time"),
+    ],
+)
+def test_source_ledger_rejects_invalid_source_metadata(
+    revision: str | None,
+    accessed_at: str | None,
+) -> None:
+    brief = SectionResearchBrief(
+        section_id="s1",
+        title="One",
+        summary="Summary",
+        key_terms=[],
+        guiding_questions=[],
+        findings=[],
+        sources=[
+            {
+                "title": "Source",
+                "url": "https://example.com/report",
+                "status": "cited",
+                "publisher": None,
+                "published_at": None,
+                "revision": revision,
+                "accessed_at": accessed_at,
+                "summary": None,
+                "credibility_notes": None,
+            }
+        ],
+        open_questions=[],
+    )
+
+    with pytest.raises(ValueError):
+        build_source_ledger([brief])
 
 
 def test_normalize_url_promotes_scheme_less_hosts_to_https() -> None:
@@ -239,6 +288,8 @@ def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
                 url="https://example.com/first",
                 publisher="Example",
                 published_at=None,
+                revision="first-revision",
+                accessed_at="2026-08-29T18:00:00+00:00",
                 summary=None,
                 credibility_notes=None,
                 status="cited",
@@ -250,6 +301,8 @@ def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
                 url="https://example.com/second",
                 publisher="Example",
                 published_at=None,
+                revision="second-revision",
+                accessed_at="2026-08-29T19:00:00+00:00",
                 summary=None,
                 credibility_notes=None,
                 status="cited",
@@ -301,5 +354,9 @@ def test_prepare_compendium_payload_hydrates_citations_from_ledger() -> None:
     assert [citation.id for citation in prepared.citations] == ["C02", "C01"]
     assert prepared.citations[0].title == "Authoritative second source"
     assert prepared.citations[0].url == "https://example.com/second"
+    assert prepared.citations[0].revision == "second-revision"
+    assert prepared.citations[0].accessed_at == (
+        "2026-08-29T19:00:00+00:00"
+    )
     assert prepared.citations[1].title == "Authoritative first source"
     assert prepared.citations[1].url == "https://example.com/first"

@@ -10,16 +10,16 @@ Compendium Scribe is a Click-driven command line tool and library that builds so
 
 ## Features
 
-- **Agents SDK research workflow** - Runs planner, research manager, section researcher, verifier, and synthesis agents with structured Pydantic outputs.
+- **Agents SDK research workflow** - Runs planning, research, repair, verification, and synthesis agents with structured Pydantic outputs.
 - **Packaged agent definitions** - Materializes the complete Agents SDK graph from agent instructions, capability grants, output types, and runtime configuration.
 - **Generated portable models** - Generates the Pydantic models used by the application from the canonical contract types.
-- **Hosted web search where it belongs** - Enables web search for research manager, section research, and verification agents; planner and synthesis stay source-controlled.
+- **Bounded hosted web search** - Enables one medium-context search tool for the research manager, section researcher, and approved targeted researcher. The other agents cannot search.
 - **Stable renderer contract** - Final agent output is validated and passed through the existing `Compendium.from_payload()` shape.
 - **Citation ledger** - Deduplicates URLs, assigns citation IDs, tracks section usage, and rejects final citations that are not ledger-backed.
 - **Research trace evidence** - Records attempts, provider outcomes, token use, and exact trace checkpoints. It checks controls and workflow stages before rendering.
 - **Fail-closed capability evidence** - Rejects unsupported or unknown provider-hosted response calls and calls outside an agent's declared grants.
 - **Recoverable sidecars** - Writes research state, trace events, trace-closure evidence, usage, and cost data to separate local files.
-- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.6 Sol, GPT-5.5, and GPT-5.4 family token rates, long-context uplifts where applicable, and built-in tool call pricing when usage metadata is available.
+- **Local cost estimates** - Uses a checked-in pricing catalog for GPT-5.6 Sol, Terra, and Luna token rates, long-context rates, and built-in tool call prices. It warns when the catalog timestamp is missing, invalid, or more than 90 days old.
 - **Strict OKF output** - Writes typed, linked Markdown concepts with safe YAML frontmatter and deterministic validation.
 - **Compendium Library publishing** - Publishes self-contained OKF compendium trees into a movable, progressively disclosed OKF library.
 - **Re-rendering** - Ingests existing OKF or XML compendiums to generate display or interchange formats without re-running research.
@@ -45,11 +45,11 @@ Copy the example environment file, then add your OpenAI credentials:
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env`. The example selects the bundled production runtime profile and sets the maximum agent turns; both values may be adjusted for a deployment. Missing or unknown profile configuration is rejected before cost initialization or research begins.
+Set `OPENAI_API_KEY` in `.env`. The example selects the bundled production runtime profile. Missing or unknown profile configuration is rejected before cost initialization or research begins.
 
-The research workflow uses the OpenAI Agents SDK with hosted web search enabled on the manager, section, and verifier agents.
+The research workflow uses the OpenAI Agents SDK. The manager and section researcher can use hosted web search. A targeted researcher can use web search only after explicit approval during recovery.
 
-Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog currently covers GPT-5.6 Sol, GPT-5.5, and GPT-5.4 family token pricing, long-context rates where applicable, web search calls, and Responses API file search calls. If a model is missing from the catalog, token usage is still recorded and USD estimates are left unavailable.
+Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog covers GPT-5.6 Sol, Terra, and Luna token prices, long-context rates, web search calls, and Responses API file search calls. If a model is missing, token usage is still recorded and the USD estimate is unavailable. A stale catalog warning does not stop research because the report is an estimate.
 
 ### 3. Generate a compendium
 
@@ -136,10 +136,23 @@ Recovery resumes from the next incomplete stage in the sidecar state file:
 pdm run compendium recover --input report.research.json
 ```
 
-The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.okf/` when the stored format is OKF. Recovery states that request the removed `md` format are rejected rather than silently reinterpreted.
-Recovery appends to the matching normalized trace only when its workflow and runtime-configuration digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. SDK exceptions and invalid canonical outputs receive at most five total attempts; the fifth failure is terminal and later recovery will not spend another call. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery rechecks its required controls and workflow stages before citation hydration or rendering.
+The first verifier can request a repair that uses only the saved evidence. The
+workflow runs this repair without web search. If the verifier requires new web
+evidence, recovery stops before the search and saves the exact issue set. Review
+that state, then approve one targeted search call with:
 
-Progressed sidecars created by Compendium Scribe `v0.7.0` or earlier use incompatible evidence formats and cannot be resumed safely by newer builds. Restart those research runs from the original topic instead of copying, rewriting, or fabricating closure evidence.
+```bash
+pdm run compendium recover \
+  --input report.research.json \
+  --allow-paid-follow-up
+```
+
+Approval applies only to this recovery command. It is not saved in the state
+file. The workflow runs at most one final verifier. It does not start another
+repair cycle if final verification fails.
+
+The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.okf/` when the stored format is OKF. Recovery states that request the removed `md` format are rejected rather than silently reinterpreted.
+Recovery appends to the matching normalized trace only when its workflow and runtime-configuration digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. Paid search agents receive two total attempts. No-search agents receive three total attempts. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery rechecks its required controls and workflow stages before citation hydration or rendering.
 
 ### 6. Render formats from existing OKF or XML
 
@@ -204,6 +217,9 @@ Every non-index document contains safe YAML frontmatter with a non-empty
 `profile_version: "1"`. Section tags come from key terms; compendium tags are
 derived deterministically. Relative links connect insights to source concepts,
 so the same subtree works as a standalone export or inside a Library.
+Source concepts keep the source publication date in `published_at`. They keep a
+commit SHA, tag, or document version in `revision`, and a timezone-aware access
+time in `accessed_at`.
 
 The profile rejects `log.md`, symlinks, non-Markdown files, path traversal,
 colliding normalized IDs, malformed frontmatter, and broken required links.
