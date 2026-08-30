@@ -133,12 +133,12 @@ class StubAgentRunner:
             return EvidenceRepairResult(
                 revisions=[
                     {
-                        "section_id": brief["section_id"],
-                        "summary": f"Repaired {brief['summary']}",
-                        "findings": brief["findings"],
-                        "open_questions": brief["open_questions"],
+                        "section_id": task["brief"]["section_id"],
+                        "summary": f"Repaired {task['brief']['summary']}",
+                        "findings": task["brief"]["findings"],
+                        "open_questions": task["brief"]["open_questions"],
                     }
-                    for brief in payload["affected_briefs"]
+                    for task in payload["sections"]
                 ]
             )
         if name == "TargetedResearchAgent":
@@ -146,13 +146,13 @@ class StubAgentRunner:
             return TargetedResearchResult(
                 revisions=[
                     {
-                        "section_id": brief["section_id"],
-                        "summary": f"Researched {brief['summary']}",
-                        "findings": brief["findings"],
-                        "sources": brief["sources"],
-                        "open_questions": brief["open_questions"],
+                        "section_id": task["brief"]["section_id"],
+                        "summary": f"Researched {task['brief']['summary']}",
+                        "findings": task["brief"]["findings"],
+                        "sources": task["brief"]["sources"],
+                        "open_questions": task["brief"]["open_questions"],
                     }
-                    for brief in payload["affected_briefs"]
+                    for task in payload["sections"]
                 ]
             )
         if name == "VerifierAgent":
@@ -373,9 +373,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
         "gpt-5.6-terra",
     }
     assert state.run_spec_selection is not None
-    assert state.run_spec_selection["run_spec_id"] == (
-        "run_spec:CompendiumResearch"
-    )
+    assert state.run_spec_selection["run_spec_id"] == ("run_spec:CompendiumResearch")
     assert state.run_spec_selection["evidence_refs"]
     assert state.run_spec_result is not None
     assert state.run_spec_result["status"] == "passed"
@@ -444,9 +442,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     ]
     serialized_inputs = [json.loads(payload) for _, payload in runner.calls]
     assert all(set(payload) == {"request"} for payload in serialized_inputs)
-    assert serialized_inputs[0] == {
-        "request": {"topic": "Quantum Computing"}
-    }
+    assert serialized_inputs[0] == {"request": {"topic": "Quantum Computing"}}
     assert runner.turn_limits == [
         ("PlannerAgent", 2),
         ("ResearchManagerAgent", 4),
@@ -520,6 +516,18 @@ def test_no_search_repair_changes_only_affected_content(tmp_path: Path) -> None:
     assert names.count("EvidenceRepairAgent") == 1
     assert names.count("VerifierAgent") == 2
     assert "TargetedResearchAgent" not in names
+    repair_payload = next(
+        json.loads(payload)["request"]
+        for name, payload in runner.calls
+        if name == "EvidenceRepairAgent"
+    )
+    assert repair_payload["topic"] == "Quantum Computing Compendium"
+    assert repair_payload["plan"]["primary_objective"] == (
+        "Explain the field with sources."
+    )
+    assert len(repair_payload["agenda"]["sections"]) == 3
+    assert repair_payload["sections"][0]["brief"]["section_id"] == "applications"
+    assert repair_payload["sections"][0]["issues"][0]["resolution"] == "repair"
     state = load_state(state_path)
     repaired = state.section_briefs["applications"]
     assert repaired.summary.startswith("Repaired ")
@@ -531,9 +539,7 @@ def test_no_search_repair_changes_only_affected_content(tmp_path: Path) -> None:
 
 def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
     state_path = tmp_path / "report.research.json"
-    runner = StubAgentRunner(
-        verification_reports=[fatal_report()]
-    )
+    runner = StubAgentRunner(verification_reports=[fatal_report()])
 
     with pytest.raises(DeepResearchError, match="Source coverage failed"):
         build_compendium(
@@ -546,6 +552,30 @@ def test_verifier_hard_failure_preserves_state(tmp_path: Path) -> None:
     state = load_state(state_path)
     assert state.verification_reports[-1].status == "failed"
     assert state.final_payload is None
+
+
+def test_fatal_report_can_preserve_other_issue_resolutions(tmp_path: Path) -> None:
+    report = VerificationReport(
+        status="failed",
+        issues=[
+            fatal_report().issues[0],
+            repair_report("applications").issues[0],
+        ],
+        notes=None,
+    )
+    runner = StubAgentRunner(verification_reports=[report])
+
+    with pytest.raises(DeepResearchError, match="Source coverage failed"):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=runner,
+            state_path=tmp_path / "report.research.json",
+        )
+
+    names = [name for name, _ in runner.calls]
+    assert names.count("VerifierAgent") == 1
+    assert "EvidenceRepairAgent" not in names
 
 
 def test_warning_does_not_block_synthesis(tmp_path: Path) -> None:
@@ -588,9 +618,7 @@ def test_mixed_repair_and_research_stops_for_approval_then_recovers(
         ],
         notes=None,
     )
-    runner = StubAgentRunner(
-        verification_reports=[mixed_report]
-    )
+    runner = StubAgentRunner(verification_reports=[mixed_report])
 
     with pytest.raises(ResearchApprovalRequired, match="allow-paid-follow-up"):
         build_compendium(
@@ -628,6 +656,14 @@ def test_mixed_repair_and_research_stops_for_approval_then_recovers(
         "VerifierAgent",
         "SynthesisAgent",
     ]
+    targeted_payload = json.loads(recovery_runner.calls[0][1])["request"]
+    assert targeted_payload["topic"] == "Quantum Computing Compendium"
+    assert targeted_payload["plan"]["primary_objective"] == (
+        "Explain the field with sources."
+    )
+    assert len(targeted_payload["agenda"]["sections"]) == 3
+    assert targeted_payload["sections"][0]["brief"]["section_id"] == "applications"
+    assert targeted_payload["sections"][0]["issues"][0]["resolution"] == "research"
     finished = load_state(state_path)
     assert "targeted_research" in finished.completed_stages
     assert len(finished.verification_reports) == 2
@@ -645,9 +681,7 @@ def test_no_search_repair_rejects_a_new_source_url(
                 ]
             return output
 
-    runner = NewSourceRepairRunner(
-        verification_reports=[repair_report("applications")]
-    )
+    runner = NewSourceRepairRunner(verification_reports=[repair_report("applications")])
     with pytest.raises(ValueError, match="not in the prior brief"):
         build_compendium(
             "Quantum Computing",
@@ -716,11 +750,48 @@ def test_interrupted_targeted_research_recovers_with_next_attempt(
     assert state.attempt_counts[invocation_id] == 2
 
 
-def test_final_verification_is_terminal(tmp_path: Path) -> None:
+def test_targeted_research_updates_same_url_provenance(tmp_path: Path) -> None:
+    state_path = tmp_path / "report.research.json"
+    with pytest.raises(ResearchApprovalRequired):
+        build_compendium(
+            "Quantum Computing",
+            config=ResearchConfig(),
+            runner=StubAgentRunner(
+                verification_reports=[research_report("applications")]
+            ),
+            state_path=state_path,
+        )
+
+    class ProvenanceTargetedRunner(StubAgentRunner):
+        def _output_for(self, name: str, input_payload: str) -> Any:
+            output = super()._output_for(name, input_payload)
+            if name == "TargetedResearchAgent":
+                source = output.revisions[0].sources[0]
+                source.revision = "commit-123"
+                source.accessed_at = "2026-08-29T12:00:00-07:00"
+            return output
+
+    recover_compendium(
+        state_path,
+        config=ResearchConfig(),
+        runner=ProvenanceTargetedRunner(),
+        allow_paid_follow_up=True,
+    )
+
+    state = load_state(state_path)
+    source = state.section_briefs["applications"].sources[0]
+    assert source.revision == "commit-123"
+    assert source.accessed_at == "2026-08-29T12:00:00-07:00"
+
+
+def test_final_verification_preserves_repair_resolution_and_is_terminal(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "report.research.json"
     runner = StubAgentRunner(
         verification_reports=[
             repair_report("applications"),
-            fatal_report("Gap remains."),
+            repair_report("applications", message="Gap remains."),
         ]
     )
     with pytest.raises(DeepResearchError, match="Final research verification failed"):
@@ -728,12 +799,15 @@ def test_final_verification_is_terminal(tmp_path: Path) -> None:
             "Quantum Computing",
             config=ResearchConfig(),
             runner=runner,
-            state_path=tmp_path / "report.research.json",
+            state_path=state_path,
         )
     names = [name for name, _ in runner.calls]
     assert names.count("EvidenceRepairAgent") == 1
     assert names.count("VerifierAgent") == 2
     assert "SynthesisAgent" not in names
+    final_report = load_state(state_path).verification_reports[-1]
+    assert final_report.status == "follow_up"
+    assert final_report.issues[0].resolution == "repair"
 
 
 def test_recovery_resumes_from_next_incomplete_stage(tmp_path: Path) -> None:
@@ -1137,9 +1211,7 @@ def test_planner_web_search_records_violation_and_blocks_recovery(
             state_path=state_path,
         )
     trace = load_trace_jsonl(_contract_trace_path(state_path))
-    assert any(
-        event.event_type == "capability.undeclared" for event in trace.events
-    )
+    assert any(event.event_type == "capability.undeclared" for event in trace.events)
     assert trace.events[-1].event_type == "attempt.selected"
     assert trace.events[-1].data["outcome"] == "failed"
 
@@ -1186,9 +1258,7 @@ def test_unsupported_or_unknown_hosted_call_fails_closed(
 
     trace = load_trace_jsonl(_contract_trace_path(state_path))
     violation = next(
-        event
-        for event in trace.events
-        if event.event_type == "capability.undeclared"
+        event for event in trace.events if event.event_type == "capability.undeclared"
     )
     assert violation.event_type == "capability.undeclared"
     assert item_type in violation.data["reason"]
@@ -1214,9 +1284,7 @@ def test_host_dispatched_call_is_not_classified_as_hosted_capability(
                 max_turns=max_turns,
             )
             if agent.name == "PlannerAgent":
-                result.raw_result.raw_responses[0].output = [
-                    {"type": "function_call"}
-                ]
+                result.raw_result.raw_responses[0].output = [{"type": "function_call"}]
             return result
 
     state_path = tmp_path / "report.research.json"
@@ -1341,9 +1409,7 @@ def test_schema_invalid_attempt_remains_evidence_without_poisoning_retry(
         for event in invalid_trace.events
     )
     completed_state = load_state(state_path)
-    planner_stage = completed_state.agent_stages[
-        f"{completed_state.run_id}:planning"
-    ]
+    planner_stage = completed_state.agent_stages[f"{completed_state.run_id}:planning"]
     assert planner_stage.attempt_number == 2
     assert planner_stage.retry_of == f"{completed_state.run_id}:planning:attempt:1"
     assert completed_state.run_spec_result["status"] == "passed"
@@ -1416,9 +1482,9 @@ def test_schema_failure_fails_out_after_planner_attempt_limit(tmp_path: Path) ->
 
     assert len(runner.calls) == 3
     trace = load_trace_jsonl(_contract_trace_path(state_path))
-    assert sum(
-        event.event_type == "output.schema_failed" for event in trace.events
-    ) == 3
+    assert (
+        sum(event.event_type == "output.schema_failed" for event in trace.events) == 3
+    )
     selection = trace.events[-1]
     assert selection.event_type == "attempt.selected"
     assert selection.data["outcome"] == "failed"

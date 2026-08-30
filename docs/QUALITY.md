@@ -32,10 +32,10 @@ pdm build
 ## High-Value Invariants
 
 - Final synthesis may only cite IDs that exist as `cited` entries in `SourceLedger`, and final citation metadata must be hydrated from the ledger.
-- Only an `accepted` verification report may reach synthesis. Warnings use the `none` resolution and do not block publication. Repair and research issues must name a known section. Fatal issues stop the run.
+- Only an `accepted` verification report may reach synthesis. Verification stays within the approved topic, objective, plan, agenda, and guiding questions. Warnings use the `none` resolution and do not block publication. Repair and research issues must name a known section. Fatal issues stop the run.
 - The no-search repair may change only affected summaries, findings, and open questions. It must preserve section identity, guiding questions, and source records. It cannot cite a URL that was not in the affected brief.
 - Targeted web research requires the explicit `--allow-paid-follow-up` recovery flag. Approval is not saved. The host runs no more than one targeted-research call and one final verifier.
-- The source ledger is rebuilt and validated after each repair stage. A failed final verification cannot start another repair or research cycle.
+- The source ledger is rebuilt and validated after each repair stage. A final verification that identifies more work cannot start another repair or research cycle. Its issue resolutions remain accurate and are not changed to fatal only because the repair limit is exhausted.
 - Every observed provider-hosted response call must be supported and resolve to exactly one enabled materialization-plan grant; unsupported, unknown, ambiguous, and contradictory evidence is persisted and fails the run. Host-dispatched calls remain outside this adapter classification.
 - One OpenAI trace router is registered per process, while every logical research run uses a disposable session. Session close must release every owned router mapping even when the SDK omits its trace-end callback, while leaving that lifecycle incomplete. Every SDK invocation runs inside an explicit trace attempt. Invocation IDs stay stable across recovery; attempt IDs are unique and ordered, retries identify their predecessor, and exception-carried raw responses remain evidence. Paid search agents receive two total attempts. No-search agents receive three total attempts.
 - A successful SDK result must record response, provider-outcome, and usage evidence. An SDK exception must record all available response, outcome, and usage evidence. A zero-response path must leave a batch receipt. Each checkpoint must match the exact trace event count and prefix digest. Retryable failures receive two total attempts for paid search agents and three total attempts for no-search agents.
@@ -53,7 +53,7 @@ pdm build
 - Assurance bundles are not emitted without a concrete downstream consumer; this does not weaken the mandatory in-process control and run-spec assessments.
 - Pricing estimates are best-effort. Missing pricing must not fail a research run.
 - The pricing catalog records a full `last_updated_utc` timestamp. Its first use in a process warns when the timestamp is missing, invalid, or more than 90 elapsed days old. The warning does not stop research.
-- Source publication dates, revisions, and access times remain separate through payload, OKF, XML, HTML, and PDF output. `accessed_at` must be a timezone-aware ISO 8601 timestamp.
+- Source publication dates, revisions, and access times remain separate through payload, OKF, XML, HTML, and PDF output. `accessed_at` must be a timezone-aware ISO 8601 timestamp. Missing optional provenance does not block publication by itself. Approved targeted research can update provenance for an existing source URL.
 - Omitted `--library` must preserve requested standalone outputs; specified libraries must write only a validated nested OKF compendium subtree and deterministic indexes.
 - Standalone OKF writes and Library replacement candidates must validate before replacing existing content.
 - Compendium and Library links must be relative so subtrees and whole Libraries remain movable.

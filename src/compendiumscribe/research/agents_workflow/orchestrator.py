@@ -362,9 +362,7 @@ async def _continue_research_workflow(
     verification = state.verification_reports[-1]
     if verification.status != "accepted":
         _checkpoint_state(state_path, state, trace)
-        raise DeepResearchError(
-            _verification_failure_message(verification, final=True)
-        )
+        raise DeepResearchError(_verification_failure_message(verification, final=True))
 
     if state.final_payload is None:
         state.final_payload = await _run_structured_agent(
@@ -541,7 +539,7 @@ async def _verify(
     return await _run_structured_agent(
         "verification",
         "VerifierAgent",
-        _verification_input(state, final_verification=final_verification),
+        _verification_input(state),
         output_type=VerificationReport,
         config=config,
         runner=runner,
@@ -550,12 +548,8 @@ async def _verify(
         state_path=state_path,
         trace=trace,
         team=team,
-        invocation_key=(
-            "final_verification" if final_verification else "verification"
-        ),
-        artifact_validator=lambda report: _validate_verification_report(
-            state, report, final_verification=final_verification
-        ),
+        invocation_key=("final_verification" if final_verification else "verification"),
+        artifact_validator=lambda report: _validate_verification_report(state, report),
     )
 
 
@@ -586,13 +580,11 @@ def _evidence_repair_input(
     state: ResearchRunState,
     issues: list[VerificationIssue],
 ) -> dict[str, Any]:
-    section_ids = _issue_section_ids(issues)
     return {
-        "affected_briefs": [
-            state.section_briefs[section_id].model_dump(mode="json")
-            for section_id in section_ids
-        ],
-        "issues": [issue.model_dump(mode="json") for issue in issues],
+        "topic": state.title or state.topic,
+        "plan": state.plan.model_dump(mode="json"),
+        "agenda": state.agenda.model_dump(mode="json"),
+        "sections": _section_issue_sets(state, issues),
     }
 
 
@@ -600,22 +592,32 @@ def _targeted_research_input(
     state: ResearchRunState,
     issues: list[VerificationIssue],
 ) -> dict[str, Any]:
-    section_ids = _issue_section_ids(issues)
     return {
         "topic": state.title or state.topic,
-        "affected_briefs": [
-            state.section_briefs[section_id].model_dump(mode="json")
-            for section_id in section_ids
-        ],
-        "issues": [issue.model_dump(mode="json") for issue in issues],
+        "plan": state.plan.model_dump(mode="json"),
+        "agenda": state.agenda.model_dump(mode="json"),
+        "sections": _section_issue_sets(state, issues),
     }
 
 
-def _verification_input(
+def _section_issue_sets(
     state: ResearchRunState,
-    *,
-    final_verification: bool,
-) -> dict[str, Any]:
+    issues: list[VerificationIssue],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "brief": state.section_briefs[section_id].model_dump(mode="json"),
+            "issues": [
+                issue.model_dump(mode="json")
+                for issue in issues
+                if issue.section_id == section_id
+            ],
+        }
+        for section_id in _issue_section_ids(issues)
+    ]
+
+
+def _verification_input(state: ResearchRunState) -> dict[str, Any]:
     return {
         "topic": state.title or state.topic,
         "plan": state.plan.model_dump(mode="json"),
@@ -624,7 +626,6 @@ def _verification_input(
             brief.model_dump(mode="json") for brief in state.section_briefs.values()
         ],
         "source_ledger": state.ledger.model_dump(mode="json"),
-        "final_verification": final_verification,
     }
 
 
@@ -655,8 +656,6 @@ def _issue_section_ids(issues: list[VerificationIssue]) -> list[str]:
 def _validate_verification_report(
     state: ResearchRunState,
     report: VerificationReport,
-    *,
-    final_verification: bool,
 ) -> None:
     agenda_ids = {section.id for section in state.agenda.sections}
     codes = [issue.code for issue in report.issues]
@@ -678,13 +677,9 @@ def _validate_verification_report(
                 f"Verification error {issue.code} must use a blocking resolution."
             )
         if issue.resolution in {"repair", "research"} and not issue.section_id:
-            raise ValueError(
-                f"Verification issue {issue.code} must name a section."
-            )
+            raise ValueError(f"Verification issue {issue.code} must name a section.")
         if issue.resolution == "fatal" and issue.severity != "error":
-            raise ValueError(
-                f"Fatal verification issue {issue.code} must be an error."
-            )
+            raise ValueError(f"Fatal verification issue {issue.code} must be an error.")
 
     error_resolutions = {
         issue.resolution for issue in report.issues if issue.severity == "error"
@@ -698,12 +693,8 @@ def _validate_verification_report(
                 "research errors."
             )
     if report.status == "failed":
-        if "fatal" not in error_resolutions or error_resolutions != {"fatal"}:
-            raise ValueError(
-                "A failed verification report must contain fatal errors only."
-            )
-    if final_verification and report.status == "follow_up":
-        raise ValueError("Final verification cannot request another follow-up.")
+        if "fatal" not in error_resolutions:
+            raise ValueError("A failed verification report must contain a fatal error.")
 
 
 def _validate_evidence_repair(
@@ -837,17 +828,35 @@ def _merge_sources(
     returned: list[ResearchSource],
 ) -> list[ResearchSource]:
     merged = list(existing)
-    by_url = {normalize_url(source.url): source for source in existing}
+    positions = {
+        normalize_url(source.url): index for index, source in enumerate(existing)
+    }
     returned_urls: set[str] = set()
     for source in returned:
         normalized = normalize_url(source.url)
         if normalized in returned_urls:
             raise ValueError("Targeted research returned duplicate source URLs.")
         returned_urls.add(normalized)
-        if normalized not in by_url:
+        if normalized in positions:
+            position = positions[normalized]
+            merged[position] = _merge_source_provenance(merged[position], source)
+        else:
+            positions[normalized] = len(merged)
             merged.append(source)
-            by_url[normalized] = source
     return merged
+
+
+def _merge_source_provenance(
+    existing: ResearchSource,
+    returned: ResearchSource,
+) -> ResearchSource:
+    return existing.model_copy(
+        update={
+            field: value
+            for field in ("publisher", "published_at", "revision", "accessed_at")
+            if (value := getattr(returned, field)) is not None
+        }
+    )
 
 
 async def _run_structured_agent(
@@ -922,8 +931,7 @@ async def _run_structured_agent(
             phase=phase,
             status="in_progress",
             message=(
-                f"Running {agent_name}, attempt {attempt.number} of "
-                f"{max_attempts}."
+                f"Running {agent_name}, attempt {attempt.number} of {max_attempts}."
             ),
             metadata=progress_metadata,
         )
@@ -983,8 +991,7 @@ async def _run_structured_agent(
             attempt=attempt,
         )
         if any(
-            event.event_type == "capability.undeclared"
-            for event in response_events
+            event.event_type == "capability.undeclared" for event in response_events
         ):
             trace.record(
                 "agent.failed",
@@ -1505,9 +1512,7 @@ def _plan_snapshot(
         **config.runtime_snapshot(),
         "contract_digest": plan.contract_digest,
         "plan_digest": plan.plan_digest,
-        "resolved_models": {
-            agent.name: agent.model for agent in plan.agents.values()
-        },
+        "resolved_models": {agent.name: agent.model for agent in plan.agents.values()},
     }
 
 
@@ -1549,9 +1554,10 @@ def _verification_failure_message(
     *,
     final: bool,
 ) -> str:
-    details = "; ".join(
-        f"{issue.code}: {issue.message}" for issue in report.issues
-    ) or "unspecified"
+    details = (
+        "; ".join(f"{issue.code}: {issue.message}" for issue in report.issues)
+        or "unspecified"
+    )
     if final:
         return f"Final research verification failed: {details}"
     return f"Research verification failed: {details}"

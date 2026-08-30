@@ -113,6 +113,10 @@ type TargetedSectionRevision:
 type TargetedResearchResult:
     revisions: list[TargetedSectionRevision](min_items=1)
 
+type SectionIssueSet:
+    brief: SectionResearchBrief
+    issues: list[VerificationIssue](min_items=1)
+
 type InsightPayload:
     title: string(min_length=1)
     evidence: string(min_length=1)
@@ -165,13 +169,16 @@ type SectionResearchInput:
     agenda: ResearchAgenda
 
 type EvidenceRepairInput:
-    affected_briefs: list[SectionResearchBrief](min_items=1)
-    issues: list[VerificationIssue](min_items=1)
+    topic: string(min_length=1)
+    plan: ResearchPlan
+    agenda: ResearchAgenda
+    sections: list[SectionIssueSet](min_items=1)
 
 type TargetedResearchInput:
     topic: string(min_length=1)
-    affected_briefs: list[SectionResearchBrief](min_items=1)
-    issues: list[VerificationIssue](min_items=1)
+    plan: ResearchPlan
+    agenda: ResearchAgenda
+    sections: list[SectionIssueSet](min_items=1)
 
 type VerificationInput:
     topic: string(min_length=1)
@@ -179,7 +186,6 @@ type VerificationInput:
     agenda: ResearchAgenda
     section_briefs: list[SectionResearchBrief]
     source_ledger: SourceLedger
-    final_verification: boolean
 
 type SynthesisInput:
     topic: string(min_length=1)

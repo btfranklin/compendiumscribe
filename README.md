@@ -137,9 +137,12 @@ pdm run compendium recover --input report.research.json
 ```
 
 The first verifier can request a repair that uses only the saved evidence. The
-workflow runs this repair without web search. If the verifier requires new web
-evidence, recovery stops before the search and saves the exact issue set. Review
-that state, then approve one targeted search call with:
+workflow runs this repair without web search. Verification stays within the
+approved plan and can remove, narrow, qualify, or move an unsupported claim to
+the open questions. Missing optional source metadata does not block publication
+by itself. If an essential in-scope conclusion requires new web evidence,
+recovery stops before the search and saves the exact issue set. Review that
+state, then approve one targeted search call with:
 
 ```bash
 pdm run compendium recover \
@@ -149,7 +152,8 @@ pdm run compendium recover \
 
 Approval applies only to this recovery command. It is not saved in the state
 file. The workflow runs at most one final verifier. It does not start another
-repair cycle if final verification fails.
+repair cycle if final verification finds more work. The final report keeps the
+accurate repair, research, or fatal resolution even though the run stops.
 
 The recover command writes outputs using the same base path as the sidecar. For example, `report.research.json` renders to `report.okf/` when the stored format is OKF. Recovery states that request the removed `md` format are rejected rather than silently reinterpreted.
 Recovery appends to the matching normalized trace only when its workflow and runtime-configuration digests still match and its closure manifest attests the trace's exact ordered frontier. Any sidecar containing accepted workflow progress or attempted agent work requires a readable, nonempty trace and matching identity-bound trace-closure evidence; only a pristine `created` sidecar may start without them. Logical invocation IDs remain stable across recovery, while each retry receives a unique, ordered attempt ID linked to its predecessor. A prior attempt is sealed across processes; resumed provider execution always uses the next attempt identity. Paid search agents receive two total attempts. No-search agents receive three total attempts. Undeclared capabilities fail immediately without retry. Successful attempts are selected only after their host stage records are checkpointed. Every completed recovery rechecks its required controls and workflow stages before citation hydration or rendering.

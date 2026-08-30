@@ -15,10 +15,10 @@ Compendium Scribe has four main surfaces:
 2. `ResearchManagerAgent` uses hosted web search to produce a `ResearchAgenda`.
 3. `SectionResearchAgent` runs sequentially once per agenda section.
 4. The application builds a `SourceLedger` from section sources and finding URLs.
-5. `VerifierAgent` checks source coverage without web search. Warnings do not block publication. It classifies blocking issues as repair, research, or fatal.
-6. `EvidenceRepairAgent` can revise affected content from saved evidence. It cannot search, add sources, or change source metadata.
+5. `VerifierAgent` checks claims and required coverage against the approved topic, objective, plan, agenda, and guiding questions without web search. Warnings and optional metadata omissions do not block publication by themselves. It classifies blocking issues as repair, research, or fatal.
+6. `EvidenceRepairAgent` receives the approved scope and can remove, narrow, qualify, or move affected content to open questions. It cannot search, add sources, or change source metadata.
 7. If new evidence is required, the host saves the issue set and stops before search. `compendium recover --allow-paid-follow-up` authorizes one `TargetedResearchAgent` call for that saved issue set.
-8. The application rebuilds the ledger after repair. One final verifier either accepts the evidence or stops the run. Only an accepted report permits synthesis.
+8. The application rebuilds the ledger after repair. One final verifier either accepts the evidence or stops the run. It keeps accurate issue resolutions when the repair limit is exhausted. Only an accepted report permits synthesis.
 9. `SynthesisAgent` produces the final `CompendiumPayload` without web search.
 10. Before each root agent run, the materialization result validates the complete contract input and serializes it for the SDK runner.
 11. One Contract4Agents OpenAI trace router receives Agents SDK spans. Each research run opens a separate trace session. Each SDK call has an explicit attempt identity. The session records response checks, provider outcomes, and token use. It keeps raw responses from SDK exceptions. An unsupported, unknown, or ambiguous hosted call stops the run. Session close removes its router mappings. It does not create a false completion event when an SDK trace has no end event.
@@ -69,6 +69,7 @@ numeric suffix such as `-2`.
 - `research/agents_workflow/runner.py` is the SDK adapter boundary. Tests should stub `AgentRunner` instead of making live API calls.
 - `research/agents_workflow/source_ledger.py` owns URL normalization, deduplication, section usage, and citation IDs.
 - `published_at` stores the source publication date. `revision` stores a commit SHA, tag, or document version. `accessed_at` stores the timezone-aware access time.
+- Missing optional provenance does not block publication by itself. A missing revision can block only a claim that depends on the exact state of a mutable source. Approved targeted research can update provenance for an existing source URL.
 - `compendium/payload_parser.py` owns the public payload-to-model conversion. Keep this compatible with renderers unless intentionally changing the output contract.
 - `compendium/okf.py` owns the strict profile, deterministic rendering/parsing, validation, and staged standalone bundle writes.
 - `library/storage.py` owns nested OKF Library initialization, discovery, validation, import, subtree replacement, and index generation.
