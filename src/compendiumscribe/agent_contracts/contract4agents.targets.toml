@@ -6,31 +6,31 @@ adapter = "openai"
 [targets.openai.profiles.production]
 
 [targets.openai.profiles.production.agents.PlannerAgent]
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "low" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.ResearchManagerAgent]
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "low" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.SectionResearchAgent]
-model = "gpt-5.6-sol"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "medium" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.EvidenceRepairAgent]
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "low" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.TargetedResearchAgent]
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "medium" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.VerifierAgent]
-model = "gpt-5.6-sol"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "medium" }, verbosity = "low" }
 
 [targets.openai.profiles.production.agents.SynthesisAgent]
-model = "gpt-5.6-terra"
+model = "gpt-6-sol"
 options = { reasoning = { effort = "low" }, verbosity = "low" }
 
 [targets.openai.tools."research.web_search"]

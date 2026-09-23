@@ -49,7 +49,7 @@ Set `OPENAI_API_KEY` in `.env`. The example selects the bundled production runti
 
 The research workflow uses the OpenAI Agents SDK. The manager and section researcher can use hosted web search. A targeted researcher can use web search only after explicit approval during recovery.
 
-Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog covers GPT-5.6 Sol, Terra, and Luna token prices, long-context rates, web search calls, and Responses API file search calls. If a model is missing, token usage is still recorded and the USD estimate is unavailable. A stale catalog warning does not stop research because the report is an estimate.
+Cost reports use the local catalog in `src/compendiumscribe/research/data/pricing.standard.json`. The catalog covers GPT-5.6 Sol, Terra, and Luna and GPT-6 Astra, Sol, and Luna token prices, long-context rates, web search calls, and Responses API file search calls. If a model is missing, token usage is still recorded and the USD estimate is unavailable. A stale catalog warning does not stop research because the report is an estimate.
 
 ### 3. Generate a compendium
 

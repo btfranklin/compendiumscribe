@@ -1,6 +1,6 @@
 {
   "source_url": "https://developers.openai.com/api/docs/pricing",
-  "last_updated_utc": "2026-08-29T00:00:00Z",
+  "last_updated_utc": "2026-09-23T00:00:00Z",
   "tier": "standard",
   "tool_call_prices_per_1k_usd": {
     "web_search_call": 10.0,
@@ -42,6 +42,39 @@
         "input_per_1m_usd": 0.4,
         "cached_input_per_1m_usd": 0.04,
         "output_per_1m_usd": 1.8
+      }
+    },
+    "gpt-6-astra": {
+      "input_per_1m_usd": 10.0,
+      "cached_input_per_1m_usd": 1.0,
+      "output_per_1m_usd": 50.0,
+      "long_context": {
+        "threshold_tokens": 272000,
+        "input_per_1m_usd": 20.0,
+        "cached_input_per_1m_usd": 2.0,
+        "output_per_1m_usd": 75.0
+      }
+    },
+    "gpt-6-sol": {
+      "input_per_1m_usd": 2.0,
+      "cached_input_per_1m_usd": 0.2,
+      "output_per_1m_usd": 10.0,
+      "long_context": {
+        "threshold_tokens": 272000,
+        "input_per_1m_usd": 4.0,
+        "cached_input_per_1m_usd": 0.4,
+        "output_per_1m_usd": 15.0
+      }
+    },
+    "gpt-6-luna": {
+      "input_per_1m_usd": 0.1,
+      "cached_input_per_1m_usd": 0.01,
+      "output_per_1m_usd": 0.5,
+      "long_context": {
+        "threshold_tokens": 272000,
+        "input_per_1m_usd": 0.2,
+        "cached_input_per_1m_usd": 0.02,
+        "output_per_1m_usd": 0.75
       }
     }
   }

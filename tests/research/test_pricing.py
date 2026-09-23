@@ -25,15 +25,18 @@ def reset_pricing_catalog_state(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(pricing_module, "_utc_now", lambda: NOW_UTC)
 
 
-def test_standard_catalog_contains_only_gpt_5_6_models() -> None:
+def test_standard_catalog_contains_gpt_5_6_and_gpt_6_models() -> None:
     catalog = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
 
     assert set(catalog["models"]) == {
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
     }
-    assert catalog["last_updated_utc"] == "2026-08-29T00:00:00Z"
+    assert catalog["last_updated_utc"] == "2026-09-23T00:00:00Z"
 
 
 @pytest.mark.parametrize(
@@ -50,6 +53,9 @@ def test_standard_catalog_contains_only_gpt_5_6_models() -> None:
         ("gpt-5.6-sol", 4.0, 0.4, 20.0, 8.0, 0.8, 30.0),
         ("gpt-5.6-terra", 2.0, 0.2, 12.0, 4.0, 0.4, 18.0),
         ("gpt-5.6-luna", 0.2, 0.02, 1.2, 0.4, 0.04, 1.8),
+        ("gpt-6-astra", 10.0, 1.0, 50.0, 20.0, 2.0, 75.0),
+        ("gpt-6-sol", 2.0, 0.2, 10.0, 4.0, 0.4, 15.0),
+        ("gpt-6-luna", 0.1, 0.01, 0.5, 0.2, 0.02, 0.75),
     ],
 )
 def test_resolve_standard_model_pricing(
