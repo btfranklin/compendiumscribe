@@ -49,6 +49,7 @@ build-backend = "pdm.backend"
 dev = [
     "pytest>=9.1.1",
     "ruff>=0.15.18",
+    "twine>=7.0.0",
 ]
 
 [project.scripts]
@@ -72,6 +73,7 @@ excludes = ["tests/**"]
 [tool.pdm.scripts]
 test = "pytest"
 lint = "ruff check src tests"
+check-dist = {shell = "twine check --strict {args:dist}/*"}
 "contracts:validate" = "contract4agents check src/compendiumscribe/agent_contracts"
 "contracts:generate" = "contract4agents generate src/compendiumscribe/agent_contracts --target python --out src/compendiumscribe/agent_contracts/generated"
 "contracts:generated-check" = "contract4agents generate src/compendiumscribe/agent_contracts --target python --out src/compendiumscribe/agent_contracts/generated --check"
