@@ -9,12 +9,17 @@ permissions:
     contents: write
 
 jobs:
+    verify-release:
+        uses: ./.github/workflows/verify-release.yml
+
     draft-release:
+        needs: verify-release
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
               with:
                   fetch-depth: 0
+                  ref: ${{ github.sha }}
             - name: Generate release notes
               uses: btfranklin/release-notes-scribe@v0
               with:
