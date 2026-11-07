@@ -11,11 +11,7 @@ permissions:
     contents: read
 
 jobs:
-    verify-release:
-        uses: ./.github/workflows/verify-release.yml
-
     publish:
-        needs: verify-release
         runs-on: ubuntu-latest
         timeout-minutes: 30
         environment: release
@@ -25,10 +21,17 @@ jobs:
             id-token: write
 
         steps:
-            - name: Download verified package archives
-              uses: actions/download-artifact@v8
+            - uses: actions/checkout@v7
               with:
-                  name: verified-python-package
-                  path: dist
+                  fetch-depth: 0
+                  ref: ${{ github.event.release.tag_name }}
+            - uses: actions/setup-python@v7
+              with:
+                  python-version: "3.12"
+            - uses: pdm-project/setup-pdm@v4
+              with:
+                  python-version: "3.12"
+            - name: Build package from release tag
+              run: pdm build
             - name: Publish package with Trusted Publishing
               uses: pypa/gh-action-pypi-publish@release/v1

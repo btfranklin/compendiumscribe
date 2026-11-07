@@ -19,6 +19,11 @@ pdm build
 
 `pdm run contracts:check` validates the packaged contract project and fails when generated Pydantic models are stale. `pdm run pytest` is expected to run offline. Research workflow tests should use the `AgentRunner` adapter and stub outputs instead of live OpenAI calls.
 
+The reusable `Python package` workflow runs this aggregate check and strict
+Twine archive checks on Python 3.12, 3.13, and 3.14 for ordinary CI and before
+creating a tag-triggered draft release. Release publication only rebuilds and
+publishes the package from that tag; see [Releasing](RELEASING.md).
+
 ## Test Ownership
 
 - CLI behavior: `tests/test_cli.py`
