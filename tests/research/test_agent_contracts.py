@@ -159,13 +159,13 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert loaded.bindings is not None
     assert "production" in loaded.bindings.targets["openai"].profiles
     expected_runtime = {
-        "PlannerAgent": ("gpt-5.6-terra", "low", 0),
-        "ResearchManagerAgent": ("gpt-5.6-terra", "low", 1),
-        "SectionResearchAgent": ("gpt-5.6-sol", "medium", 1),
-        "EvidenceRepairAgent": ("gpt-5.6-terra", "low", 0),
-        "TargetedResearchAgent": ("gpt-5.6-terra", "medium", 1),
-        "VerifierAgent": ("gpt-5.6-sol", "medium", 0),
-        "SynthesisAgent": ("gpt-5.6-terra", "low", 0),
+        "PlannerAgent": ("gpt-6-sol", "low", 0),
+        "ResearchManagerAgent": ("gpt-6-sol", "low", 1),
+        "SectionResearchAgent": ("gpt-6-sol", "medium", 1),
+        "EvidenceRepairAgent": ("gpt-6-sol", "low", 0),
+        "TargetedResearchAgent": ("gpt-6-sol", "medium", 1),
+        "VerifierAgent": ("gpt-6-sol", "medium", 0),
+        "SynthesisAgent": ("gpt-6-sol", "low", 0),
     }
     for agent_name, (model, reasoning, tool_count) in expected_runtime.items():
         agent = agents[agent_name]
@@ -216,13 +216,13 @@ def test_materializer_builds_the_research_team_from_target_bindings() -> None:
     assert {
         agent.name: agent.model for agent in materialization.plan.agents.values()
     } == {
-        "PlannerAgent": "gpt-5.6-terra",
-        "ResearchManagerAgent": "gpt-5.6-terra",
-        "SectionResearchAgent": "gpt-5.6-sol",
-        "EvidenceRepairAgent": "gpt-5.6-terra",
-        "TargetedResearchAgent": "gpt-5.6-terra",
-        "VerifierAgent": "gpt-5.6-sol",
-        "SynthesisAgent": "gpt-5.6-terra",
+        "PlannerAgent": "gpt-6-sol",
+        "ResearchManagerAgent": "gpt-6-sol",
+        "SectionResearchAgent": "gpt-6-sol",
+        "EvidenceRepairAgent": "gpt-6-sol",
+        "TargetedResearchAgent": "gpt-6-sol",
+        "VerifierAgent": "gpt-6-sol",
+        "SynthesisAgent": "gpt-6-sol",
     }
     assert team.materialization_events
 
@@ -303,7 +303,7 @@ def test_agent_execution_limits_are_explicit() -> None:
 def test_selected_profile_agent_model_comes_from_committed_bindings() -> None:
     assert (
         selected_profile_agent_model("production", "ResearchManagerAgent")
-        == "gpt-5.6-terra"
+        == "gpt-6-sol"
     )
 
 

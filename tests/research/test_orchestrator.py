@@ -369,8 +369,7 @@ def test_build_compendium_with_stub_runner(tmp_path: Path) -> None:
     assert state.config_snapshot["contract_digest"].startswith("sha256:")
     assert state.config_snapshot["plan_digest"].startswith("sha256:")
     assert set(state.config_snapshot["resolved_models"].values()) == {
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
+        "gpt-6-sol",
     }
     assert state.run_spec_selection is not None
     assert state.run_spec_selection["run_spec_id"] == ("run_spec:CompendiumResearch")
@@ -1585,8 +1584,7 @@ def test_agent_workflow_records_costs_and_progress(tmp_path: Path) -> None:
     costs = json.loads((tmp_path / "report.costs.json").read_text())
     assert len(costs["steps"]) == 7
     assert {step["model"] for step in costs["steps"]} == {
-        "gpt-5.6-sol",
-        "gpt-5.6-terra",
+        "gpt-6-sol",
     }
     assert costs["totals"]["input_tokens"] == 700
     assert costs["totals"]["tool_calls"]["web_search_call"] == 4
